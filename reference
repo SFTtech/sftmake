@@ -1,0 +1,339 @@
+[SFT]make reference manual / full documentation
+
+v0/2013-01-17-00 -> 2013-01-20
+
+released under the GPLv3 or later
+(c) 2013 mic_e,jj
+
+0	Configuration variables
+
+0.0	each configuration variable is an array of values
+	values consist of a mode, a condition (possibly non-existant), and a string (the actual value).
+	the actual value is evaluated always at assignment time; the condition at reading time.
+0.0.0	undefined variables are considered 0-element when read
+0.0.1	when assigning values, the assigned values are _always_ appended to the end of the array, even if it a 'removal', such as -=.
+0.0.2	when reading a variable, all of its values are taken into account, from left to right:
+	result={}
+	if the condition is met (or empty):
+		if mode = ':=':
+			result={}
+		if mode = '-=':
+			remove value from result
+		if mode = '+=':
+			if mode not in result:
+				append mode to end of result
+	return result
+		
+0.1	the set of configuration variables is pre-defined.
+
+0.2	each configuration variables has two pre-defined, unchangable boolean properties:
+0.2.0		- does it contain paths? (examples: use, fname)
+			if yes, then on assignment all values that do not start with '/' or '^', i.e. full relative paths, are converted to paths starting with '^'.
+			for that purpose, the path is interpreted as relative to the current working directory of sftmake (i.e. where the conffile was found)
+			a leading '^' is interpreted as the root directory of the project (where the sftmake binary resides)
+			paths such as '^/../foo' are allowed
+0.2.1		- does it allow only a single value (non-array)?
+			if yes, on reading, only the rightmost value of result is returned in the end, instead of all values (see 0.0.2)
+
+0.3	a set of configuration variables exists for each
+0.3.0		- directory
+0.3.1		- target
+0.3.2		- source file
+0.3.3		- source file per target (created from 0.3.1, overlain with 0.3.2)
+
+	usually, but not neccesarily, all sets are roughly equal - especially source file per target configuration is seldomly changed (maybe for suppressing a warning in the CFLAGS)
+
+0.4	configuration variables are in [a-z]+, user-defined variables must be in [_A-Z][a-zA-Z0-9_]+
+0.4.0	user-defined variables that start with a '_' are considered standard variables;
+0.4.1	user-defined variables that don't are considered path variables (see 0.2.0)
+TODO	points 0.4.0, 0.4.1 are not very nice, but avoid complexity - improve if possible!
+TODO	do we need user-defined vars at all?
+
+0.5	conditions can be inserted after variable names
+0.5.0	!(condition):		negates
+0.5.1	condition0,condition1:	and
+0.5.2	condition0;condition1:	or
+0.5.3	var==val	(val is evaluated at assignment time)
+0.5.4	var!=val	(val is evaluated at assignment time)
+0.5.5	var=~regex	(regex is not evaluated at all, taken as literal)
+0.5.6.0 Example:
+	cflags[mode==rls]+=-flto=4,-O3
+	cflags[mode==dbg]+=-g
+
+1	Assignment syntax and semanticcs
+
+1.0	In a single assignment, any number of configuration variables can be assigned any number of values.
+
+1.1	assignment syntax is given in EBNF.
+
+1.1.0	<assignment>	::= <vars> <vals>
+
+1.1.1	<vars>		::= {<paddedvarname> [<paddedop>] ','} <paddedvarname> <paddedop>
+1.1.2	<vals>		::= <paddedval> {',' <paddedval>}
+
+1.1.3	<paddedvarname> ::= {' ' | \t} <varname> {' ' | \t}
+1.1.4	<paddedop	::= {' ' | \t} <op> {' ' | \t}
+1.1.5	<paddedval>	::= {' ' | \t} <val> {' ' | \t}
+
+1.1.6	<op>		::= '+=' | '=' | ':=' | '-='
+1.1.7	<varname>	::= (regex) [a-zA-Z0-9_]+
+1.1.8	<val>		::= (for the syntax of a value, see the description. basically, everything except a comma is allowed). leading and trailing spaces and tabs are ignored
+
+1.2	this is roughly equivalent to this non-formal, easier-to-read syntax:
+	${var0}${op0},${var1}${op1},${var2}${op2},...,${varn}${opn}${val0},${val1},...,${valm}
+
+1.3	Semantics of the operators:
+1.3.0	If a var is missing an operator (allowed for all but the last var in <vars>, it has the same operator as the next var.
+1.3.1	If a var has the operator '+=', all of the vals are appended to the var
+1.3.2	If a var has the operator '=' or ':=', the var is cleared, and all of the vals are evaluated and appended to it
+
+1.4	Example assignments
+1.4.0	lflags+=,cxxflags,ccflags=-Wall,-Wextra
+
+	Semantics:
+		'-Wall' and '-Wextra' are appended to lflags,
+		'-Wall' and '-Wextra' are set as the only values of ccflags and cxxflags
+1.4.1	use:=bar.cpp
+	use+=foo.cpp
+	Semantics:
+		First, use is set to '^/folder/bar.cpp'
+		Then, use is appended with '^/folder/foo.cpp' and is now '^/folder/bar.cpp','^/folder/foo.cpp'
+
+1.5	Semantics of <val>
+1.5.0	all readable characters except ',' (which is used as separator) are allowed.
+1.5.1	this includes space, but excludes tabs or newlines.
+1.5.2	val is interpreted literally, with the following exceptions:
+1.5.3	'\' starts an escape sequence. the following escape sequences are defined. undefined escape sequences raise a fatal error.
+
+		escape seq		represents
+1.5.3.0		\[\:,()[]{}]		the respective charactes
+1.5.3.1		\_			space
+1.5.3.2		\uXXXX (hex)		unicode character XXXX
+1.5.3.3		\xXX (hex)		ascii character XX
+1.5.3.4		\{varname}		the content of the varname cfg variable
+1.5.3.5		\(funname(arg0,arg1))	the return value of a function, e.g. \(date) -> '2013-01-17-10:01' or \(shell factor 1337) -> '1337: 7 191'
+TODO					this way, it's impossible to 'split' a variable in a clean way, since functions can only evaluate to one single val.
+
+1.5.4	val is fully evaluated at assignment time
+
+2	Config parsing/generation on sftmake executable invocation
+
+2.0	The first source for config variables are the default values, defined in the sftmake program.
+	If ^/sm doesn't exist (the configuration file for the project root directory),
+	it is created and initialized with these values.
+	
+
+	e.g.
+		c		:=	gcc
+		modelines	:=	yes
+		cflags		:=	-Wall -Wextra
+
+2.1	Then, the global config file, ^/sm, is parsed
+	It contains exactly one assignment per line
+	Lines starting with '#', '//', ';' are ignored as comments 
+	All assignments are applied to config(^)
+
+2.2	Then, argv is parsed
+	Each element of argv can be a single assignment line, which is applied to config(^)
+	Elements of argv that are not valid assignments are considered target specifications
+	If one or more target specifications are given, the build list is set to these instead of it's existing value
+	Adding targets to the build list instead of replacing it can be accomplished by a
+		./sm build+=foo,libbar
+	instead of
+		./sm foo libbar
+	or
+		./sm build:=foo,libbar
+
+2.3	Then, sftmake recursively delves into all folders.
+	When in a folder ^/bar, on entering a folder foo, config(^/bar) is cloned to config(^/bar/foo)
+	config(^/bar/foo) is set as the current default config
+	if a file ^/bar/foo/sm exists, it is applied to config(^/bar/foo) (for details, see 2.1)
+	all target description files are read. the filename is <targetname>.sm, where targetname must be in [a-z0-9_]+.
+	If other .sm files exist, a fatal error is raised.
+	If modelines is yes, all source files in the directory are scanned for sftmake modelines at their beginning and end.
+
+2.4	When reading a target description file ^/foo/bar.sm,
+	config(^/foo) is cloned to config(^/foo/bar)
+	^/foo/bar is added to the targets variable
+	if autobuild is yes, ^/foo/bar is added to the build variable
+	and all assignments are read to the new configuration
+
+2.5	Modelines have the syntax {<assignment> ':'} <assignment>.
+	When reading the modeline of the file ^/foo/bar.cpp,
+	config(^/foo) is cloned to config(^/foo/bar.cpp),
+	and the assignments are applied to the new configuration.
+
+2.6	Merging of source file and target configurations
+	For each source file configuration
+		For each target in 'usedby'
+			Add source filename to config(target).use
+			Add libs to config(target).libs
+	
+	For each target configuration ^/foo/bar
+		For each sourcefile in config(^/foo/bar).use ^/foo/asdf.cpp
+			clone target configuration to ^/foo/bar^/foo/asdf.cpp
+			apply changes from ^/foo/asdf.cpp to the new configuration
+			this is now the source-for-target configuration, which is used for compiling the sourcefile for later linking to this target
+
+3	Config variables
+	
+	name			possible values	[default]	description
+
+3.0	globally relevant variables
+
+3.0.0	createsymlinks		yes,no,ifcfg	ifcfg		yes: auto-generate symlinks to sftmake binary in all subfolders
+								ifcfg: only generate symlinks iff a sm file exists in the subfolder
+3.0.1	dir			(path)		^/		path where sftmake has been invoked from			
+3.0.2	loglevel		(int)		2		decides about amount of console output
+3.0.3	modelines		yes,no		yes		yes: scan source files for sftmake modelines (see 3.4)
+3.0.4	c			(string)	gcc		compiler name
+3.0.5	ar			(string)	ar		archiver name
+3.0.6	srcsuffix		(string)*	c		source file suffix
+3.0.7	ignore			(path-regex)*	.*/\..*		sftmake ignores files and folders that match one of the regexes
+3.0.8	cflags			(string)*
+3.0.9	lflags			(string)*
+3.0.10	ignfile			(path)*		^/.gitignore	the names of all built executables and ^/.objs are written there
+3.0.11	autobuild		yes,no		yes		yes:if a target is added, it is also added to build
+3.0.12	arch			(string)			the name of the target architecture (for cross-compiling)
+								e.g. i486-mingw32 for windows
+3.0.13	exesuffix		(string)			e.g. exe for windows architectures
+3.0.14	asuffix			(string)	a		e.g. lib for windows architectures
+3.0.15	sosuffix		(string)	so		e.g. dll for windows architectures
+3.0.16	sosuffixappendversion	no|full|min|maj	full		no: do not append version ("foo.dll"), common on windows
+								maj: append only major version ("file.so.1")
+								min: append only to major/minor version ("file.so.1.13")
+								full: append full version ("foo.so.1.33.7"), common on POSIX
+3.0.17	autodepends		no|MD|...	MD		no: depends is not automatically set
+								MD: dependencies for source files are automatically set,
+									using the compiler flag -MD and the generated .d file in .objs
+								others: as implemented in sftmake.
+3.0.18	majorversion		(int)		0		major version
+3.0.19	minorversion		(int)		0		minor version
+3.0.20	microversion		(int)		0		micro version
+TODO	generate 3.0.17-3.0.19 from git?
+3.0.21	objdir			(string)	^/.objs		all object files are generated here
+3.0.22	conftype		dir|target|src|	dir		type of the current config. is automatically set,
+				srcfortarget			can't be written manually.
+
+3.1	per-target variables (very common in target files)
+
+3.1.0	use			(path)*				list of source files that are used to create this target
+3.1.1	libs			(string)*			list of linker libraries (without the leading '-l')
+3.1.2	depends			(path)*				files that this file depends upon. note that at least for c/c++,
+								autodepends should be used instead
+3.1.3	type			exe|a|so	exe		exe: the target will be an executable with a main method
+								a: the target will be an archive (static library)
+								so: the target will be a shared object (dynamic library)
+3.1.4	fname			(path)				if empty: targetname.$suffix is used
+								else: the specified name is used (plus $suffix, if required)
+3.1.5	prebuild		(string)*			instructions to run before invoking the linker
+3.1.6	postbuild		(string)*			instructions to run after invoking the linker (e.g. 'strip $OBJ')
+
+3.2	per-sourcefile variables (very common in source file modelines)
+
+3.2.0	usedby			(path)*				list of targets that use this sourcefile
+3.2.1	libs			(string)*			see 3.1.1
+3.2.2	depends			(path)*				see 3.1.2
+
+3.3	global variables: not configuration-specific (e.g. implemented as 'static' members)
+
+3.3.0	targets			(path)*				list of all targets
+3.3.1	build			(path)*				list of all targets that should be built (subset of targets)
+3.3.2	jobs			(int)		1		number of threads to use for building
+								0: use number of cpus
+3.3.3	configs			(path)*				list of all configs
+
+4	Available functions
+
+All functions are in [a-z]+.
+
+4.0	globally relevant
+
+	function header		example arguments	example result			returns
+
+4.0.0	date(formatstring)				2013-01-19_07:54:44		current date
+4.0.2	relunixpath(arg)	^/foo/main.cpp		foo/main.cpp			relative path (starts with neither / nor ^, relative to ^)
+4.0.3	absunixpath(arg)	^/asdf.c		/home/mic/proj/smtest/asdf.c	absolute path (starts with /)
+4.0.4	sftmakepath(arg)	/home/mic/proj/smtest/a	^/a				sftmake path (starts with ^)
+4.0.5	shell(inst)		test -f a.c && echo yes	yes				the stdandard output of the command 'inst', run with /bin/sh
+											don't use this to run build commands, just to gather information
+4.0.6	var(varname)		cflags			-flto=4 -pedantic		variable evaluation
+4.0.7	readableencode()	
+
+4.1	relevant for targets and source-for-target
+	when called for other configurations, or when the results are not yet been evaluated, fatal errors are raised
+
+4.1.0	oname(configname)	^/foo/libsftcall	^/foo/libsftcall.so.1.33.7	returns the filename of the compiler output file (-o \(oname))
+				^/bar.cpp		^/.objdir/aweoifjsdjklxvcsd.o
+4.2	relevant for sources
+	when called for other configurations, or when the results are not yet been evaluated, fatal errors are raised
+
+4.2.0	srcname(configname)				^/foo/bar.cpp			returns the filename of the source
+
+5	Building preparation
+
+5.0	status overview:
+		build contains a list of all targets that must be built
+		for each target, a target configuration exists, containing a list of source files in use, and a list of dependencies in depends
+		for each sourcefile, a source-for-target configuration exists, containing a list of dependencies in depends
+
+5.1	for each target in build:
+		for each targetsourcefile in conf(target).use:
+			current_config = conf(targetsourcefile)
+			compiler_invocation = \{prebuild} \{c} \{cflags} -c \(srcname) -o $OBJ \{postbuild}		<<< insert into final structure for phase 6
+			add sourcefile path itself to depends
+			switch(autodepends) {
+			case MD:
+				if file \{oname}.d exists, parse it and add values to depends
+				compiler_invocation += -MD
+				break;
+			}
+			oname=\{objdir}/\(srcname)-\(readableencode \{compiler_invocation})
+
+			dobuild = false											<<< insert into final structure for phase 6
+			for each file in depends: 
+				if \(mtime(file)) > \(mtime(\(oname)) || !oname.exists()):
+					dobuild = true
+					break
+
+			// if we would be using GNU Make to do the actual building, the full recipe would be:
+			//
+			// oname.o: depends
+			//	compiler_invocation
+
+			conf(target).objects += oname.o
+
+		compiler_invocation = \{prebuild}; \{c} \{cflags} \{lflags} \{libs} [type-specific flags] \{objects} -o \(oname); \{postbuild}
+		current_config = conf(target)
+		dobuild = false											<<< insert into final structure for phase 6
+		for each file in depends: (usually, this array should be empty)
+			if \(mtime(file)) > \(mtime(oname) || !oname.exists()):
+				dobuild = true
+				break
+		for each obj in objects:
+			if conf(obj).dobuild
+				dobuild = true
+				break
+
+6	Building
+	
+6.0	launch \{jobs} concurrent threads
+
+	in each thread:
+	while(1):
+		check datastructure for buildable objects/targets
+		build the object/target
+
+6.1	an object is always buildable
+6.2	an target is buildable iff all objects for that target have been built. the target has a list of objects that need building.
+
+6.3	when building an object:
+	system(\{compiler_invocation}), pass \{oname} as environment variable $OBJ
+	for each target that uses obj:
+		in the target's list of objects that need building, remove obj
+
+6.4	when building a target:
+	system(\{compiler_invocation})
+	add targetfilename to .sm-generated (for 'make clean') and all files in \{ignfile}
+
+TODO	virtual targets (clean, info, dumpcfg, tests - how to implement?) idea: global var smmode = build|clean|info|dumpcfg
