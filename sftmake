@@ -11,17 +11,29 @@
 # (c) 2012 Michael Ensslin
 # (c) 2012 Jonas Jelten
 
+import os
+
 #dict that contains all configurations. key = configpath, value = config object
 configs = {}
 
+#represents one configuration
 class conf:
-	
+	pass
 
 #
 # main method etc
 #
 def main():	
 	print("lol nothin here yet")
+	for directory in os.walk("."):
+		print(directory)
 
 if __name__ == '__main__':
 	main()
+
+
+class Struct:
+	def __init__(self):
+		pass
+
+
