@@ -12,21 +12,25 @@
 # (c) 2012 Jonas Jelten
 
 # procedure:
-#
-# the0JJ LIED! and I can prove it! maybe it's even in the git history
-# scan all files for modelines
-# and scan for config files
-# create dependency tree
-# build each object
-# create libraries
-# create executables
+# 0) do magic things
+# 1) do more magic things
 
+import os
 
 #
 # main method etc
 #
 def main():	
 	print("lol nothin here yet")
+	for directory in os.walk("."):
+		print(directory)
 
 if __name__ == '__main__':
 	main()
+
+
+class Struct:
+	def __init__(self):
+		pass
+
+
