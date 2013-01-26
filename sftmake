@@ -8,32 +8,153 @@
 # You may request a version of the program that comes with
 # the WARRANTY that it will destroy your distribution via service@sft.mx
 #
-# (c) 2012 Michael Ensslin
-# (c) 2012 Jonas Jelten
+# (c) 2013 Michael Ensslin
+# (c) 2013 Jonas Jelten
+# (c) 2013 Andre Kupka
 
 import os
 
-#dict that contains all configurations. key = configpath, value = config object
-configs = {}
+#dict that contains all variables. key = varname, value = var object
+conf = {}
 
-#represents one configuration
-class conf:
+current_confs=['default', 'argv', '^', '^/niggers', '^/niggers/nigger']
+
+def findsmroot():
+	path = '.'
+	while(not os.path.isfile(path + "/smfile")):
+		newpath = os.path.absdir(path + '/..')
+		if(path == newpath):
+			raise Exception("No smfile found")
+		path = newpath
+	return path
+
+smroot = findsmroot()
+
+#functions for path conversions
+
+#convert path to absolute POSIX path
+def abspath(path, relto = '^'):
+	#if the path is empty, fak u
+	if(not path):
+		raise Exception('Path must not be empty')
+	#if the path starts with '/', it's already absolute
+	if(path[0] == '/'):
+		return path
+	#if the path starts with '^', we need to replace that with smroot
+	elif(path[0] == '^'):
+		return smroot + path[1:]
+	#else, the path is relative... to relto
+	else:
+		if(relto[0] != '^'):
+			raise Exception('relto must start with ^')
+		return abspath(relto) + '/' + path
+
+#convert path to sftmake path
+def smpath(path, relto = '^'):
+	#if the path is empty, fak u
+	if(not path):
+		raise Exception("Path must not be empty")
+	#if the path starts with '^', it's already an sftmake path
+	if(path[0] == '^'):
+		return path
+	#else, get relative path
+	if(path[0] != '/'):
+		path = abspath(path, relto)
+	path = os.path.relpath(path, smroot)
+	if(path == '.'):
+		return '^'
+	else:
+		return '^/' + path
+
+#represents one variable condition (abstract base class? factory class? lol?)
+class cond:
+	def create(condstr):
+		#read constr until operator sign
+		#from that operator, decide which class to produce
+		#give varname and condstr to the constructor of that class
+		#return that class
+	
+	#must be implemented
+	def istrue(self):
+		raise NotImplementedError()
+
+	class equals(cond):
+		def __init__(self, varname, val):
+			self.val = val
+			self.varname = varname
+
+		def istrue():
+			return (conf.get(varname) == val)
+
+MODE_APPEND = 0
+MODE_SET = 1
+MODE_REMOVE = 2
+
+#represents one variable value
+class val:
+	def __init__(self, string, mode, conditions):
+		self.string = string
+		self.mode = mode
+		self.conditions = conditions
+	
+	def cond_matched(self):
+		if (conditions != None):
+			for c in conditions:
+				if not c.istrue():
+					return False
+		return True
+	
+	def get(self):
+		return (mode, string)
+
+from collections import OrderedDict
+
+class var:
+	vals = {'default', []}
+
+	def __init__(self, path = False):
+		self.path = path
+
+	def add(self, val, conf):
+		if(path):
+			val = toabspath(val)
+
+		if(conf not in vals):
+			vals[conf] = [val]
+		else:
+			vals[conf].append(val)
+
+	def get(self, confs, depends = []):
+		#we just need OrderedSet functionality, so we set val = None for all keys
+		result = OrderedDict()
+		for conf in confs:
+			for val in vals.get(conf, []):
+				if(val.cond_matched()):
+					(mode, string) = val.get()
+					if(mode == MODE_APPEND):
+						if(string in result):
+							result.pop(string)
+						result[string] = None
+					elif(mode == MODE_SET):
+						result.clear()
+						result[string] = None
+					elif(mode == MODE_REMOVE):
+						if(string in result):
+							result.pop(string)
+		
+		if(single):
+			try:
+				return next(reversed(result))
+			except:
+				raise Exception("No value")
+		else:
+			return [x for x in result]
+
+
+def main():
 	pass
 
-#
-# main method etc
-#
-def main():	
-	print("lol nothin here yet")
-	for directory in os.walk("."):
-		print(directory)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
 	main()
-
-
-class Struct:
-	def __init__(self):
-		pass
 
 

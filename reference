@@ -128,7 +128,15 @@ TODO					this way, it's impossible to 'split' a variable in a clean way, since f
 		modelines	:=	yes
 		cflags		:=	-Wall -Wextra
 
-2.1	Then, the global config file, ^/sm, is parsed
+
+#TODO integrate
+^/smfile
+^/foo/bar/dir.smfile
+^/foo/neger.target.smfile
+^/foo/neger.cpp.smfile
+#end TODO
+
+2.1	Then, the global config file, ^/smfile, is parsed
 	It contains exactly one assignment per line
 	Lines starting with '#', '//', ';' are ignored as comments 
 	All assignments are applied to config(^)
