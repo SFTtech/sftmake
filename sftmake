@@ -11,16 +11,11 @@
 # (c) 2012 Michael Ensslin
 # (c) 2012 Jonas Jelten
 
-# procedure:
-#
-# the0JJ LIED! and I can prove it! maybe it's even in the git history
-# scan all files for modelines
-# and scan for config files
-# create dependency tree
-# build each object
-# create libraries
-# create executables
+#dict that contains all configurations. key = configpath, value = config object
+configs = {}
 
+class conf:
+	
 
 #
 # main method etc

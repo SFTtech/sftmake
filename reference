@@ -214,6 +214,7 @@ TODO	generate 3.0.17-3.0.19 from git?
 3.0.21	objdir			(string)	^/.objs		all object files are generated here
 3.0.22	conftype		dir|target|src|	dir		type of the current config. is automatically set,
 				srcfortarget			can't be written manually.
+3.0.23	followsymlinks		yes,no		yes		follow symlinks when delving into subfolders
 
 3.1	per-target variables (very common in target files)
 
