@@ -131,9 +131,9 @@ TODO					this way, it's impossible to 'split' a variable in a clean way, since f
 
 #TODO integrate
 ^/smfile
-^/foo/bar/dir.smfile
-^/foo/neger.target.smfile
-^/foo/neger.cpp.smfile
+^/foo/bar/dir.smfile		/dir.sm
+^/foo/lolbinary.target.smfile	/lolbinary.target.sm
+^/foo/srcfile.cpp.smfile	/srcfile.cpp.src.sm	/srcfile.cpp.sm
 #end TODO
 
 2.1	Then, the global config file, ^/smfile, is parsed
