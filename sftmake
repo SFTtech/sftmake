@@ -14,18 +14,56 @@
 
 import os
 
-#dict that contains all variables. key = varname, value = var object
-conf = {}
+class orderedset:
+	""" wrapper around OrderedDict because fak u python """
+	def __init__(self):
+		from collections import OrderedDict
+		self.storage = OrderedDict()
 
-current_confs=['default', 'argv', '^', '^/niggers', '^/niggers/nigger']
+	#append an element
+	#returns true if the element was new
+	def append(self, x):
+		if(x in self.storage):
+			self.storage.pop(x)
+			self.storage[x] = None
+			return False
+		else:
+			self.storage[x] = None
+			return True
+
+	#delete an element
+	def delete(self, x):
+		self.storage.pop(x)
+	
+	#remove all elements
+	def clear(self):
+		self.storage.clear()
+	
+	#update the ordered set with an other ordered set
+	def update(self, x):
+		for v in x:
+			self.storage.pop(v)
+		self.storage.update(x.storage)
+	
+	def tolist(self):
+		return [x for x in self.storage]
+	
+	def newest(self):
+		return next(reversed(self.storage))
+
+	def __iter__(self):
+		return self.storage.__iter__()
+
+#dict that contains all variables. key = varname, value = var object
+variables = {}
 
 def findsmroot():
-	path = '.'
+	path = os.path.abspath('.')
 	while(not os.path.isfile(path + "/smfile")):
-		newpath = os.path.absdir(path + '/..')
-		if(path == newpath):
+		if(path == "/"):
 			raise Exception("No smfile found")
-		path = newpath
+		else:
+			path = os.path.abspath(path + '/..')
 	return path
 
 smroot = findsmroot()
@@ -37,122 +75,254 @@ def abspath(path, relto = '^'):
 	#if the path is empty, fak u
 	if(not path):
 		raise Exception('Path must not be empty')
+
 	#if the path starts with '/', it's already absolute
 	if(path[0] == '/'):
-		return path
+		result = path
+
 	#if the path starts with '^', we need to replace that with smroot
 	elif(path[0] == '^'):
-		return smroot + path[1:]
+		result = smroot + '/' + path[1:]
+
 	#else, the path is relative... to relto
 	else:
 		if(relto[0] != '^'):
 			raise Exception('relto must start with ^')
-		return abspath(relto) + '/' + path
+		result = abspath(relto) + '/' + path
+	
+	return os.path.normpath(result)
+
+#convert path to relative POSIX path
+def relpath(path, relto = '^'):
+	if(not path): #fak u
+		raise Exception("Path must not be empty")
+	
+	elif(path[0] == '/'):
+		return os.path.relpath(path, abspath(relto))
+
+	if(path[0] == '^'):
+		return os.path.relpath(smroot + '/' + path[1:], abspath(relto))
+
+	#else, path is already relative to relto
+	else:
+		return os.path.normpath(path)
 
 #convert path to sftmake path
 def smpath(path, relto = '^'):
 	#if the path is empty, fak u
 	if(not path):
 		raise Exception("Path must not be empty")
+
 	#if the path starts with '^', it's already an sftmake path
 	if(path[0] == '^'):
 		return path
+
 	#else, get relative path
 	if(path[0] != '/'):
 		path = abspath(path, relto)
+
+	#generate path relative to smroot (to just add ^ then)
 	path = os.path.relpath(path, smroot)
+
 	if(path == '.'):
 		return '^'
 	else:
 		return '^/' + path
 
+#holds metadata for a config:
+#the conf's parent configurations
+#the conf's directory
+#the conf's rank (BASE, DIR, TARGET, SRC, SRCFORTARGET)
+CONF_BASE = 0
+CONF_DIR = 1
+CONF_TARGET = 2
+CONF_SRC = 3
+CONF_SRCFORTARGET = 4
+
+class config:
+	def __init__(self, parents, directory, rank):
+		self.parents = parents
+		self.directory = directory
+		self.rank = rank
+
+#global dict that holds config metadata for all confs
+# key: confname
+# value: config metadata object
+confinfo = {"default": config([], '^', CONF_BASE)}
+
 #represents one variable condition (abstract base class? factory class? lol?)
+#TODO #TODO
+#   _____        _
+#     |     _   | \   _
+#     |    / \  |  | / \	<---  TODO
+#     |    \_/  |_/  \_/
+#
+#	!((a==g++);!(b==g++));(c=~a*)
+#
+#	c[srcsuffix==cpp][toolchain==gnu]=g++
+#
+#	'!(c==g++)'
+#
+#	condnot('!(c==g++)')
+#	
+
 class cond:
 	def create(condstr):
+		""" abstract condition proxy factory singleton bean (not quite) """
 		#read constr until operator sign
 		#from that operator, decide which class to produce
 		#give varname and condstr to the constructor of that class
 		#return that class
-	
-	#must be implemented
-	def istrue(self):
+		pass
+
+	#abstract, must be implemented
+	def check(self, conf, depends = orderedset()):
 		raise NotImplementedError()
 
-	class equals(cond):
-		def __init__(self, varname, val):
-			self.val = val
-			self.varname = varname
+class cond_equals(cond):
+	def __init__(self, varname, val):
+		self.val = val
+		self.varname = varname
 
-		def istrue():
-			return (conf.get(varname) == val)
+	def check(self, conf, depends = orderedset()):
+		return (variables[varname].get(conf, depends) == val)
 
-MODE_APPEND = 0
-MODE_SET = 1
-MODE_REMOVE = 2
+#modes of variable values
+VALMODE_APPEND = 0	#append the value to existing list. if already in list, move it to end
+VALMODE_SET = 1		#delete existing list, add value to it
+VALMODE_REMOVE = 2	#remove the value from existing list
 
-#represents one variable value
 class val:
-	def __init__(self, string, mode, conditions):
-		self.string = string
-		self.mode = mode
+	"""
+	represents one variable value
+	a value has:
+		a list of conditions, which all need to be met for the value to have the effect described by its mode
+		one of the above modes
+		a string value
+	"""
+
+	def __init__(self, conditions, mode, string):
 		self.conditions = conditions
+		self.mode = mode
+		self.string = string
 	
-	def cond_matched(self):
+	def check_conds(self, conf, depends = orderedset()):
 		if (conditions != None):
 			for c in conditions:
-				if not c.istrue():
+				if not c.check(conf, depends):
 					return False
 		return True
 	
 	def get(self):
 		return (mode, string)
 
-from collections import OrderedDict
+
+VARTYPE_STRING = 0
+VARTYPE_PATH = 1
+VARTYPE_INT = 2
 
 class var:
-	vals = {'default', []}
+	""" one configuration variable
+	has a list of values for each conf, each of the values has a list of conditions which all need to be true """
 
-	def __init__(self, path = False):
-		self.path = path
+	def __init__(self, name, vartype = VARTYPE_STRING, single = False, defaultvals = []):
+		self.name = name
+		#add yourself to the global variables dict
+		variables[name] = self
+
+		#what type is the variable
+		self.vartype = vartype
+
+		#is this variable a single value var?
+		#if yes, on reading only the most lately written value is returned
+		self.single = single
+
+		#given default values for the var
+		self.vals = {"default": defaultvals}
+	
 
 	def add(self, val, conf):
-		if(path):
-			val = toabspath(val)
+		#if vartype is string, simply do nothing
+		if(self.vartype == VARTYPE_STRING):
+			pass
 
-		if(conf not in vals):
-			vals[conf] = [val]
-		else:
-			vals[conf].append(val)
+		#if vartype is a path, then convert the given string to a smpath
+		elif(self.vartype == VARTYPE_PATH):
+			val = smpath(val, confinfo[conf].directory)
 
-	def get(self, confs, depends = []):
-		#we just need OrderedSet functionality, so we set val = None for all keys
-		result = OrderedDict()
-		for conf in confs:
-			for val in vals.get(conf, []):
-				if(val.cond_matched()):
-					(mode, string) = val.get()
-					if(mode == MODE_APPEND):
-						if(string in result):
-							result.pop(string)
-						result[string] = None
-					elif(mode == MODE_SET):
-						result.clear()
-						result[string] = None
-					elif(mode == MODE_REMOVE):
-						if(string in result):
-							result.pop(string)
-		
-		if(single):
+		#if vartype is an int, we parse it as such
+		elif(self.vartype == VARTYPE_INT):
 			try:
-				return next(reversed(result))
+				val = int(val)
 			except:
-				raise Exception("No value")
-		else:
-			return [x for x in result]
+				raise Exception("Value must be an integer")
 
+		#if valtype is a list, then val must be one of the list elements
+		elif(isinstance(self.vartype, list)):
+			if val not in self.vartype:
+				raise Exception("Value must be in " + str(self.vartype))
+		else:
+			raise Exception("Unknown Valuetype")
+
+		#finally, add the value to the value list for the configuration
+		if(conf not in self.vals):
+			self.vals[conf] = [val]
+		else:
+			self.vals[conf].append(val)
+
+	#returns the variable value for a certain configuration
+	def get(self, conf, depends = orderedset()):
+		if(depends.append(self) == False):
+			chain = self.name
+			for v in depends:
+				chain += ' -> ' + v.name
+			raise Exception("Circular dependency detected when resolving conditions: " + chain)
+
+		#we just need OrderedSet functionality, so we set val = None for all keys. dirty, nah?
+		result = orderedset()
+
+		#for each val from each parent config
+		for conf in confparenthyperres(conf):
+			for val in self.vals.get(conf, []):
+				#if condition of the value evaluates true, apply to result
+				if(val.check_conds(conf, depends)):
+					(mode, string) = val.get()
+					if(mode == VALMODE_APPEND):
+						result.append(string)
+					elif(mode == VALMODE_SET):
+						result.clear()
+						result.append(string)
+					elif(mode == VALMODE_REMOVE):
+						result.remove(string)
+		
+		if(self.single):
+			try:
+				return result.newest()
+			except:
+				raise Exception("No value for single-val variable")
+		else:
+			return result.tolist()
+
+#returns list of all configurations that origin depends on, with origin at the end
+#for technical reasons, return value is an ordered dict with 'None' as values
+def confparenthyperres(origin):
+	result = orderedset()
+	for parent in confinfo[origin].parents:
+		result.update(confparenthyperres(parent))
+	result.append(origin)
+	return result
+
+#all variables and their default configurations
+var('c', VARTYPE_STRING, True, [
+	val(condition.create("srcsuffix==cpp"), VALMODE_APPEND, "g++"),
+	val(condition.create("srcsuffix==c"  ), VALMODE_APPEND, "gcc")
+])
+#the used source files
+var('srcs', VARTYPE_PATH, False, [])
+#etc... basically, type the variable list from documentation section 3
 
 def main():
-	pass
+	print("fak u dolan")
 
 if __name__ == "__main__":
 	main()
