@@ -207,6 +207,7 @@ class val:
 		self.string = string
 	
 	def check_conds(self, conf, depends = orderedset()):
+		"""check all conditions of this value"""
 		if (conditions != None):
 			for c in conditions:
 				if not c.check(conf, depends):
@@ -242,6 +243,7 @@ class var:
 	
 
 	def add(self, val, conf):
+		"""add a possible value to this variable"""
 		#if vartype is string, simply do nothing
 		if(self.vartype == VARTYPE_STRING):
 			pass
@@ -270,8 +272,8 @@ class var:
 		else:
 			self.vals[conf].append(val)
 
-	#returns the variable value for a certain configuration
 	def get(self, conf, depends = orderedset()):
+		"""returns the variable value for a certain configuration"""
 		if(depends.append(self) == False):
 			chain = self.name
 			for v in depends:
@@ -303,9 +305,11 @@ class var:
 		else:
 			return result.tolist()
 
-#returns list of all configurations that origin depends on, with origin at the end
-#for technical reasons, return value is an ordered dict with 'None' as values
 def confparenthyperres(origin):
+	"""
+	returns list of all configurations that origin depends on, with origin at the end
+	for technical reasons, return value is an ordered dict with 'None' as values
+	"""
 	result = orderedset()
 	for parent in confinfo[origin].parents:
 		result.update(confparenthyperres(parent))
@@ -314,8 +318,8 @@ def confparenthyperres(origin):
 
 #all variables and their default configurations
 var('c', VARTYPE_STRING, True, [
-	val(condition.create("srcsuffix==cpp"), VALMODE_APPEND, "g++"),
-	val(condition.create("srcsuffix==c"  ), VALMODE_APPEND, "gcc")
+	val(cond.create("srcsuffix==cpp"), VALMODE_APPEND, "g++"),
+	val(cond.create("srcsuffix==c"  ), VALMODE_APPEND, "gcc")
 ])
 #the used source files
 var('srcs', VARTYPE_PATH, False, [])
