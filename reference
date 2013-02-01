@@ -74,17 +74,18 @@ TODO	do we need user-defined vars at all?
 1.1.1	<vars>		::= {<paddedvarname> [<condition>] [<paddedop>] ','} <paddedvarname> [<condition>] <paddedop>
 1.1.2	<vals>		::= <paddedval> {',' <paddedval>}
 
-1.1.3	<paddedvarname> ::= {' ' | \t} <varname> {' ' | \t}
-1.1.4	<paddedop>	::= {' ' | \t} <op> {' ' | \t}
-1.1.5	<paddedval>	::= {' ' | \t} <val> {' ' | \t}
+1.1.3	<paddedvarname> ::= <space> <varname> <space>
+1.1.4	<paddedop>	::= <space> <op> <space>
+1.1.5	<paddedval>	::= <space> <val> <space>
+1.1.6	<space>		::= {' ' | '\t} {<space>}
 
-1.1.6	<op>		::= '+=' | '=' | ':=' | '-='
-1.1.7	<varname>	::= (regex) [a-zA-Z0-9_]+
-1.1.8	<val>		::= (for the syntax of a value, see the description. basically, everything except a comma is allowed). leading and trailing spaces and tabs are ignored
+1.1.7	<op>		::= '+=' | '=' | ':=' | '-='
+1.1.8	<varname>	::= (regex) [a-zA-Z0-9_]+
+1.1.9	<val>		::= (for the syntax of a value, see the description. basically, everything except a comma is allowed). leading and trailing spaces and tabs are ignored
 
-1.1.9	<condition>	::= <varname> <conditionop> <val>
-1.1.10	<conditionop>	::= '==' | '=' | '=~' | '!=' | '>=' | '<=' | '>' | '<'
-1.1.11	<condition>	::= '(' <condition> ')'			;parenthesis are optional, but may be required for some semantics (disambiguities)
+1.1.10	<condition>	::= <varname> <conditionop> <val>
+1.1.11	<conditionop>	::= '==' | '=' | '=~' | '!=' | '>=' | '<=' | '>' | '<'
+1.1.12	<condition>	::= '(' <condition> ')'			;parenthesis are optional, but may be required for some semantics (disambiguities)
 1.1.13	<condition>	::= '!' <condition>			;logic not
 1.1.14	<condition>	::= <condition> ';' <condition>		;logic or
 1.1.15	<condition>	::= <condition> ',' <condition>		;logic and
