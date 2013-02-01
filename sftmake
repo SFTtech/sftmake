@@ -15,7 +15,9 @@
 import os
 
 class orderedset:
-	""" wrapper around OrderedDict because fak u python """
+	""" wrapper around OrderedDict because fak u python
+
+	we just need OrderedSet functionality, so we set val = None for all keys. dirty, nah?"""
 	def __init__(self):
 		from collections import OrderedDict
 		self.storage = OrderedDict()
@@ -150,7 +152,6 @@ class config:
 # value: config metadata object
 confinfo = {"default": config([], '^', CONF_BASE)}
 
-#represents one variable condition (abstract base class? factory class? lol?)
 #TODO #TODO
 #   _____        _
 #     |     _   | \   _
@@ -167,8 +168,10 @@ confinfo = {"default": config([], '^', CONF_BASE)}
 #	
 
 class cond:
+	"""represents one variable condition (abstract base class? factory class? lol?)"""
 	def create(condstr):
 		""" abstract condition proxy factory singleton bean (not quite) """
+
 		#read constr until operator sign
 		#from that operator, decide which class to produce
 		#give varname and condstr to the constructor of that class
@@ -223,8 +226,10 @@ VARTYPE_PATH = 1
 VARTYPE_INT = 2
 
 class var:
-	""" one configuration variable
-	has a list of values for each conf, each of the values has a list of conditions which all need to be true """
+	"""
+	one configuration variable
+	has a list of values for each conf, each of the values has a list of conditions which all need to be true
+	"""
 
 	def __init__(self, name, vartype = VARTYPE_STRING, single = False, defaultvals = []):
 		self.name = name
@@ -280,7 +285,6 @@ class var:
 				chain += ' -> ' + v.name
 			raise Exception("Circular dependency detected when resolving conditions: " + chain)
 
-		#we just need OrderedSet functionality, so we set val = None for all keys. dirty, nah?
 		result = orderedset()
 
 		#for each val from each parent config
@@ -315,6 +319,55 @@ def confparenthyperres(origin):
 		result.update(confparenthyperres(parent))
 	result.append(origin)
 	return result
+
+
+	"""
+	convert a line into a list of tokens
+
+	<assignment>	::= <vars> <vals>
+
+	<vars>      ::= {<paddedvarname> <paddedcondition> [<paddedop>] ','} <paddedvarname> <paddedop>
+	<vals>		::= <paddedval> {',' <paddedval>}
+
+	<paddedvarname> ::=  <space> <varname> <space>
+	<condition>	::=	'[' ({<condition> <condop> } <condition> | <negate> '(' <condition> ')' ) ']'
+	<paddedop>	::= <space> <op> <space>
+	<paddedval> ::= <space> <val> <space>
+
+	<space>		::= {{' ' | \t } <space>}	#evtl nur 1 space/tab erlauben
+	<condop>	::= ',' | ';'
+	<condunop>	::= '!'
+	<condbinop>	::= '==' | '!=' | '=~' | '!~'
+
+	<op>		::= '+=' | '=' | ':=' | '-='
+	<varname>	::= (regex) [a-zA-Z0-9_]+
+	<val>		::= (for the syntax of a value, see the description. basically, everything except a comma is allowed). leading and trailing spaces and tabs are ignored
+
+	"""
+
+
+class lexer:
+	def __init__(self):
+		self.line = ""
+		self.pos = 0
+		self.c = '\0'
+		
+	
+	def next_char(self):
+		if(self.pos == len(self.line)):
+			self.c = 0
+		else:
+			self.c = self.line[self.pos++]	
+
+	def lex_line(self, line):
+		self.line = line
+		self.pos = 0
+		self.next_char()
+
+		
+
+
+
 
 #all variables and their default configurations
 var('c', VARTYPE_STRING, True, [
