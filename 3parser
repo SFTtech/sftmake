@@ -1,0 +1,22 @@
+#!/usr/bin/env python
+
+class token:
+	def __init__(self, ):
+		self.t
+
+class lexer:
+	def __init__(self):
+		self.line = ""
+		self.pos = 0
+		self.c = '\0'
+		
+	def next_char(self):
+		if(self.pos == len(self.line)):
+			self.c = 0
+		else:
+			self.c = self.line[self.pos++]	
+
+	def lex_line(self, line):
+		self.line = line
+		self.pos = 0
+		self.next_char()

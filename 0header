@@ -1,0 +1,15 @@
+#!/usr/bin/env python
+
+# [SFT]make by [SFT]technologies
+#
+# Released under the GPLv3 or later
+#
+# As always, this programm comes with NO WARRANTY...
+# You may request a version of the program that comes with
+# the WARRANTY that it will destroy your distribution via service@sft.mx
+#
+# (c) 2013 Michael Ensslin
+# (c) 2013 Jonas Jelten
+# (c) 2013 Andre Kupka
+
+import os

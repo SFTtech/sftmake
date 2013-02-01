@@ -1,0 +1,115 @@
+#!/usr/bin/env python
+
+class orderedset:
+	""" wrapper around OrderedDict because fak u python
+
+	we just need OrderedSet functionality, so we set val = None for all keys. dirty, nah?"""
+	def __init__(self):
+		from collections import OrderedDict
+		self.storage = OrderedDict()
+
+	#append an element
+	#returns true if the element was new
+	def append(self, x):
+		if(x in self.storage):
+			self.storage.pop(x)
+			self.storage[x] = None
+			return False
+		else:
+			self.storage[x] = None
+			return True
+
+	#delete an element
+	def delete(self, x):
+		self.storage.pop(x)
+	
+	#remove all elements
+	def clear(self):
+		self.storage.clear()
+	
+	#update the ordered set with an other ordered set
+	def update(self, x):
+		for v in x:
+			self.storage.pop(v)
+		self.storage.update(x.storage)
+	
+	def tolist(self):
+		return [x for x in self.storage]
+	
+	def newest(self):
+		return next(reversed(self.storage))
+
+	def __iter__(self):
+		return self.storage.__iter__()
+
+def findsmroot():
+	path = os.path.abspath('.')
+	while(not os.path.isfile(path + "/smfile")):
+		if(path == "/"):
+			raise Exception("No smfile found")
+		else:
+			path = os.path.abspath(path + '/..')
+	return path
+
+smroot = findsmroot()
+
+#functions for path conversions
+
+#convert path to absolute POSIX path
+def abspath(path, relto = '^'):
+	#if the path is empty, fak u
+	if(not path):
+		raise Exception('Path must not be empty')
+
+	#if the path starts with '/', it's already absolute
+	if(path[0] == '/'):
+		result = path
+
+	#if the path starts with '^', we need to replace that with smroot
+	elif(path[0] == '^'):
+		result = smroot + '/' + path[1:]
+
+	#else, the path is relative... to relto
+	else:
+		if(relto[0] != '^'):
+			raise Exception('relto must start with ^')
+		result = abspath(relto) + '/' + path
+	
+	return os.path.normpath(result)
+
+#convert path to relative POSIX path
+def relpath(path, relto = '^'):
+	if(not path): #fak u
+		raise Exception("Path must not be empty")
+	
+	elif(path[0] == '/'):
+		return os.path.relpath(path, abspath(relto))
+
+	if(path[0] == '^'):
+		return os.path.relpath(smroot + '/' + path[1:], abspath(relto))
+
+	#else, path is already relative to relto
+	else:
+		return os.path.normpath(path)
+
+#convert path to sftmake path
+def smpath(path, relto = '^'):
+	#if the path is empty, fak u
+	if(not path):
+		raise Exception("Path must not be empty")
+
+	#if the path starts with '^', it's already an sftmake path
+	if(path[0] == '^'):
+		return path
+
+	#else, get relative path
+	if(path[0] != '/'):
+		path = abspath(path, relto)
+
+	#generate path relative to smroot (to just add ^ then)
+	path = os.path.relpath(path, smroot)
+
+	if(path == '.'):
+		return '^'
+	else:
+		return '^/' + path
