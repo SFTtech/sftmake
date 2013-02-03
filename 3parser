@@ -1,22 +1,279 @@
 #!/usr/bin/env python
 
-class token:
-	def __init__(self, ):
-		self.t
+#1.1.0	<assignment>	::= <vars> <vals>
+#
+#1.1.1	<vars>			::= {<paddedvarname> [<condition>] [<paddedop>] ','} <paddedvarname> [<condition>] <paddedop>
+#1.1.2	<vals>			::= <paddedval> {',' <paddedval>}
+#
+#1.1.3	<paddedvarname> ::= {' ' | \t} <varname> {' ' | \t}
+#1.1.4	<paddedop>		::= {' ' | \t} <op> {' ' | \t}
+#1.1.5	<paddedval>		::= {' ' | \t} <val> {' ' | \t}
+#
+#1.1.6	<op>			::= '+=' | '=' | ':=' | '-='
+#1.1.7	<varname>		::= (regex) [a-zA-Z_][a-zA-Z0-9_]*
+#1.1.8	<val>			::= (for the syntax of a value, see the description. basically, everything except a comma is allowed). leading and trailing spaces and tabs are ignored
+#
+#1.1.9	<condition>		::= <varname> <conditionop> <val>
+#1.1.10	<conditionop>	::= '==' | '=' | '=~' | '!=' | '>=' | '<=' | '>' | '<'
+#1.1.11	<condition>		::= '(' <condition> ')'				;parenthesis are optional, but may be required for some semantics (disambiguities)
+#1.1.13	<condition>		::= '!' <condition>					;logic not
+#1.1.14	<condition>		::= <condition> ';' <condition>		;logic or
+#1.1.15	<condition>		::= <condition> ',' <condition>		;logic and
 
-class lexer:
-	def __init__(self):
-		self.line = ""
-		self.pos = 0
-		self.c = '\0'
-		
-	def next_char(self):
-		if(self.pos == len(self.line)):
-			self.c = 0
+#the assignment parser, which reads complete assignment lines and delegates parts of its work to the cond and val parsers
+
+class lexer_exception(Exception):
+	def __init__(self, char, pos, expected):
+		Exception.__init__(self, "Unexpected character: " + char + " at position " + str(pos) + ", expected " + expected)
+		self.pos = pos
+
+def evaluate_value(valstr):
+	return valstr
+
+def parse_condition(cond):
+	return cond
+
+#the lexer states
+class assignmentlexerstate:
+	VARNAMEBEGIN		= 0		#we expect whitespace or [a-zA-Z_] as first char of varname
+	VARNAME				= 1		#we expect [a-zA-Z_0-9] as part of the current varname, whitespace, an assignment operator, "[" or "," 
+	VARNAMEOVER			= 2		#we read a whitespace and now expect an assignment operator, whitespaces, "[" or ","
+	COND				= 3		#we expected arbitrary characters as condition or "]" that is not escaped
+	NEXTVAR_OR_OP		= 4		#we expected an assignment operator or a whitespace
+	SKIPEQUALSSIGN		= 5		#we have read first part of assignment operator and now expect an equal sign
+	NEXTVAR_OR_VAL		= 6		#we now expect a comma for the next varname, a val or a whitespace
+	VAL					= 7		#we expect a single quote, a double quote, a whitespace or any other character
+	VAL_QUOTED			= 8		#we expect a single quote
+	VAL_DBLQUOTED		= 9		#we expect a double quote
+	NEXTVAL				= 10	#we expect a whitespace or any other character
+
+class assignment_var:
+	def __init__(self, name, cond, op):
+		self.name = name
+		self.cond = cond
+		self.op = op
+
+	def __repr__(self):
+		return self.name + "[" + self.cond + "]" + self.op 
+
+def parse_assignment(line):
+	#for quick access to the assignment lexer states
+	s = assignmentlexerstate()
+
+	#all variables in this assignment
+	assignment_vars=[]
+	#all values in this assignment
+	assignment_vals=[]
+	#position of the current character
+	pos = 0
+
+	#starting state of our automaton
+	state = s.VARNAMEBEGIN
+	#name, operator and condition string of the current variable
+	curvarname = curvarop = curvarcond = ""
+	#value string of the current value
+	curval = ""
+
+	#in some states, a \ will escape the following character(s), which may change their meaning
+	#to keep the FSM size within reasonable bounds, this is handled by this variable instead of more states
+	is_escaped = False
+
+	#read the whole line char by char
+	for c in line:
+		if state == s.VARNAMEBEGIN:
+			if c.isspace(): #a whitespace - wait for first character of variable name
+				pass
+			elif c.isalpha() or c == '_': #this is the first character of the variable name
+				curvarname += c
+				state = s.VARNAME
+			else:
+				raise lexer_exception(c, pos, "first character of variable name [a-zA-Z_]")
+
+		elif state == s.VARNAME:
+			if c.isalnum() or c == '_':	#next character of the variable name...
+				curvarname += c
+			elif c.isspace():	#variable name is over, now expecting condition, operator or the next varname
+				state = s.VARNAMEOVER
+			elif c == ',':	#variable name is over, and we immediately get the next varname, no cond or op
+				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarop))
+				state = s.VARNAMEBEGIN
+				curvarname = curvarop = curvarcond = ""
+			elif c == '[':	#variable name is over, now follows a condition string
+				state = s.COND
+			elif c == '=':	#'=' assignment operator, now follows the next variable or a value
+				curvarop += c
+				state = s.NEXTVAR_OR_VAL
+			elif c in ':-+': #one of the operators ':=', '+=', '-='. the next char MUST be a '=' sign
+				curvarop += c
+				state = s.SKIPEQUALSSIGN
+			else:
+				raise lexer_exception(c, pos, "character of variable name [a-zA-Z_0-9], operator or condition")
+
+		elif state == s.VARNAMEOVER:
+			if c.isspace():	#ignore any number of spaces
+				pass
+			elif c == ',':	#immediately get the next varname, no cond or op
+				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarop))
+				state = s.VARNAMEBEGIN
+				curvarname = curvarop = curvarcond = ""
+			elif c == '[':	#now follows a condition string
+				state = s.COND
+			elif c == '=':	#'=' assignment operator, now follows the next variable or a value
+				curvarop += c
+				state = s.NEXTVAR_OR_VAL
+			elif c in ':+-':
+				curvarop += c
+				state = s.SKIPEQUALSSIGN
+			else:
+				raise lexer_exception(c, pos, "operator or condition")
+
+		elif state == s.COND:
+			if c == ']' and not is_escaped:	#condition string over
+				state = s.NEXTVAR_OR_OP
+			else:
+				curvarcond += c
+
+		elif state == s.NEXTVAR_OR_OP:
+			if c.isspace(): #ignore any number of spaces
+				pass
+			elif c == ',':	#immediately get the next varname, no op
+				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarop))
+				state = s.VARNAMEBEGIN
+				curvarname = curvarop = curvarcond = ""
+			elif c == '=':	#'=' assignment operator, now follows the next variable or a value
+				curvarop += c
+				state = s.NEXTVAR_OR_VAL
+			elif c in ':+-':
+				curvarop += c
+				state = s.SKIPEQUALSSIGN
+			else:
+				raise lexer_exception(c, pos, "operator")
+
+		elif state == s.SKIPEQUALSSIGN:
+			if c == '=':	#exactly what we wanted
+				curvarop += c
+				state = s.NEXTVAR_OR_VAL
+			else:
+				raise lexer_exception(c, pos, "'='")
+
+		elif state == s.NEXTVAR_OR_VAL:
+			if c.isspace(): #ignore any number of spaces
+				pass
+			else: #current var is over, store it away
+				#curvarop is not only valid for this var, but also for all its predecessors that do not have one yet
+				for var in reversed(assignment_vars):
+					if(var.op == ""):
+						var.op = curvarop
+					else:
+						break
+
+				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarop))
+				
+				if c == ',': #now follows the next var
+					state = s.VARNAMEBEGIN
+					curvarname = curvarop = curvarcond = ""
+				elif c == '"' and not is_escaped:
+#					curval += c
+					state = s.VAL_DBLQUOTED
+				elif c == "'" and not is_escaped:
+#					curval += c
+					state = s.VAL_QUOTED
+				else: #now follows a val
+					curval += c
+					state = s.VAL
+
+		elif state == s.VAL:
+			if c.isspace(): #this value is over
+				assignment_vals.append(curval)
+				curval = ""
+				state = s.NEXTVAL
+			elif c == '"' and not is_escaped:
+#				curval += c
+				state = s.VAL_DBLQUOTED
+			elif c == "'" and not is_escaped:
+#				curval += c
+				state = s.VAL_QUOTED
+			else:
+				curval += c
+
+		elif state == s.VAL_QUOTED:
+			if c == "'" and not is_escaped:
+#				curval += c
+				state = s.VAL
+			else:
+				curval += c
+
+		elif state == s.VAL_DBLQUOTED:
+			if c == '"' and not is_escaped:
+#				curval += c
+				state = s.VAL
+			else:
+				curval += c
+
+		elif state == s.NEXTVAL:
+			if c.isspace(): #ignore any number of spaces
+				pass
+			elif c == '"' and not is_escaped:
+#				curval += c
+				state = s.VAL_DBLQUOTED
+			elif c == "'" and not is_escaped:
+#				curval += c
+				state = s.VAL_QUOTED
+			else:
+				curval += c
+				state = s.VAL
+
 		else:
-			self.c = self.line[self.pos++]	
+			raise Exception("Illegal lexer state")
 
-	def lex_line(self, line):
-		self.line = line
-		self.pos = 0
-		self.next_char()
+#		print("Pos " + str(pos) + "[" + c + "]: State " + str(state))
+
+		if c == '\\' and (state == s.VAL or state == s.VAL_QUOTED or state == s.VAL_DBLQUOTED or state == s.COND):
+			is_escaped = not is_escaped
+		else:
+			is_escaped = False
+		pos += 1
+	
+	#the line is fully lexed, check if state is accepting
+	if state == s.VARNAMEBEGIN:
+		raise Exception("Line over, but expected variable name")
+	elif state == s.VARNAME:
+		raise Exception("Line over, but expected operator")
+	elif state == s.VARNAMEOVER:
+		raise Exception("Line over, but expected operator")
+	elif state == s.COND:
+		raise Exception("Line over, but inside condition string")
+	elif state == s.NEXTVAR_OR_OP:
+		raise Exception("Line over, but expected operator")
+	elif state == s.SKIPEQUALSSIGN:
+		raise Exception("Line over, but expected equals sign")
+	elif state == s.NEXTVAR_OR_VAL: #accept
+		assignment_vars.append(assignment_var(curvarname, curcond, curop))		
+	elif state == s.VAL: #accept
+		if curval != "":
+			assignment_vals.append(curval)
+	elif state == s.VAL_QUOTED:
+		raise Exception("Line over, but inside quoted string")
+	elif state == s.VAL_DBLQUOTED:
+		raise Exception("Line over, but inside doublequoted string")
+	elif state == s.NEXTVAL:
+		pass #accept
+	else:
+		raise Exception("At end of line: Illegal lexer state")
+
+	#assignment_vals now contains a list of all values (in unparsed/unlexed string form)
+	#assignment_vars now contains a list of all variables, whith unparsed/unlexed condition strings
+	for var in assignment_vars:
+		try:
+			var.cond = parse_condition(var.cond)
+		except Exception as e:
+			raise Exception("When parsing condition string '" + var.cond + "' for variable " + var.name + ": " + str(e))
+	
+	assignment_vals_evaluated = []
+	for val in assignment_vals:
+		try:
+			assignment_vals_evaluated.append(evaluate_value(val))
+		except Exception as e:
+			raise Exception("When evaluating value string '" + val + "': " + str(e))
+	#done
+	return (assignment_vars, assignment_vals_evaluated)

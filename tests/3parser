@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+
+from symlink_3parser import parse_assignment
+
+testlines = [
+	"",
+	"v=x",
+	"v[]=x",
+	"=x",
+	"v",
+	"v,w,",
+	"v=",
+	"v='",
+	"_0=x",
+	"0_=x",
+	"\\v=x",
+	"v=\\x",
+	"v\\=x",
+	"v[\\]=x",
+	"v[\\]]=x",
+	"v=\\x",
+	"v='\\x'",
+	"v=\\'x'",
+	"v=\\'x",
+	"v=\\'x\\'",
+	'v=\\"x\\"',
+	"v='x\\''",
+	"var1[abc]+=,var2[cde],var3-=value0 value1 'value2'test"
+	]
+
+for line in testlines:
+	print("Testing parser for line: " + line)
+	try:
+		print(parse_assignment(line))
+	except Exception as e:
+		print("Caught exception: " + str(e))
+
+print("Tests done")
