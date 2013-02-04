@@ -25,7 +25,11 @@ testlines = [
 	"v=\\'x\\'",
 	'v=\\"x\\"',
 	"v='x\\''",
-	"var1[abc]+=,var2[cde],var3-=value0 value1 'value2'test"
+	"var1[abc]+=,var2[cde],var3-=value0 value1 'value2'test",
+	"var[\"test\"]=val",
+	"var[\'test\']=val",
+	"var[test\']\'test]=val",
+	"var[test\'bla]=val",
 	]
 
 for line in testlines:

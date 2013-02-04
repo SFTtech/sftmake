@@ -30,7 +30,37 @@ class lexer_exception(Exception):
 def evaluate_value(valstr):
 	return valstr
 
+class conditiontokentype:
+	LPAREN		= 0		# '('
+	RPAREN		= 1		# ')'
+	LOGICUNOP	= 2		# '!'										(unary logic operators)
+	LOGICBINOP	= 3		# ';' ',' '&' '|'							(infix binary logic operators)
+	TESTOP		= 4		# '==' '=' '~=' '=~' '>=' '<=' '>' '<' '!='	(infix variable test operators)
+	LITERAL		= 5		#											(vars or vals)
+
+class conditiontoken:
+	def __init__(self, tokentype, content):
+		self.tokentype = tokentype
+		self.content = content
+
+class conditionlexerstate:
+	pass
+	
+
 def parse_condition(cond):
+	(cond, pos) = cond
+
+	#for quick access to the condition lexer states and token types
+	s = conditionlexerstate()
+	tt = conditiontokentype()
+	
+	#all tokens in this condition
+	tokens = []
+
+	state = s.
+
+	for c in cond:
+		pass # TODO
 	return cond
 
 #the lexer states
@@ -48,9 +78,9 @@ class assignmentlexerstate:
 	NEXTVAL				= 10	#we expect a whitespace or any other character
 
 class assignment_var:
-	def __init__(self, name, cond, op):
+	def __init__(self, name, cond, condpos, op):
 		self.name = name
-		self.cond = cond
+		self.cond = (cond, condpos)
 		self.op = op
 
 	def __repr__(self):
@@ -71,6 +101,7 @@ def parse_assignment(line):
 	state = s.VARNAMEBEGIN
 	#name, operator and condition string of the current variable
 	curvarname = curvarop = curvarcond = ""
+	curvarcondpos = None
 	#value string of the current value
 	curval = ""
 
@@ -95,11 +126,13 @@ def parse_assignment(line):
 			elif c.isspace():	#variable name is over, now expecting condition, operator or the next varname
 				state = s.VARNAMEOVER
 			elif c == ',':	#variable name is over, and we immediately get the next varname, no cond or op
-				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarop))
+				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarcondpos, curvarop))
 				state = s.VARNAMEBEGIN
 				curvarname = curvarop = curvarcond = ""
+				curvarcondpos = None
 			elif c == '[':	#variable name is over, now follows a condition string
 				state = s.COND
+				curvarcondpos = pos + 1
 			elif c == '=':	#'=' assignment operator, now follows the next variable or a value
 				curvarop += c
 				state = s.NEXTVAR_OR_VAL
@@ -113,9 +146,10 @@ def parse_assignment(line):
 			if c.isspace():	#ignore any number of spaces
 				pass
 			elif c == ',':	#immediately get the next varname, no cond or op
-				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarop))
+				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarcondpos, curvarop))
 				state = s.VARNAMEBEGIN
 				curvarname = curvarop = curvarcond = ""
+				curvarcondpos = None
 			elif c == '[':	#now follows a condition string
 				state = s.COND
 			elif c == '=':	#'=' assignment operator, now follows the next variable or a value
@@ -137,7 +171,7 @@ def parse_assignment(line):
 			if c.isspace(): #ignore any number of spaces
 				pass
 			elif c == ',':	#immediately get the next varname, no op
-				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarop))
+				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarcondpos, curvarop))
 				state = s.VARNAMEBEGIN
 				curvarname = curvarop = curvarcond = ""
 			elif c == '=':	#'=' assignment operator, now follows the next variable or a value
@@ -167,7 +201,7 @@ def parse_assignment(line):
 					else:
 						break
 
-				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarop))
+				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarcondpos, curvarop))
 				
 				if c == ',': #now follows the next var
 					state = s.VARNAMEBEGIN
