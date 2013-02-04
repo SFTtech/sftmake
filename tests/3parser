@@ -3,34 +3,16 @@
 from symlink_3parser import parse_assignment
 
 testlines = [
-	"",
-	"v=x",
-	"v[]=x",
-	"=x",
-	"v",
-	"v,w,",
-	"v=",
-	"v='",
-	"_0=x",
-	"0_=x",
-	"\\v=x",
-	"v=\\x",
-	"v\\=x",
-	"v[\\]=x",
-	"v[\\]]=x",
-	"v=\\x",
-	"v='\\x'",
-	"v=\\'x'",
-	"v=\\'x",
-	"v=\\'x\\'",
-	'v=\\"x\\"',
-	"v='x\\''",
 	"var1[abc]+=,var2[cde],var3-=value0 value1 'value2'test",
 	"var[\"test\"]=val",
 	"var[\'test\']=val",
 	"var[test\']\'test]=val",
 	"var[test\'bla]=val",
+	"cflags[c == gcc & !(mode ~= 'a b' | mode == rls))]=test",
+	"gschichten [ c == 'clang++' & !(!(!( gschicht =		'iee' && asdf	!= d f ))) ] = value",
+	"gschicht[c=='']=value"
 	]
+
 
 for line in testlines:
 	print("Testing parser for line: " + line)

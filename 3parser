@@ -29,7 +29,6 @@ class lexer_exception(Exception):
 
 def evaluate_value(valstr):
 	return valstr
-
 class conditiontokentype:
 	LPAREN		= 0		# '('
 	RPAREN		= 1		# ')'
@@ -39,16 +38,24 @@ class conditiontokentype:
 	LITERAL		= 5		#											(vars or vals)
 
 class conditiontoken:
-	def __init__(self, tokentype, content):
+	def __init__(self, tokentype, content = ""):
 		self.tokentype = tokentype
 		self.content = content
 
+	def __repr__(self):
+		return "{" + str(self.tokentype) + ";" + self.content + "}" 
+
 class conditionlexerstate:
-	pass
-	
+	LITERAL				= 0		#we expect everything (beginning state)
+	LITERAL_QUOTED		= 1
+	LITERAL_DBLQUOTED	= 2
+	TILDE				= 3
+	LESS_GREATER		= 4
+	EQUALS				= 5
+	EXCLAM				= 6
 
 def parse_condition(cond):
-	(cond, pos) = cond
+	(condstr, pos) = cond
 
 	#for quick access to the condition lexer states and token types
 	s = conditionlexerstate()
@@ -57,11 +64,143 @@ def parse_condition(cond):
 	#all tokens in this condition
 	tokens = []
 
-	state = s.
+	state = s.LITERAL
+	content = ""
+	is_escaped = False
 
-	for c in cond:
-		pass # TODO
-	return cond
+	for c in condstr:
+		if state == s.LITERAL:
+			if c == '~' and not is_escaped:
+				if content != "":
+					tokens.append(conditiontoken(tt.LITERAL, content))
+					content = ""
+				state = s.TILDE
+			elif c == '!' and not is_escaped:
+				if content != "":
+					tokens.append(conditiontoken(tt.LITERAL, content))
+					content = ""
+				state = s.EXCLAM
+			elif c == '=' and not is_escaped:
+				if content != "":
+					tokens.append(conditiontoken(tt.LITERAL, content))
+					content = ""
+				state = s.EQUALS
+			elif c == '(' and not is_escaped:
+				if content != "":
+					tokens.append(conditiontoken(tt.LITERAL, content))
+					content = ""
+				tokens.append(conditiontoken(tt.LPAREN, "("))
+			elif c == ')' and not is_escaped:
+				if content != "":
+					tokens.append(conditiontoken(tt.LITERAL, content))
+					content = ""
+				tokens.append(conditiontoken(tt.RPAREN, ")"))
+			elif c in "<>" and not is_escaped:
+				if content != "":
+					tokens.append(conditiontoken(tt.LITERAL, content))
+					content = ""
+				content = str(c)
+				state = s.LESS_GREATER
+			elif c in ";,&|" and not is_escaped:
+				if content != "":
+					tokens.append(conditiontoken(tt.LITERAL, content))
+					content = ""
+				tokens.append(conditiontoken(tt.LOGICBINOP, str(c)))
+			elif c == "'" and not is_escaped:
+				state = s.LITERAL_QUOTED
+			elif c == '"' and not is_escaped:
+				state = s.LITERAL_DBLQUOTED
+			elif c.isspace():
+				if content != "":
+					tokens.append(conditiontoken(tt.LITERAL, content))
+					content = ""
+			else:
+				content += c
+
+		elif state == s.LITERAL_QUOTED:
+			if c == "'" and not is_escaped:
+				state = s.LITERAL
+			else:
+				content += c
+
+		elif state == s.LITERAL_DBLQUOTED:
+			if c == '"' and not is_escaped:
+				state = s.LITERAL
+			else:
+				content += c
+
+		elif state == s.TILDE:
+			if c == '=':
+				tokens.append(conditiontoken(tt.TESTOP, "~="))
+				state = s.LITERAL
+			else:
+				raise lexer_exception(c, pos, "expected =") #TODO
+
+		elif state == s.LESS_GREATER:
+			if c == '=' and not is_escaped:
+				tokens.append(conditiontoken(tt.TESTOP, content + c))
+				content = ""
+				state = s.LITERAL
+			elif c not in "~()!<>;,&|":
+				tokens.append(conditiontoken(tt.TESTOP, content))
+				if not c.isspace():
+					content += c
+				state = s.LITERAL
+			else:
+				raise lexer_exception(c, pos, "operator/parenthesis not expected") #TODO
+				
+		elif state == s.EQUALS:
+			if c == '=' and not is_escaped:
+				tokens.append(conditiontoken(tt.TESTOP, "=="))
+				state = s.LITERAL
+			elif c == '~' and not is_escaped:
+				tokens.append(conditiontoken(tt.TESTOP, "=~"))
+				state = s.LITERAL
+			elif c not in "()!<>;,&|":
+				tokens.append(conditiontoken(tt.TESTOP, "="))
+				if not c.isspace():
+					content += c
+				state = s.LITERAL
+			else:
+				raise lexer_exception(c, pos, "operator/parenthesis not expected") #TODO
+
+		elif state == s.EXCLAM:
+			if c == '=':
+				tokens.append(conditiontoken(tt.TESTOP, "!="))
+				state = s.LITERAL
+			elif c == '(':
+				tokens.append(conditiontoken(tt.LOGICUNOP, "!"))
+				tokens.append(conditiontoken(tt.LPAREN, "("))
+				state = s.LITERAL
+			elif c.isspace():
+				tokens.append(conditiontoken(tt.LOGICUNOP, "!"))
+				state = s.LITERAL
+			else:
+				raise lexer_exception(c, pos, "operator/parenthesis not expected") #TODO
+
+		if c == '\\': #escape possible in all states
+			is_escaped = not is_escaped
+		else:
+			is_escaped = False
+		pos += 1
+
+	if state == s.LITERAL:
+		if content != "":
+			tokens.append(conditiontoken(tt.LITERAL, content))
+	elif state == s.LITERAL_QUOTED:
+		raise Exception("Line over, but inside quoted literal")
+	elif state == s.LITERAL_DBLQUOTED:
+		raise Exception("Line over, but inside double quoted literal")
+	elif state == s.TILDE:
+		raise Exception("Line over, ~ not expected")
+	elif state == s.LESS_GREATER:
+		raise Exception("Line over, <> not expected")
+	elif state == s.EQUALS:
+		raise Exception("Line over, = not expected")
+	elif state == s.EXCLAM:
+		raise Exception("Line over, ! not expected")
+
+	return tokens
 
 #the lexer states
 class assignmentlexerstate:
@@ -69,13 +208,15 @@ class assignmentlexerstate:
 	VARNAME				= 1		#we expect [a-zA-Z_0-9] as part of the current varname, whitespace, an assignment operator, "[" or "," 
 	VARNAMEOVER			= 2		#we read a whitespace and now expect an assignment operator, whitespaces, "[" or ","
 	COND				= 3		#we expected arbitrary characters as condition or "]" that is not escaped
-	NEXTVAR_OR_OP		= 4		#we expected an assignment operator or a whitespace
-	SKIPEQUALSSIGN		= 5		#we have read first part of assignment operator and now expect an equal sign
-	NEXTVAR_OR_VAL		= 6		#we now expect a comma for the next varname, a val or a whitespace
-	VAL					= 7		#we expect a single quote, a double quote, a whitespace or any other character
-	VAL_QUOTED			= 8		#we expect a single quote
-	VAL_DBLQUOTED		= 9		#we expect a double quote
-	NEXTVAL				= 10	#we expect a whitespace or any other character
+	COND_QUOTED			= 4		#we expect a single quote
+	COND_DBLQUOTED		= 5		#we expect a double quote
+	NEXTVAR_OR_OP		= 6		#we expected an assignment operator or a whitespace
+	SKIPEQUALSSIGN		= 7		#we have read first part of assignment operator and now expect an equal sign
+	NEXTVAR_OR_VAL		= 8		#we now expect a comma for the next varname, a val or a whitespace
+	VAL					= 9		#we expect a single quote, a double quote, a whitespace or any other character
+	VAL_QUOTED			= 10	#we expect a single quote
+	VAL_DBLQUOTED		= 11	#we expect a double quote
+	NEXTVAL				= 12	#we expect a whitespace or any other character
 
 class assignment_var:
 	def __init__(self, name, cond, condpos, op):
@@ -84,7 +225,7 @@ class assignment_var:
 		self.op = op
 
 	def __repr__(self):
-		return self.name + "[" + self.cond + "]" + self.op 
+		return self.name + "[" + str(self.cond) + "]" + self.op 
 
 def parse_assignment(line):
 	#for quick access to the assignment lexer states
@@ -152,6 +293,7 @@ def parse_assignment(line):
 				curvarcondpos = None
 			elif c == '[':	#now follows a condition string
 				state = s.COND
+				curvarcondpos = pos + 1
 			elif c == '=':	#'=' assignment operator, now follows the next variable or a value
 				curvarop += c
 				state = s.NEXTVAR_OR_VAL
@@ -164,9 +306,25 @@ def parse_assignment(line):
 		elif state == s.COND:
 			if c == ']' and not is_escaped:	#condition string over
 				state = s.NEXTVAR_OR_OP
+			elif c == "'" and not is_escaped: #single quote
+				curvarcond += c
+				state = s.COND_QUOTED
+			elif c == '"' and not is_escaped: #double quote
+				curvarcond += c
+				state = s.COND_DBLQUOTED
 			else:
 				curvarcond += c
 
+		elif state == s.COND_QUOTED:
+			if c == "'" and not is_escaped: #single quote
+				state = s.COND
+			curvarcond += c
+
+		elif state == s.COND_DBLQUOTED:
+			if c == '"' and not is_escaped: #single quote
+				state = s.COND
+			curvarcond += c
+	
 		elif state == s.NEXTVAR_OR_OP:
 			if c.isspace(): #ignore any number of spaces
 				pass
@@ -277,6 +435,10 @@ def parse_assignment(line):
 		raise Exception("Line over, but expected operator")
 	elif state == s.COND:
 		raise Exception("Line over, but inside condition string")
+	elif state == s.COND_QUOTED:
+		raise Exception("Line over, but inside quoted condition string")
+	elif state == s.COND_DBLQUOTED:
+		raise Exception("Line over, but inside double quoted condition string")
 	elif state == s.NEXTVAR_OR_OP:
 		raise Exception("Line over, but expected operator")
 	elif state == s.SKIPEQUALSSIGN:
@@ -301,8 +463,9 @@ def parse_assignment(line):
 		try:
 			var.cond = parse_condition(var.cond)
 		except Exception as e:
-			raise Exception("When parsing condition string '" + var.cond + "' for variable " + var.name + ": " + str(e))
-	
+			(condstr, dummy) = var.cond
+			raise Exception("When parsing condition string '" + condstr + "' for variable " + var.name + ": " + str(e))
+
 	assignment_vals_evaluated = []
 	for val in assignment_vals:
 		try:
