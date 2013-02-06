@@ -84,11 +84,11 @@ TODO	do we need user-defined vars at all?
 1.1.9	<val>		::= (for the syntax of a value, see the description. basically, everything except a comma is allowed). leading and trailing spaces and tabs are ignored
 
 1.1.10	<condition>	::= <varname> <conditionop> <val>
-1.1.11	<conditionop>	::= '==' | '=' | '=~' | '!=' | '>=' | '<=' | '>' | '<'
+1.1.11	<conditionop>	::= '==' | '=' | '=~' | '~=' | '!=' | '>=' | '<=' | '>' | '<'
 1.1.12	<condition>	::= '(' <condition> ')'			;parenthesis are optional, but may be required for some semantics (disambiguities)
-1.1.13	<condition>	::= '!' <condition>			;logic not
-1.1.14	<condition>	::= <condition> ';' <condition>		;logic or
-1.1.15	<condition>	::= <condition> ',' <condition>		;logic and
+1.1.13	<condition>	::= '!' <condition>				;logic not
+1.1.14	<condition>	::= <condition> ';' <condition> | <condition> '|' <condition>	;logic or
+1.1.15	<condition>	::= <condition> ',' <condition>	| <condition> '&' <condition>	;logic and
 
 1.2	this is roughly equivalent to this non-formal, easier-to-read syntax:
 	${var0}${op0},${var1}${op1},${var2}${op2},...,${varn}${opn}${val0},${val1},...,${valm}
