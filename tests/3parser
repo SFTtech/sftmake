@@ -8,6 +8,13 @@ testlines = [
 	"var[\'test\']=val",
 	"var[test\']\'test]=val",
 	"var[test\'bla]=val",
+	"var[~]=",
+	"var[===]=",
+	"var[==!]=",
+	"var[==<]=",
+	"var[=<]=",
+	"var[== ==]=",
+	"var[= !(=]=",
 	"cflags[c == gcc & !(mode ~= 'a b' | mode == rls))]=test",
 	"gschichten [ c == 'clang++' & !(!(!( gschicht =		'iee' && asdf	!= d f ))) ] = value",
 	"gschicht[c=='']=value"
