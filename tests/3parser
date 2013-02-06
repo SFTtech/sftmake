@@ -17,7 +17,7 @@ testlines = [
 	"var[= !(=]=",
 	"cflags[c == gcc & !(mode ~= 'a b' | mode == rls))]=test",
 	"gschichten [ c == 'clang++' & !(!(!( gschicht =		'iee' && asdf	!= \"d f\" ))) ] = value",
-	"gschicht[c=='']=value"
+	"gschicht[c==''&&lflags=test]=value"
 	]
 
 

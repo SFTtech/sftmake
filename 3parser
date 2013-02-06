@@ -1,54 +1,37 @@
 #!/usr/bin/env python
 
-#1.1.0	<assignment>	::= <vars> <vals>
-#
-#1.1.1	<vars>			::= {<paddedvarname> [<condition>] [<paddedop>] ','} <paddedvarname> [<condition>] <paddedop>
-#1.1.2	<vals>			::= <paddedval> {',' <paddedval>}
-#
-#1.1.3	<paddedvarname> ::= {' ' | \t} <varname> {' ' | \t}
-#1.1.4	<paddedop>		::= {' ' | \t} <op> {' ' | \t}
-#1.1.5	<paddedval>		::= {' ' | \t} <val> {' ' | \t}
-#
-#1.1.6	<op>			::= '+=' | '=' | ':=' | '-='
-#1.1.7	<varname>		::= (regex) [a-zA-Z_][a-zA-Z0-9_]*
-#1.1.8	<val>			::= (for the syntax of a value, see the description. basically, everything except a comma is allowed). leading and trailing spaces and tabs are ignored
-#
-#1.1.9	<condition>		::= <varname> <conditionop> <val>
-#1.1.10	<conditionop>	::= '==' | '=' | '=~' | '!=' | '>=' | '<=' | '>' | '<'
-#1.1.11	<condition>		::= '(' <condition> ')'				;parenthesis are optional, but may be required for some semantics (disambiguities)
-#1.1.13	<condition>		::= '!' <condition>					;logic not
-#1.1.14	<condition>		::= <condition> ';' <condition>		;logic or
-#1.1.15	<condition>		::= <condition> ',' <condition>		;logic and
-
 #the assignment parser, which reads complete assignment lines and delegates parts of its work to the cond and val parsers
 
-class lexer_exception(Exception):
+class LexerException(Exception):
 	def __init__(self, char, pos, expected):
 		Exception.__init__(self, "Unexpected character: " + char + " at position " + str(pos) + ", expected " + expected)
 		self.pos = pos
 
+
+
+###############################################################################
+#                                                                             #
+#                            Value Evaluation                                 #
+#                                                                             #
+###############################################################################
+
+
+
+
 def evaluate_valstr(valstr):
 	return valstr
 
-class conditiontokentype:
-	LPAREN		= 0		# '('
-	RPAREN		= 1		# ')'
-	LOGICUNOP	= 2		# '!'										(unary logic operators)
-	LOGICBINOP	= 3		# ';' ',' '&' '|'							(infix binary logic operators)
-	TESTOP		= 4		# '==' '=' '~=' '=~' '>=' '<=' '>' '<' '!='	(infix variable test operators)
-	VAR			= 5		#											(vars)
-	VAL			= 6		#											(vals)
 
-class conditiontoken:
-	def __init__(self, tokentype, content, pos):
-		self.tokentype = tokentype
-		self.content = content
-		self.pos = pos
 
-	def __repr__(self):
-		return "{" + str(self.tokentype) + ";" + self.content + "}" 
+###############################################################################
+#                                                                             #
+#                            Condition Parser                                 #
+#                                                                             #
+###############################################################################
 
-class conditionop:
+
+
+class ConditionOpType:
 	EQUALS		= 0
 	EQUALSNOT	= 1
 	MATCHES		= 2
@@ -57,29 +40,64 @@ class conditionop:
 	GREATER		= 5
 	LESS		= 6
 
-class conditionasttestnode:
+def parse_condition(cond):
+	tt = ConditionTokenType()
+
+	tokens = tokenize_condition(cond)
+	#preprocess token list: find <literal> <op> <literal> triplets
+	return tokens
+
+class ConditionAstTestNode:
 	def __init__(self, vartoken, optoken, valtoken):
 		self.varname = vartoken.content
 		self.val = evaluate_valstr(valtoken.content)
 		opstr = optoken.content
 		if opstr == "=" or opstr == "==":
-			self.op = conditionop.EQUALS
+			self.op = ConditionOpType.EQUALS
 		elif opstr == "!=":
-			self.op = conditionop.EQUALSNOT
+			self.op = ConditionOpType.EQUALSNOT
 		elif opstr == "~=" or opstr == "=~":
-			self.op = conditionop.MATCHES
+			self.op = ConditionOpType.MATCHES
 		elif opstr == ">=":
-			self.op = conditionop.GREATEROREQ
+			self.op = ConditionOpType.GREATEROREQ
 		elif opstr == "<=":
-			self.op = conditionop.LESSOREQ
+			self.op = ConditionOpType.LESSOREQ
 		elif opstr == ">":
-			self.op = conditionop.GREATER
+			self.op = ConditionOpType.GREATER
 		elif opstr == "<":
-			self.op = conditionop.LESS
+			self.op = ConditionOpType.LESS
 		else:
 			raise Exception("Unexpected operator: " + opstr + " at position " + optoken.pos)
 
-class conditionlexerstate:
+
+
+###############################################################################
+#                                                                             #
+#                          Condition Tokenizer                                #
+#                                                                             #
+###############################################################################
+
+
+
+class ConditionTokenType:
+	LPAREN		= 0		# '('
+	RPAREN		= 1		# ')'
+	LOGICUNOP	= 2		# '!'										(unary logic operators)
+	LOGICBINOP	= 3		# ';' ',' '&' '|'							(infix binary logic operators)
+	TESTOP		= 4		# '==' '=' '~=' '=~' '>=' '<=' '>' '<' '!='	(infix variable test operators)
+	VAR			= 5		#											(vars)
+	VAL			= 6		#											(vals)
+
+class ConditionToken:
+	def __init__(self, tokentype, content, pos):
+		self.tokentype = tokentype
+		self.content = content
+		self.pos = pos
+
+	def __repr__(self):
+		return "{" + str(self.tokentype) + ";" + self.content + "}" 
+
+class ConditionLexerState:
 	EXPECTVAR				= 0
 	VAR						= 1
 	EXPECTOP				= 2
@@ -95,8 +113,8 @@ def tokenize_condition(cond):
 	(condstr, pos) = cond
 
 	#for quick access to the condition lexer states and token types
-	s = conditionlexerstate()
-	tt = conditiontokentype()
+	s = ConditionLexerState()
+	tt = ConditionTokenType()
 	
 	#all tokens in this condition
 	tokens = []
@@ -112,30 +130,30 @@ def tokenize_condition(cond):
 			if c.isspace():
 				pass
 			elif c == '!':
-				tokens.append(conditiontoken(tt.LOGICUNOP, "!", relpos))
+				tokens.append(ConditionToken(tt.LOGICUNOP, "!", relpos))
 			elif c == '(':
-				tokens.append(conditiontoken(tt.LPAREN, "(", relpos))
+				tokens.append(ConditionToken(tt.LPAREN, "(", relpos))
 			elif c.isalpha() or c == '_':
 				tokenpos = relpos
 				content += c
 				state = s.VAR
 			else:
-				raise lexer_exception(c, relpos, "'!', '(' or beginning of variable")
+				raise LexerException(c, relpos, "'!', '(' or beginning of variable")
 
 		elif state == s.VAR:
 			if c.isspace():
-				tokens.append(conditiontoken(tt.VAR, content, tokenpos))
+				tokens.append(ConditionToken(tt.VAR, content, tokenpos))
 				content = ""
 				state = s.EXPECTOP
 			elif c.isalnum() or c == '_':
 				content += c
 			elif c in "!=~<>":
-				tokens.append(conditiontoken(tt.VAR, content, tokenpos))
+				tokens.append(ConditionToken(tt.VAR, content, tokenpos))
 				tokenpos = relpos
 				content = str(c)
 				state = s.OP
 			else:
-				raise lexer_exception(c, relpos, "test operator or variable")
+				raise LexerException(c, relpos, "test operator or variable")
 
 		elif state == s.EXPECTOP:
 			if c.isspace():
@@ -145,29 +163,29 @@ def tokenize_condition(cond):
 				content = str(c)
 				state = s.OP
 			else:
-				raise lexer_exception(c, relpos, "test operator")
+				raise LexerException(c, relpos, "test operator")
 
 		elif state == s.OP:
 			if c.isspace():
-				tokens.append(conditiontoken(tt.TESTOP, content, tokenpos))
+				tokens.append(ConditionToken(tt.TESTOP, content, tokenpos))
 				content = ""
 				state = s.EXPECTVAL
 			elif c == '"':
-				tokens.append(conditiontoken(tt.TESTOP, content, tokenpos))
+				tokens.append(ConditionToken(tt.TESTOP, content, tokenpos))
 				tokenpos = relpos
 				content = str(c)
 				state = s.VALDBLQUOTED
 			elif c == "'":
-				tokens.append(conditiontoken(tt.TESTOP, content, tokenpos))
+				tokens.append(ConditionToken(tt.TESTOP, content, tokenpos))
 				tokenpos = relpos
 				content = str(c)
 				state = s.VALQUOTED
 			elif c in "!=~<>":
 				content += c
 			elif c in ",;&|()":
-				raise lexer_exception(c, relpos, "operator or value")
+				raise LexerException(c, relpos, "operator or value")
 			else:
-				tokens.append(conditiontoken(tt.TESTOP, content, tokenpos))
+				tokens.append(ConditionToken(tt.TESTOP, content, tokenpos))
 				tokenpos = relpos
 				content = str(c)
 				state = s.VAL
@@ -184,7 +202,7 @@ def tokenize_condition(cond):
 				content = str(c)
 				state = s.VALQUOTED
 			elif c in ",;&|()!=~<>":
-				raise lexer_exception(c, relpos, "value")
+				raise LexerException(c, relpos, "value")
 			else:
 				tokenpos = relpos
 				content = str(c)
@@ -192,13 +210,13 @@ def tokenize_condition(cond):
 
 		elif state == s.VAL:
 			if c.isspace():
-				tokens.append(conditiontoken(tt.VAL, content, tokenpos))
+				tokens.append(ConditionToken(tt.VAL, content, tokenpos))
 				content = ""
 				state = s.EXPECTJUNCTOR
 			elif c == ')' and not is_escaped:
-				tokens.append(conditiontoken(tt.VAL, content, tokenpos))
+				tokens.append(ConditionToken(tt.VAL, content, tokenpos))
 				content = ""
-				tokens.append(conditiontoken(tt.RPAREN, ")", relpos))
+				tokens.append(ConditionToken(tt.RPAREN, ")", relpos))
 				state = s.EXPECTJUNCTOR
 			elif c == '"' and not is_escaped:
 				content += c
@@ -207,12 +225,12 @@ def tokenize_condition(cond):
 				content += c
 				state = s.VALQUOTED
 			elif c in ",;&|" and not is_escaped:
-				tokens.append(conditiontoken(tt.VAL, content, tokenpos))
+				tokens.append(ConditionToken(tt.VAL, content, tokenpos))
 				tokenpos = relpos
 				content = str(c)
 				state = s.JUNCTOR
 			elif c in "(!=~<>" and not is_escaped:
-				raise lexer_exception(c, relpos, "value or junctor")
+				raise LexerException(c, relpos, "value or junctor")
 			else:
 				content += c
 
@@ -234,38 +252,38 @@ def tokenize_condition(cond):
 			if c.isspace():
 				pass
 			elif c == ')':
-				tokens.append(conditiontoken(tt.RPAREN, ")", relpos))
+				tokens.append(ConditionToken(tt.RPAREN, ")", relpos))
 			elif c in ",;&|":
 				tokenpos = relpos
 				content = str(c)
 				state = s.JUNCTOR
 			else:
-				raise lexer_exception(c, relpos, "')' or junctor")
+				raise LexerException(c, relpos, "')' or junctor")
 
 		elif state == s.JUNCTOR:
 			if c.isspace():
-				tokens.append(conditiontoken(tt.LOGICBINOP, content, tokenpos))
+				tokens.append(ConditionToken(tt.LOGICBINOP, content, tokenpos))
 				content = ""
 				state = s.EXPECTVAR
 			elif c == '!':
-				tokens.append(conditiontoken(tt.LOGICBINOP, content, tokenpos))
+				tokens.append(ConditionToken(tt.LOGICBINOP, content, tokenpos))
 				content = ""
-				tokens.append(conditiontoken(tt.LOGICUNOP, "!", relpos))
+				tokens.append(ConditionToken(tt.LOGICUNOP, "!", relpos))
 				state = s.EXPECTVAR
 			elif c == '(':
-				tokens.append(conditiontoken(tt.LOGICBINOP, content, tokenpos))
+				tokens.append(ConditionToken(tt.LOGICBINOP, content, tokenpos))
 				content = ""
-				tokens.append(conditiontoken(tt.LPAREN, "(", relpos))
+				tokens.append(ConditionToken(tt.LPAREN, "(", relpos))
 				state = s.EXPECTVAR
 			elif c in ",;&|":
 				content += c
 			elif c.isalpha() or c == '_':
-				tokens.append(conditiontoken(tt.LOGICBINOP, content, tokenpos))
+				tokens.append(ConditionToken(tt.LOGICBINOP, content, tokenpos))
 				tokenpos = relpos
 				content = str(c)
 				state = s.VAR
 			else:
-				raise lexer_exception(c, relpos, "'(', '!', junctor or variable")
+				raise LexerException(c, relpos, "'(', '!', junctor or variable")
 
 		else:
 			raise Exception("Illegal lexer state")
@@ -287,7 +305,7 @@ def tokenize_condition(cond):
 	elif state == s.EXPECTVAL:
 		raise Exception("Condition over, but expected value")
 	elif state == s.VAL: #accepting state
-		tokens.append(conditiontoken(tt.VAL, content, tokenpos))
+		tokens.append(ConditionToken(tt.VAL, content, tokenpos))
 	elif state == s.VALQUOTED:
 		raise Exception("Condition over, but inside quoted value")
 	elif state == s.VALDBLQUOTED:
@@ -301,16 +319,26 @@ def tokenize_condition(cond):
 
 	return tokens
 
-def parse_condition(cond):
-	tt = conditiontokentype()
 
-	tokens = tokenize_condition(cond)
-	return tokens
 
-	#preprocess token list: find <literal> <op> <literal> triplets
+###############################################################################
+#                                                                             #
+#                                Assignment Lexer                             #
+#                                                                             #
+###############################################################################
 
-#the lexer states
-class assignmentlexerstate:
+
+
+class AssignmentVar:
+	def __init__(self, name, cond, condpos, op):
+		self.name = name
+		self.cond = (cond, condpos)
+		self.op = op
+
+	def __repr__(self):
+		return self.name + str(self.cond) + self.op 
+
+class AssignmentLexerState:
 	VARNAMEBEGIN		= 0		#we expect whitespace or [a-zA-Z_] as first char of varname
 	VARNAME				= 1		#we expect [a-zA-Z_0-9] as part of the current varname, whitespace, an assignment operator, "[" or "," 
 	VARNAMEOVER			= 2		#we read a whitespace and now expect an assignment operator, whitespaces, "[" or ","
@@ -325,18 +353,9 @@ class assignmentlexerstate:
 	VAL_DBLQUOTED		= 11	#we expect a double quote
 	NEXTVAL				= 12	#we expect a whitespace or any other character
 
-class assignment_var:
-	def __init__(self, name, cond, condpos, op):
-		self.name = name
-		self.cond = (cond, condpos)
-		self.op = op
-
-	def __repr__(self):
-		return self.name + str(self.cond) + self.op 
-
 def parse_assignment(line):
 	#for quick access to the assignment lexer states
-	s = assignmentlexerstate()
+	s = AssignmentLexerState()
 
 	#all variables in this assignment
 	assignment_vars=[]
@@ -366,7 +385,7 @@ def parse_assignment(line):
 				curvarname += c
 				state = s.VARNAME
 			else:
-				raise lexer_exception(c, pos, "first character of variable name [a-zA-Z_]")
+				raise LexerException(c, pos, "first character of variable name [a-zA-Z_]")
 
 		elif state == s.VARNAME:
 			if c.isalnum() or c == '_':	#next character of the variable name...
@@ -374,7 +393,7 @@ def parse_assignment(line):
 			elif c.isspace():	#variable name is over, now expecting condition, operator or the next varname
 				state = s.VARNAMEOVER
 			elif c == ',':	#variable name is over, and we immediately get the next varname, no cond or op
-				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarcondpos, curvarop))
+				assignment_vars.append(AssignmentVar(curvarname, curvarcond, curvarcondpos, curvarop))
 				state = s.VARNAMEBEGIN
 				curvarname = curvarop = curvarcond = ""
 				curvarcondpos = None
@@ -388,13 +407,13 @@ def parse_assignment(line):
 				curvarop += c
 				state = s.SKIPEQUALSSIGN
 			else:
-				raise lexer_exception(c, pos, "character of variable name [a-zA-Z_0-9], operator or condition")
+				raise LexerException(c, pos, "character of variable name [a-zA-Z_0-9], operator or condition")
 
 		elif state == s.VARNAMEOVER:
 			if c.isspace():	#ignore any number of spaces
 				pass
 			elif c == ',':	#immediately get the next varname, no cond or op
-				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarcondpos, curvarop))
+				assignment_vars.append(AssignmentVar(curvarname, curvarcond, curvarcondpos, curvarop))
 				state = s.VARNAMEBEGIN
 				curvarname = curvarop = curvarcond = ""
 				curvarcondpos = None
@@ -408,7 +427,7 @@ def parse_assignment(line):
 				curvarop += c
 				state = s.SKIPEQUALSSIGN
 			else:
-				raise lexer_exception(c, pos, "operator or condition")
+				raise LexerException(c, pos, "operator or condition")
 
 		elif state == s.COND:
 			if c == ']' and not is_escaped:	#condition string over
@@ -436,7 +455,7 @@ def parse_assignment(line):
 			if c.isspace(): #ignore any number of spaces
 				pass
 			elif c == ',':	#immediately get the next varname, no op
-				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarcondpos, curvarop))
+				assignment_vars.append(AssignmentVar(curvarname, curvarcond, curvarcondpos, curvarop))
 				state = s.VARNAMEBEGIN
 				curvarname = curvarop = curvarcond = ""
 			elif c == '=':	#'=' assignment operator, now follows the next variable or a value
@@ -446,14 +465,14 @@ def parse_assignment(line):
 				curvarop += c
 				state = s.SKIPEQUALSSIGN
 			else:
-				raise lexer_exception(c, pos, "operator")
+				raise LexerException(c, pos, "operator")
 
 		elif state == s.SKIPEQUALSSIGN:
 			if c == '=':	#exactly what we wanted
 				curvarop += c
 				state = s.NEXTVAR_OR_VAL
 			else:
-				raise lexer_exception(c, pos, "'='")
+				raise LexerException(c, pos, "'='")
 
 		elif state == s.NEXTVAR_OR_VAL:
 			if c.isspace(): #ignore any number of spaces
@@ -466,7 +485,7 @@ def parse_assignment(line):
 					else:
 						break
 
-				assignment_vars.append(assignment_var(curvarname, curvarcond, curvarcondpos, curvarop))
+				assignment_vars.append(AssignmentVar(curvarname, curvarcond, curvarcondpos, curvarop))
 				
 				if c == ',': #now follows the next var
 					state = s.VARNAMEBEGIN
@@ -551,7 +570,7 @@ def parse_assignment(line):
 	elif state == s.SKIPEQUALSSIGN:
 		raise Exception("Line over, but expected equals sign")
 	elif state == s.NEXTVAR_OR_VAL: #accept
-		assignment_vars.append(assignment_var(curvarname, curvarcond, curvarcondpos, curvarop))		
+		assignment_vars.append(AssignmentVar(curvarname, curvarcond, curvarcondpos, curvarop))		
 	elif state == s.VAL: #accept
 		if curval != "":
 			assignment_vals.append(curval)
@@ -565,9 +584,9 @@ def parse_assignment(line):
 		raise Exception("At end of line: Illegal lexer state")
 
 	#assignment_vals now contains a list of all values (in unparsed/unlexed string form)
-	#assignment_vars now contains a list of all variables, whith unparsed/unlexed condition strings
+	#AssignmentVars now contains a list of all variables, whith unparsed/unlexed condition strings
 	for var in assignment_vars:
-		(condstr, dummy) = var.cond
+		(condstr, condpos) = var.cond
 		try:
 			var.cond = parse_condition(var.cond)
 		except Exception as e:
