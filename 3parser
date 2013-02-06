@@ -31,43 +31,181 @@ def evaluate_valstr(valstr):
 
 
 
-class ConditionOpType:
-	EQUALS		= 0
-	EQUALSNOT	= 1
-	MATCHES		= 2
-	GREATEROREQ	= 3
-	LESSOREQ	= 4
-	GREATER		= 5
-	LESS		= 6
-
 def parse_condition(cond):
 	tt = ConditionTokenType()
 
 	tokens = tokenize_condition(cond)
-	#preprocess token list: find <literal> <op> <literal> triplets
-	return tokens
+	print(tokens)
+	condparser = ConditionParser(tokens)
+	return condparser.parse()
 
-class ConditionAstTestNode:
-	def __init__(self, vartoken, optoken, valtoken):
-		self.varname = vartoken.content
-		self.val = evaluate_valstr(valtoken.content)
-		opstr = optoken.content
-		if opstr == "=" or opstr == "==":
-			self.op = ConditionOpType.EQUALS
-		elif opstr == "!=":
-			self.op = ConditionOpType.EQUALSNOT
-		elif opstr == "~=" or opstr == "=~":
-			self.op = ConditionOpType.MATCHES
-		elif opstr == ">=":
-			self.op = ConditionOpType.GREATEROREQ
-		elif opstr == "<=":
-			self.op = ConditionOpType.LESSOREQ
-		elif opstr == ">":
-			self.op = ConditionOpType.GREATER
-		elif opstr == "<":
-			self.op = ConditionOpType.LESS
+class ConditionParser:
+	def __init__(self, tokens):
+		self.tt = ConditionTokenType()
+		self.tokens = tokens
+		self.cur = None
+		self.pos = 0
+	
+	def get_next_token(self):
+		if self.pos >= len(self.tokens):
+			self.cur = ConditionToken(self.tt.END, "", -1) 
 		else:
-			raise Exception("Unexpected operator: " + opstr + " at position " + optoken.pos)
+			self.cur = self.tokens[self.pos]
+			self.pos = self.pos + 1
+
+	def accept(self, tokentype):
+		if self.cur.tokentype == tokentype:
+			self.get_next_token()
+			return True
+		else:
+			return False
+
+	def parse(self):
+		self.get_next_token()
+		tree = self.parse_condition()
+		if not self.accept(self.tt.END):
+			raise Exception("Unexpected trailing tokens: " + self.cur.content)
+		return tree
+
+	def parse_condition(self):
+		tree = self.parse_test()
+		while self.cur.tokentype == self.tt.LOGICBINOP:
+			optoken = self.cur
+			self.get_next_token()
+			tree = create_condition_junctor_node(tree, optoken, self.parse_test())
+		return tree
+
+	def parse_test(self):
+		if self.cur.tokentype == self.tt.LOGICUNOP:
+			if self.cur.content == "!":
+				self.get_next_token()
+				return ConditionNotNode(self.parse_condition())
+			else:
+				raise Exception("Unexpected Operator: " + self.cur.content + " at position " + str(self.cur.pos))
+		elif self.accept(self.tt.LPAREN):
+			tree = self.parse_condition()
+			if not self.accept(self.tt.RPAREN):
+				raise Exception("Missing right parenthesis at position " + str(self.cur.pos))
+			return tree
+		else:
+			var = self.cur
+			self.get_next_token()
+			op = self.cur
+			self.get_next_token()
+			val = self.cur
+			self.get_next_token()
+			return create_condition_test_node(var, op, val)
+		
+def create_condition_junctor_node(left, optoken, right):
+	op = optoken.content
+	if op == "&" or op == "&&" or op == ",":
+		return ConditionAndNode(left, right)
+	elif op == "|" or op == "||" or op == ";":
+		return ConditionOrNode(left, right)
+	else:
+		raise Exception("Unexpected Operator: " + op + " at position " + str(optoken.pos))
+
+def create_condition_test_node(vartoken, optoken, valtoken):
+	var = vartoken.content
+	op = optoken.content
+	val = evaluate_valstr(valtoken.content)
+	if op == "==" or op == "=":
+		return ConditionEqualsNode(var, val)
+	elif op == "!=" or op == "<>":
+		return ConditionNotNode(
+				ConditionEqualsNode(var, val)
+			)
+	elif op == "~=" or op == "=~":
+		return ConditionMatchNode(var, val)
+	elif op == "!~" or op == "~!":
+		return ConditionNotNode(
+				ConditionMatchNode(var, val)
+			)
+	elif op == "<":
+		return ConditionLessNode(var, val)
+	elif op == ">":
+		return ConditionNotNode(
+				ConditionOrNode(
+					ConditionLessNode(var, val),
+					ConditionEqualsNode(var, val)
+				)
+			)
+	elif op == "<=":
+		return ConditionOrNode(
+				ConditionLessNode(var, val),
+				ConditionEqualsNode(var, val)
+			)
+	elif op == ">=":
+		return ConditionNotNode(
+				ConditionLessNode(var, val)
+			)
+	else:
+		raise Exception("Unexpected Operator: " + op + " at position " + str(optoken.pos));
+
+class ConditionNode:
+	def evaluate(self):
+		raise NotImplementedError("eval not implemented in abstract base class")
+
+class ConditionNotNode(ConditionNode):
+	def __init__(self, child):
+		self.child = child
+
+	def __repr__(self):
+		return "!(" + str(self.child) + ")"
+
+	def evaluate(self):
+		return not self.child.evaluate()
+
+class ConditionJunctorNode(ConditionNode):
+	def __init__(self, leftchild, rightchild):
+		self.leftchild = leftchild
+		self.rightchild = rightchild
+
+class ConditionAndNode(ConditionJunctorNode):
+	def __init__(self, leftchild, rightchild):
+		ConditionJunctorNode.__init__(self, leftchild, rightchild)
+
+	def __repr__(self):
+		return "(" + str(self.leftchild) + ") & (" + str(self.rightchild) + ")"
+	
+	def evaluate(self):
+		return self.leftchild.evaluate() and self.rightchild.evaluate()
+
+class ConditionOrNode(ConditionJunctorNode):
+	def __init__(self, leftchild, rightchild):
+		ConditionJunctorNode.__init__(self, leftchild, rightchild)
+
+	def __repr__(self):
+		return "(" + str(self.leftchild) + ") | (" + str(self.rightchild) + ")"
+	
+	def evaluate(self):
+		return self.leftchild.evaluate() or self.rightchild.evaluate()
+	
+class ConditionTestNode(ConditionNode):
+	def __init__(self, var, val):
+		self.var = var
+		self.val = val # value is evaluated outside
+
+class ConditionEqualsNode(ConditionTestNode):
+	def __init__(self, var, val):
+		ConditionTestNode.__init__(self, var, val)
+
+	def __repr__(self):
+		return self.var + " == " + str(self.val)
+
+class ConditionLessNode(ConditionTestNode):
+	def __init__(self, var, val):
+		ConditionTestNode.__init__(self, var, val)
+
+	def __repr__(self):
+		return self.var + " < " + str(self.val)
+
+class ConditionMatchNode(ConditionTestNode):
+	def __init__(self, var, val):
+		ConditionTestNode.__init__(self, var, val)
+
+	def __repr__(self):
+		return self.var + " ~= " + str(self.val)
 
 
 
@@ -87,6 +225,7 @@ class ConditionTokenType:
 	TESTOP		= 4		# '==' '=' '~=' '=~' '>=' '<=' '>' '<' '!='	(infix variable test operators)
 	VAR			= 5		#											(vars)
 	VAL			= 6		#											(vals)
+	END			= 7		#											(end dummy token)
 
 class ConditionToken:
 	def __init__(self, tokentype, content, pos):
@@ -316,6 +455,7 @@ def tokenize_condition(cond):
 		raise Exception("Condition over, but expected variable name")
 	else:
 		raise Exception("Illegal lexer state")
+	tokens.append(ConditionToken(tt.END, "", -1))
 
 	return tokens
 
@@ -336,7 +476,7 @@ class AssignmentVar:
 		self.op = op
 
 	def __repr__(self):
-		return self.name + str(self.cond) + self.op 
+		return self.name + "[" + str(self.cond) + "]" + self.op 
 
 class AssignmentLexerState:
 	VARNAMEBEGIN		= 0		#we expect whitespace or [a-zA-Z_] as first char of varname

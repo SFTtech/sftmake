@@ -17,9 +17,9 @@ testlines = [
 	"var[= !(=]=",
 	"cflags[c == gcc & !(mode ~= 'a b' | mode == rls))]=test",
 	"gschichten [ c == 'clang++' & !(!(!( gschicht =		'iee' && asdf	!= \"d f\" ))) ] = value",
-	"gschicht[c==''&&lflags=test]=value"
+	"gschicht[c==''&&lflags=test]=value",
+	"var[c==value]=val"
 	]
-
 
 for line in testlines:
 	print("Testing parser for line: " + line)
@@ -27,5 +27,7 @@ for line in testlines:
 		print(parse_assignment(line))
 	except Exception as e:
 		print("Caught exception: " + str(e))
+	finally:
+		print("")
 
 print("Tests done")
