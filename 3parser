@@ -32,10 +32,8 @@ def evaluate_valstr(valstr):
 
 
 def parse_condition(cond):
-	tt = ConditionTokenType()
-
 	tokens = tokenize_condition(cond)
-	print(tokens)
+	print(tokens) # TODO remove
 	condparser = ConditionParser(tokens)
 	return condparser.parse()
 
@@ -62,28 +60,38 @@ class ConditionParser:
 
 	def parse(self):
 		self.get_next_token()
-		tree = self.parse_condition()
+		tree = self.parse_or_condition()
 		if not self.accept(self.tt.END):
 			raise Exception("Unexpected trailing tokens: " + self.cur.content)
 		return tree
 
-	def parse_condition(self):
-		tree = self.parse_test()
-		while self.cur.tokentype == self.tt.LOGICBINOP:
+	def parse_or_condition(self):
+		tree = self.parse_and_condition()
+		while self.cur.tokentype == self.tt.LOGICBINOP and (self.cur.content == "|" or
+				self.cur.content == "||" or self.cur.content == ";"):
 			optoken = self.cur
 			self.get_next_token()
-			tree = create_condition_junctor_node(tree, optoken, self.parse_test())
+			tree = ConditionOrNode(tree, self.parse_and_condition())
+		return tree
+
+	def parse_and_condition(self):
+		tree = self.parse_test()
+		while self.cur.tokentype == self.tt.LOGICBINOP and (self.cur.content == "&" or
+				self.cur.content == "&&" or self.cur.content == ","):
+			optoken = self.cur
+			self.get_next_token()
+			tree = ConditionAndNode(tree, self.parse_test())
 		return tree
 
 	def parse_test(self):
 		if self.cur.tokentype == self.tt.LOGICUNOP:
 			if self.cur.content == "!":
 				self.get_next_token()
-				return ConditionNotNode(self.parse_condition())
+				return ConditionNotNode(self.parse_or_condition())
 			else:
 				raise Exception("Unexpected Operator: " + self.cur.content + " at position " + str(self.cur.pos))
 		elif self.accept(self.tt.LPAREN):
-			tree = self.parse_condition()
+			tree = self.parse_or_condition()
 			if not self.accept(self.tt.RPAREN):
 				raise Exception("Missing right parenthesis at position " + str(self.cur.pos))
 			return tree
@@ -94,57 +102,11 @@ class ConditionParser:
 			self.get_next_token()
 			val = self.cur
 			self.get_next_token()
-			return create_condition_test_node(var, op, val)
-		
-def create_condition_junctor_node(left, optoken, right):
-	op = optoken.content
-	if op == "&" or op == "&&" or op == ",":
-		return ConditionAndNode(left, right)
-	elif op == "|" or op == "||" or op == ";":
-		return ConditionOrNode(left, right)
-	else:
-		raise Exception("Unexpected Operator: " + op + " at position " + str(optoken.pos))
-
-def create_condition_test_node(vartoken, optoken, valtoken):
-	var = vartoken.content
-	op = optoken.content
-	val = evaluate_valstr(valtoken.content)
-	if op == "==" or op == "=":
-		return ConditionEqualsNode(var, val)
-	elif op == "!=" or op == "<>":
-		return ConditionNotNode(
-				ConditionEqualsNode(var, val)
-			)
-	elif op == "~=" or op == "=~":
-		return ConditionMatchNode(var, val)
-	elif op == "!~" or op == "~!":
-		return ConditionNotNode(
-				ConditionMatchNode(var, val)
-			)
-	elif op == "<":
-		return ConditionLessNode(var, val)
-	elif op == ">":
-		return ConditionNotNode(
-				ConditionOrNode(
-					ConditionLessNode(var, val),
-					ConditionEqualsNode(var, val)
-				)
-			)
-	elif op == "<=":
-		return ConditionOrNode(
-				ConditionLessNode(var, val),
-				ConditionEqualsNode(var, val)
-			)
-	elif op == ">=":
-		return ConditionNotNode(
-				ConditionLessNode(var, val)
-			)
-	else:
-		raise Exception("Unexpected Operator: " + op + " at position " + str(optoken.pos));
+			return ConditionTestNode(var, op, val)
 
 class ConditionNode:
 	def evaluate(self):
-		raise NotImplementedError("eval not implemented in abstract base class")
+		raise NotImplementedError("evaluate not implemented in abstract base class")
 
 class ConditionNotNode(ConditionNode):
 	def __init__(self, child):
@@ -181,32 +143,68 @@ class ConditionOrNode(ConditionJunctorNode):
 	def evaluate(self):
 		return self.leftchild.evaluate() or self.rightchild.evaluate()
 	
+def condition_test_equals(varval, val):
+	return (varval == val)
+
+def condition_test_matches(varval, val):
+	return True # TODO stub
+
+def condition_test_less(varval, val):
+	return True # TODO stub
+
+def condition_test_greater(varval, val):
+	return True # TODO stub
+
 class ConditionTestNode(ConditionNode):
-	def __init__(self, var, val):
-		self.var = var
-		self.val = val # value is evaluated outside
-
-class ConditionEqualsNode(ConditionTestNode):
-	def __init__(self, var, val):
-		ConditionTestNode.__init__(self, var, val)
-
+	def __init__(self, vartoken, optoken, valtoken):
+		self.var = vartoken.content
+		self.val = evaluate_valstr(valtoken.content)
+		op = optoken.content
+		if op == "==" or op == "=":
+			self.testfunc = condition_test_equals
+			self.op = "=="
+			self.invert = False
+		elif op == "!=" or op == "<>":
+			self.testfunc = condition_test_equals
+			self.op = "!="
+			self.invert = True
+		elif op == "~=" or op == "=~":
+			self.testfunc = condition_test_matches
+			self.op = "~="
+			self.invert = False
+		elif op == "!~" or op == "~!":
+			self.testfunc = condition_test_matches
+			self.op = "!~"
+			self.invert = True
+		elif op == "<":
+			self.testfunc = condition_test_less
+			self.op = "<"
+			self.invert = False
+		elif op == ">":
+			self.testfunc = condition_test_greater
+			self.op = ">"
+			self.invert = False
+		elif op == "<=":
+			self.testfunc = condition_test_greater
+			self.op = "<="
+			self.invert = True
+		elif op == ">=":
+			self.testfunc = condition_test_less
+			self.op = ">="
+			self.invert = True
+		else:
+			raise Exception("Unknown Operator: " + op + " at position " + str(optoken.pos));
+	
 	def __repr__(self):
-		return self.var + " == " + str(self.val)
+		return self.var + self.op + str(self.val)
 
-class ConditionLessNode(ConditionTestNode):
-	def __init__(self, var, val):
-		ConditionTestNode.__init__(self, var, val)
-
-	def __repr__(self):
-		return self.var + " < " + str(self.val)
-
-class ConditionMatchNode(ConditionTestNode):
-	def __init__(self, var, val):
-		ConditionTestNode.__init__(self, var, val)
-
-	def __repr__(self):
-		return self.var + " ~= " + str(self.val)
-
+	def evaluate(self):
+		varvalue = get_variable_value(self.var) # TODO get correct variable value
+		result = testfunc(varvalue, self.val)
+		if self.invert:
+			return not result
+		else:
+			return result
 
 
 ###############################################################################
@@ -455,7 +453,7 @@ def tokenize_condition(cond):
 		raise Exception("Condition over, but expected variable name")
 	else:
 		raise Exception("Illegal lexer state")
-	tokens.append(ConditionToken(tt.END, "", -1))
+	tokens.append(ConditionToken(tt.END, "", len(condstr)))
 
 	return tokens
 
