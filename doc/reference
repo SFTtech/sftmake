@@ -8,7 +8,7 @@ released under the GPLv3 or later
 0	Configuration variables
 
 0.0	each configuration variable is an array of values
-	values consist of a mode, a condition (possibly non-existant), and a string (the actual value).
+	values consist of a mode, a condition (possibly non-existent), and a string (the actual value).
 	the actual value is evaluated always at assignment time; the condition at reading time.
 0.0.0	undefined variables are considered 0-element when read
 0.0.1	when assigning values, the assigned values are _always_ appended to the end of the array, even if it a 'removal', such as -=.
@@ -26,7 +26,7 @@ released under the GPLv3 or later
 		
 0.1	the set of configuration variables is pre-defined.
 
-0.2	each configuration variables has two pre-defined, unchangable boolean properties:
+0.2	each configuration variable has two pre-defined boolean properties:
 0.2.0		- does it contain paths? (examples: use, fname)
 			if yes, then on assignment all values that do not start with '/' or '^', i.e. full relative paths, are converted to paths starting with '^'.
 			for that purpose, the path is interpreted as relative to the current working directory of sftmake (i.e. where the conffile was found)
@@ -63,7 +63,7 @@ TODO	do we need user-defined vars at all?
 
 	mode==dbg;(mode==rls,cc==clang)
 
-1	Assignment syntax and semanticcs
+1	Assignment syntax and semantics
 
 1.0	In a single assignment, any number of configuration variables can be assigned any number of values.
 
@@ -125,7 +125,7 @@ TODO	do we need user-defined vars at all?
 1.5.3	'\' starts an escape sequence. the following escape sequences are defined. undefined escape sequences raise a fatal error.
 
 		escape seq		represents
-1.5.3.0		\[\:,;!()[]{}]		the respective charactes (e.g. in conditions, ';,!()[]' must be escaped for they have special meanings)
+1.5.3.0		\[\:,;!()[]{}]		the respective characters (e.g. in conditions, ';,!()[]' must be escaped for they have special meanings)
 1.5.3.1		\_			space
 1.5.3.2		\uXXXX (hex)		unicode character XXXX
 1.5.3.3		\xXX (hex)		ascii character XX
@@ -148,7 +148,7 @@ TODO					this way, it's impossible to 'split' a variable in a clean way, since f
 		cflags		:=	-Wall -Wextra
 
 
-#TODO integrate
+#TODO integrate (This is so derivative)
 ^/smfile
 ^/foo/bar/dir.smfile		/dir.sm
 ^/foo/lolbinary.target.smfile	/lolbinary.target.sm
@@ -163,7 +163,7 @@ TODO					this way, it's impossible to 'split' a variable in a clean way, since f
 2.2	Then, argv is parsed
 	Each element of argv can be a single assignment line, which is applied to config(^)
 	Elements of argv that are not valid assignments are considered target specifications
-	If one or more target specifications are given, the build list is set to these instead of it's existing value
+	If one or more target specifications are given, the build list is set to these instead of its existing value
 	Adding targets to the build list instead of replacing it can be accomplished by a
 		./sm build+=foo,libbar
 	instead of
@@ -349,7 +349,7 @@ All functions are in [a-z]+.
 
 	in each thread:
 	while(1):
-		check datastructure for buildable objects/targets
+		check data structure for buildable objects/targets
 		build the object/target
 
 6.1	an object is always buildable
