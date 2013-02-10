@@ -113,3 +113,26 @@ def smpath(path, relto = '^'):
 		return '^'
 	else:
 		return '^/' + path
+
+#TODO Decide on an encoding. It can be made arbitrarily complicated.
+def generate_oname(obj_desc):
+	"""Encodes the object name/command description in order to be sanely
+	and intuitively displayed as a filename.
+
+	The colon is the escape character; escaping colons requires a double
+	colon.
+	"""
+	oname = obj_desc[:]
+	# Escape any colons present in the string (why would you put colons in
+	# a string? Seriously?)
+	re.sub(r":", "::", oname)
+	# Escape underscores and pipe characters
+	re.sub(r"|", ":|", oname)
+	re.sub(r"_", ":_", oname)
+	# Finally, replace spaces with underscores and slashes with vertical pipes.
+	# If your filename contains any more evil characters,
+	# then God - er - Gnu help you.
+	re.sub(r" ", "_", oname)
+	re.sub(r"/", "|", oname)
+	# And_there_you_go::_A_weirdly:/interestingly-escaped_command.
+	return oname
