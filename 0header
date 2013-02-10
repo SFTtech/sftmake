@@ -11,5 +11,7 @@
 # (c) 2013 Michael Ensslin
 # (c) 2013 Jonas Jelten
 # (c) 2013 Andre Kupka
+# (c) 2013-2213 Max Veit
 
 import os
+import re
