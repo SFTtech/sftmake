@@ -1,7 +1,276 @@
 #!/usr/bin/env python
 
+import threading
+import multiprocessing
+import os.path
+import re
+import base64
+import concurrent.futures
+
+class vartest():
+	def __init__(self, arg):
+		self.l = arg
+	def get(self, a = ""):
+		return self.l
+
+def relpath(path):
+	'''stub for testing'''
+	return path
+
+def generate_oname(name):
+	encoded = base64.b64encode(bytearray(name, 'utf-8'))
+	return encoded.decode('utf-8')
+
+
+#test purpose only
+variables = {}
+variables["c"] = vartest("gcc")
+variables["build"] = vartest(["^/test", "^/liblol.so"])
+variables["cflags"] = vartest("-O8 -flto=4")
+variables["use"] = vartest(["^/gschicht.c", "^/asdf.c", "^/lolfolder/file.c"])
+variables["objdir"] = vartest("^/.objdir")
+variables["depends"] = vartest(['^/asdf.h','^/lol.h'])
+variables["autodepends"] = vartest("MD")
+variables["prebuild"] = vartest("")
+variables["postbuild"] = vartest("")
+variables["loglevel"] = vartest("2")
+variables["ldflags"] = vartest("-lsft")
+
+
+class BuildOrder:
+	'''A build order contains all targets that must be built'''
+	def __init__(self):
+		self.targets = []
+	def add_target(self, target):
+		self.targets.append(target)
+	def job_count(self, n = get_thread_count()):
+		self.max_jobs = n
+
+class BuildTarget:
+	'''A build target has a list of all sources that will be linked in the target'''
+	def __init__(self, tname):
+		self.files = []
+		self.name = tname
+
+	def add_file(self, cfile):
+		self.files.append(cfile)
+
+class BuildFile:
+	'''A build file only stores the filename and its (header) dependencies'''
+	def __init__(self, fname):
+		self.name = fname
+		self.depends = []
+		self.needsbuild = False
+	
+	def set_c_run(self, c_run):
+		self.c_run = c_run
+
+	def set_enc_name(self, e):
+		self.enc_name = e
+
+	def add_dependency(self, dfile):
+		if(type(dfile) == list):
+			self.depends += dfile
+		else:
+			self.depends.append(dfile)
+
+	def __str__(self):
+		out = "Source file: " + self.name + " -> \n"
+		n = 0
+		for d in self.depends:
+			out += "\tdep " + str(n) + ":\t" + d + "\n"
+			n += 1
+
+		out += "\tc_invokation: " + self.c_run
+		return out;
+
+def build_worker(manager,ofile):
+	'''this method compiles a single object.'''
+
+	if fail:
+		print("Fial, waiting for other jobs to exit")
+		manager.e.shutdown(wait=True)
+	pass
+
+
+class Builder:
+	def __init__(self, conf):
+		self.conf = conf
+	
+	def build(self, order):
+		'''process a build_order'''
+		if(type(order) != BuildFile):
+			raise Exception("Builder: the build() function needs a BuildOrder")
+
+		self.e = ThreadPoolExecutor(max_workers=order.max_jobs)
+
+		for target in order.targets:
+			rtarget = relpath(target.tname)
+			print("===== Building target " + rtarget)
+
+			worker_results = []
+			for ofile in target.files:
+				worker_results.append(e.submit(build_worker, self, ofile))
+
+
+		for fl in order_file.depends:
+			try:
+				# check for modification times
+				if( not os.path.isfile(o_name) or (os.path.getmtime(fl) > os.path.getmtime(o_name))):
+					order_file.needs_build = True
+					break
+
+			except OSError as e:
+				print(str(e) + " -> source file not found. Ignoring for now.")
+
+
+
+
+	def prepare(self):
+		'''generate a build order for later processing'''
+		order = BuildOrder()
+		for target in self.conf["build"].get():
+			order_target = BuildTarget(target)
+
+			for source in self.conf["use"].get(target):
+				order_file = BuildFile(source)
+
+				c_run = ""
+
+				c_run += self.conf["c"].get(source)		#compiler
+				c_run += " " + self.conf["cflags"].get(source)	#compiler flags
+				c_run += " -c " + relpath(source)		#sourcefile name
+
+				# encode the compiler flags etc
+				objdir = self.conf["objdir"].get(source)
+				enc_name = relpath(objdir) + "/" + relpath(source) + "-" + generate_oname(c_run)	#TODO: This line contains 99% bugs
+				order_file.set_enc_name(enc_name)
+
+				o_name = enc_name + ".o"
+				c_run += " -o " + o_name	 		#output object file name generation
+
+				# add known (by config) dependency files
+				order_file.add_dependency(self.conf["depends"].get(source))
+				
+				#add sourcefile path itself to depends
+				ad = self.conf["autodepends"].get(source)
+
+
+				s_prb = self.conf["prebuild"].get(source)
+				if(len(s_prb) > 0):
+					c_run = s_prb + " ; " + c_run
+
+				s_pob = self.conf["postbuild"].get(source)
+				if(len(s_pob) > 0):
+					c_run = c_run + " ; " + s_pob
+
+				if(ad == "MD"):
+					mdfile = enc_name + ".d"
+
+					if(os.path.isfile(mdfile)):
+						order_file.add_dependency(parse_dfile(mdfile))
+
+					else:
+						order_target.add_file(order_file)
+
+					c_run += " -MD"  # generate c headers dependency file
+
+				elif(ad == "no"):
+					#kp evtl auch iwas
+					pass
+				else:
+					#let's ignore an unknown autodetection mode
+					sys.stderr.write(source + ": unknow autodetection mode: " + ad);
+
+				#quiet mode -> echo the filename only
+				if(int(self.conf["loglevel"].get(source)) <= 1):
+					# suppress compiler output except stderr
+					# TODO: prettify, e.g. colorize
+					c_run = "echo 'CC " + source  + "'; " + c_run + " > /dev/null"
+
+
+				# compiler invocation complete -> add it to the source file build order
+				order_file.set_c_run(c_run)
+
+
+				order_target.add_file(order_file)
+				print(str(order_file))
+
+			#=> continuation for each target
+			#compiler_invocation = \{prebuild}; \{c} \{cflags} \{lflags} \{libs} [type-specific flags] \{objects} -o \(oname); \{postbuild}
+
+			t_run = self.conf["c"].get(target)		#compiler
+			t_run += " " + self.conf["cflags"].get(target)	#compiler flags
+			t_run += " " + self.conf["ldflags"].get(target)
+			t_run += " -o " + relpath(target)
+			
+			for ofile in order_target.files:
+				t_run += " " + relpath(ofile.enc_name + ".o")
+
+
+			t_prb = self.conf["prebuild"].get(target)
+			if(len(s_prb) > 0):
+				t_run = t_prb + " ; " + t_run
+
+			s_pob = self.conf["postbuild"].get(target)
+			if(len(s_pob) > 0):
+				t_run = t_run + " ; " + t_pob
+
+
+			#include current target to the build order
+			order.add_target(order_target)
+
+
+			#current_config = conf(target)
+			#dobuild = false                                                                                 <<< insert into final structure for phase 6
+			#for each file in depends: (usually, this array should be empty)
+			#	if \(mtime(file)) > \(mtime(oname) || !oname.exists()):
+			#		dobuild = true
+			#		break
+			#for each obj in objects:
+			#	if conf(obj).dobuild
+			#		dobuild = true
+			#		break
+
+
+
+def parse_dfile(filename):
+	'''parse a .dfile and return a list of dependency headers'''
+	try:
+		with open(filename, 'r') as f:
+			content = f.readlines() #list of line, including a trailing \\n (sic)
+			content = [ clean_dfile_line(l) for l in content ]
+			dependencies = []
+			for part in content: # concat all lists
+				dependencies += part
+
+			return dependencies
+	except IOError as e:
+		return [];
+
+def clean_dfile_line(line):
+	'''converts a .dfile line to a list of header dependencies'''
+	hmatch = re.compile(r"[-\w/\.]+\.(h|hpp)") #matches a single header file
+	parts = re.split(r"\s+", line)
+
+	#return all matching header files as list
+	return list(filter(lambda part: hmatch.match(part), parts))
+#	return [ part for part in parts if hmatch.match(part) ]
+
+
+
+def get_thread_count():
+	try:
+		return multiprocessing.cpu_count()
+	except NotImplementedError: # may happen under !POSIX
+		fallback = 1
+		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
+		return fallback;
+
 def main():
 	print("fak u dolan")
+	#print(str(variables["build"].get()))
+	Builder(variables).prepare()
 
 if __name__ == "__main__":
 	main()
