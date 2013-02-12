@@ -6,6 +6,10 @@ import os.path
 import re
 import base64
 import concurrent.futures
+import subprocess
+import shlex
+import time
+import random
 
 class vartest():
 	def __init__(self, arg):
@@ -13,13 +17,21 @@ class vartest():
 	def get(self, a = ""):
 		return self.l
 
-def relpath(path):
-	'''stub for testing'''
-	return path
+try:
+	relpath("^/a")
+except NameError:
+	print("redefining relpath() as stub")
+	def relpath(path):
+		'''stub for testing'''
+		return path
 
-def generate_oname(name):
-	encoded = base64.b64encode(bytearray(name, 'utf-8'))
-	return encoded.decode('utf-8')
+try:
+	generate_oname("gschicht")
+except NameError:
+	print("redefining generate_oname() as stub")
+	def generate_oname(name):
+		encoded = base64.b64encode(bytearray(name, 'utf-8'))
+		return encoded.decode('utf-8')
 
 
 #test purpose only
@@ -37,10 +49,20 @@ variables["loglevel"] = vartest("2")
 variables["ldflags"] = vartest("-lsft")
 
 
+def get_thread_count():
+	try:
+		return multiprocessing.cpu_count()
+	except NotImplementedError: # may happen under !POSIX
+		fallback = 1
+		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
+		return fallback;
+
+
 class BuildOrder:
 	'''A build order contains all targets that must be built'''
 	def __init__(self):
 		self.targets = []
+		self.max_jobs = get_thread_count()
 	def add_target(self, target):
 		self.targets.append(target)
 	def job_count(self, n = get_thread_count()):
@@ -56,11 +78,11 @@ class BuildTarget:
 		self.files.append(cfile)
 
 class BuildFile:
-	'''A build file only stores the filename and its (header) dependencies'''
+	'''A build file object only stores the filename and its (header) dependencies'''
 	def __init__(self, fname):
 		self.name = fname
 		self.depends = []
-		self.needsbuild = False
+		self.needs_build = False
 	
 	def set_c_run(self, c_run):
 		self.c_run = c_run
@@ -74,6 +96,9 @@ class BuildFile:
 		else:
 			self.depends.append(dfile)
 
+	def __repr__(self):
+		return relpath(self.name)
+
 	def __str__(self):
 		out = "Source file: " + self.name + " -> \n"
 		n = 0
@@ -84,13 +109,55 @@ class BuildFile:
 		out += "\tc_invokation: " + self.c_run
 		return out;
 
+
+
 def build_worker(manager,ofile):
 	'''this method compiles a single object.'''
+	
+	o_name = ofile.enc_name + ".o"
+	c_name = relpath(ofile.name)
 
-	if fail:
-		print("Fial, waiting for other jobs to exit")
-		manager.e.shutdown(wait=True)
-	pass
+	if(not os.path.isfile(o_name)):
+		ofile.needs_build = True
+		print("needs building -> " + c_name)
+
+	if(not ofile.needs_build):
+		for fl in ofile.depends:
+			try:
+				# check for modification times
+				print("checking mtime of -> " + fl)
+				if(os.path.getmtime(fl) > os.path.getmtime(o_name)):
+					ofile.needs_build = True
+					break
+
+			except OSError as e:
+				print(str(e) + " -> Ignoring for now.")
+
+	if(ofile.needs_build):
+		print("build -> " + c_name)
+		#ret = subprocess.call(shlex.split(ofile.c_run), shell=True)
+		time.sleep(1)
+		print("done building -> " + c_name)
+		
+		ret = round(random.random())
+
+		if(ret > 0):
+			fail = True
+		else:
+			fail = False
+
+		if fail:
+			print("======= Fial at building " + repr(ofile) + "=========")
+			manager.e.shutdown(wait=True)
+			print("""Canceled build because of error at building:
+			\t """ + c_name + "\n")
+			return 1
+		else:
+			return 0
+
+	#doesn't need build
+	else:
+		print("skipping " + c_name)
 
 
 class Builder:
@@ -99,29 +166,28 @@ class Builder:
 	
 	def build(self, order):
 		'''process a build_order'''
-		if(type(order) != BuildFile):
+		if(type(order) != BuildOrder):
 			raise Exception("Builder: the build() function needs a BuildOrder")
 
-		self.e = ThreadPoolExecutor(max_workers=order.max_jobs)
+		self.e = concurrent.futures.ThreadPoolExecutor(max_workers=order.max_jobs)
 
 		for target in order.targets:
-			rtarget = relpath(target.tname)
+			rtarget = relpath(target.name)
 			print("===== Building target " + rtarget)
 
 			worker_results = []
 			for ofile in target.files:
-				worker_results.append(e.submit(build_worker, self, ofile))
+				f = self.e.submit(build_worker, self, ofile)
+				worker_results.append(f)
 
+				#b = threading.Thread(target=build_worker, args=[self, ofile])
 
-		for fl in order_file.depends:
-			try:
-				# check for modification times
-				if( not os.path.isfile(o_name) or (os.path.getmtime(fl) > os.path.getmtime(o_name))):
-					order_file.needs_build = True
-					break
+			for res in worker_results:
+				print("ret => " + str(res.result()) + " -> " + relpath(ofile.name))
 
-			except OSError as e:
-				print(str(e) + " -> source file not found. Ignoring for now.")
+			print("=== Linking target " + rtarget)
+			time.sleep(2)
+
 
 
 
@@ -231,6 +297,7 @@ class Builder:
 			#	if conf(obj).dobuild
 			#		dobuild = true
 			#		break
+			return order
 
 
 
@@ -259,18 +326,14 @@ def clean_dfile_line(line):
 
 
 
-def get_thread_count():
-	try:
-		return multiprocessing.cpu_count()
-	except NotImplementedError: # may happen under !POSIX
-		fallback = 1
-		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
-		return fallback;
 
 def main():
 	print("fak u dolan")
 	#print(str(variables["build"].get()))
-	Builder(variables).prepare()
+	builder = Builder(variables)
+	order = builder.prepare()
+	builder.build(order)
+
 
 if __name__ == "__main__":
 	main()
