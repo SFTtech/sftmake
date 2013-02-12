@@ -59,6 +59,7 @@ def get_thread_count():
 
 
 class JobManager:
+	"""thread manager for invoking the compilers"""
 	def __init__(self):
 		self.current_threads = []
 
@@ -81,7 +82,7 @@ class BuildOrder:
 		out = "\n\n%%%%%%%%%%%%%%%%%\n BUILD ORDER"
 		for t in self.targets:
 			out += str(t)
-		out += "%%%%%%%%%%%%%%%%"
+		out += "\n%%%%%%%%%%%%%%%%%\n"
 		return out
 
 class BuildTarget:
@@ -98,12 +99,13 @@ class BuildTarget:
 		self.t_run = t_run
 
 	def __str__(self):
-		out = "\n>>>>>>>>>>>>\ntarget file: " + self.name + " -> \n"
+		out = "\n>>>>>>>>>>>>>>>>>>>>>>>>>\ntarget file: " + relpath(self.name)
+		out += " -> \n"
 		n = 0
 		for f in self.files:
-			out += "== file " + n + " \n" + str(f)
+			out += "\n-- file " + str(n) + ":" + str(f)
 			n += 1
-		out += "\t c_invokation: " + self.t_run + "\n>>>>>>>>>>>>"
+		out += "\t c_invokation: " + self.t_run + "\n>>>>>>>>>>>>>>>>>>>>>>>>>\n"
 		return out
 
 
@@ -131,13 +133,13 @@ class BuildFile:
 		return relpath(self.name)
 
 	def __str__(self):
-		out = "\n=========\nsource file: " + self.name + " -> \n"
+		out = "\n===========\nsource file: " + relpath(self.name) + " -> \n"
 		n = 0
 		for d in self.depends:
-			out += "\tdep " + str(n) + ":\t" + d + "\n"
+			out += "\tdep " + str(n) + ":\t" + relpath(d) + "\n"
 			n += 1
 
-		out += "\tc_invokation: " + self.c_run + "\n==========="
+		out += "\tc_invokation: " + self.c_run + "\n===========\n"
 		return out
 
 
@@ -317,7 +319,7 @@ class Builder:
 
 
 				order_target.add_file(order_file)
-				print(str(order_file))
+				#print(str(order_file))
 
 			#=> continuation for each target
 			#compiler_invocation = \{prebuild}; \{c} \{cflags} \{lflags} \{libs} [type-specific flags] \{objects} -o \(oname); \{postbuild}
@@ -345,6 +347,7 @@ class Builder:
 			order.add_target(order_target)
 
 		#direct function level
+		print(str(order))
 		return order
 
 
