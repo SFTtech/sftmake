@@ -58,6 +58,15 @@ def get_thread_count():
 		return fallback;
 
 
+class JobManager:
+	def __init__(self):
+		self.current_threads = []
+
+	def submit(self, func, *args):
+		"""insert a function in the execution queue"""
+		pass
+
+
 class BuildOrder:
 	'''A build order contains all targets that must be built'''
 	def __init__(self):
@@ -68,14 +77,35 @@ class BuildOrder:
 	def job_count(self, n = get_thread_count()):
 		self.max_jobs = n
 
+	def __str__(self):
+		out = "\n\n%%%%%%%%%%%%%%%%%\n BUILD ORDER"
+		for t in self.targets:
+			out += str(t)
+		out += "%%%%%%%%%%%%%%%%"
+		return out
+
 class BuildTarget:
 	'''A build target has a list of all sources that will be linked in the target'''
 	def __init__(self, tname):
 		self.files = []
 		self.name = tname
+		self.t_run = ""
 
 	def add_file(self, cfile):
 		self.files.append(cfile)
+
+	def set_t_run(self, t_run):
+		self.t_run = t_run
+
+	def __str__(self):
+		out = "\n>>>>>>>>>>>>\ntarget file: " + self.name + " -> \n"
+		n = 0
+		for f in self.files:
+			out += "== file " + n + " \n" + str(f)
+			n += 1
+		out += "\t c_invokation: " + self.t_run + "\n>>>>>>>>>>>>"
+		return out
+
 
 class BuildFile:
 	'''A build file object only stores the filename and its (header) dependencies'''
@@ -83,6 +113,7 @@ class BuildFile:
 		self.name = fname
 		self.depends = []
 		self.needs_build = False
+		self.c_run = ""
 	
 	def set_c_run(self, c_run):
 		self.c_run = c_run
@@ -100,14 +131,14 @@ class BuildFile:
 		return relpath(self.name)
 
 	def __str__(self):
-		out = "Source file: " + self.name + " -> \n"
+		out = "\n=========\nsource file: " + self.name + " -> \n"
 		n = 0
 		for d in self.depends:
 			out += "\tdep " + str(n) + ":\t" + d + "\n"
 			n += 1
 
-		out += "\tc_invokation: " + self.c_run
-		return out;
+		out += "\tc_invokation: " + self.c_run + "\n==========="
+		return out
 
 
 
@@ -117,9 +148,15 @@ def build_worker(manager,ofile):
 	o_name = ofile.enc_name + ".o"
 	c_name = relpath(ofile.name)
 
-	if(not os.path.isfile(o_name)):
+	if(os.path.isfile(o_name)):
+		if (os.path.getmtime(o_name) < os.path.gettime(c_name)):
+			ofile.needs_build = True
+		else:
+			ofile.needs_build = False
+
+	else: # .o does not exist
 		ofile.needs_build = True
-		print("needs building -> " + c_name)
+
 
 	if(not ofile.needs_build):
 		for fl in ofile.depends:
@@ -139,7 +176,8 @@ def build_worker(manager,ofile):
 		time.sleep(1)
 		print("done building -> " + c_name)
 		
-		ret = round(random.random())
+		#ret = round(random.random())
+		ret = 0
 
 		if(ret > 0):
 			fail = True
@@ -147,10 +185,10 @@ def build_worker(manager,ofile):
 			fail = False
 
 		if fail:
-			print("======= Fial at building " + repr(ofile) + "=========")
-			manager.e.shutdown(wait=True)
+			print("\n======= Fail at building " + repr(ofile) + " =========")
+			manager.e.error = ret
 			print("""Canceled build because of error at building:
-			\t """ + c_name + "\n")
+	""" + c_name + "\n")
 			return 1
 		else:
 			return 0
@@ -163,6 +201,7 @@ def build_worker(manager,ofile):
 class Builder:
 	def __init__(self, conf):
 		self.conf = conf
+		self.error = 0
 	
 	def build(self, order):
 		'''process a build_order'''
@@ -171,23 +210,47 @@ class Builder:
 
 		self.e = concurrent.futures.ThreadPoolExecutor(max_workers=order.max_jobs)
 
+		targetsstr = "'"
+		for t in order.targets:
+			targetsstr += t.name + " "
+		targetsstr += "'"
+		print("\n\norder contains " + targetsstr)
+
 		for target in order.targets:
 			rtarget = relpath(target.name)
-			print("===== Building target " + rtarget)
+			print("\n\n===== Building target " + rtarget)
 
 			worker_results = []
 			for ofile in target.files:
-				f = self.e.submit(build_worker, self, ofile)
-				worker_results.append(f)
+				if(self.error == 0):
+					print(str(self.error) + " __ state")
+
+					#submit a new job to queue:
+					f = self.e.submit(build_worker, self, ofile)
+
+					worker_results.append(f)
+				else:
+					self.e.shutdown(wait=True)
+					print(" [ Job queue canceled ]")
+					break
 
 				#b = threading.Thread(target=build_worker, args=[self, ofile])
 
 			for res in worker_results:
 				print("ret => " + str(res.result()) + " -> " + relpath(ofile.name))
+			if(self.error > 0):
+				break
+			else:
+				print("\n=== Linking target " + rtarget)
+				print(" => " + target.t_run)
+				time.sleep(2)
 
-			print("=== Linking target " + rtarget)
-			time.sleep(2)
-
+		#after all targets:
+		if(self.error == 0):
+			print("sftmake shutting down...")
+			self.e.shutdown(wait=True)
+		else:
+			print("errors caused sftmake to exit")
 
 
 
@@ -221,15 +284,6 @@ class Builder:
 				#add sourcefile path itself to depends
 				ad = self.conf["autodepends"].get(source)
 
-
-				s_prb = self.conf["prebuild"].get(source)
-				if(len(s_prb) > 0):
-					c_run = s_prb + " ; " + c_run
-
-				s_pob = self.conf["postbuild"].get(source)
-				if(len(s_pob) > 0):
-					c_run = c_run + " ; " + s_pob
-
 				if(ad == "MD"):
 					mdfile = enc_name + ".d"
 
@@ -246,14 +300,17 @@ class Builder:
 					pass
 				else:
 					#let's ignore an unknown autodetection mode
-					sys.stderr.write(source + ": unknow autodetection mode: " + ad);
+					print(source + ": unknow autodetection mode: " + ad);
 
-				#quiet mode -> echo the filename only
-				if(int(self.conf["loglevel"].get(source)) <= 1):
-					# suppress compiler output except stderr
-					# TODO: prettify, e.g. colorize
-					c_run = "echo 'CC " + source  + "'; " + c_run + " > /dev/null"
+				order_file.loglevel = self.conf["loglevel"].get(source)
 
+				s_prb = self.conf["prebuild"].get(source)
+				if(len(s_prb) > 0):
+					order_file.prebuild = s_prb
+
+				s_pob = self.conf["postbuild"].get(source)
+				if(len(s_pob) > 0):
+					order_file.postbuild = s_pub
 
 				# compiler invocation complete -> add it to the source file build order
 				order_file.set_c_run(c_run)
@@ -282,22 +339,13 @@ class Builder:
 			if(len(s_pob) > 0):
 				t_run = t_run + " ; " + t_pob
 
+			order_target.set_t_run(t_run)
 
 			#include current target to the build order
 			order.add_target(order_target)
 
-
-			#current_config = conf(target)
-			#dobuild = false                                                                                 <<< insert into final structure for phase 6
-			#for each file in depends: (usually, this array should be empty)
-			#	if \(mtime(file)) > \(mtime(oname) || !oname.exists()):
-			#		dobuild = true
-			#		break
-			#for each obj in objects:
-			#	if conf(obj).dobuild
-			#		dobuild = true
-			#		break
-			return order
+		#direct function level
+		return order
 
 
 
