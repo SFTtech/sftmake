@@ -91,6 +91,8 @@ class BuildTarget:
 		self.files = []
 		self.name = tname
 		self.t_run = ""
+		self.prebuild = ""
+		self.postbuild = ""
 
 	def add_file(self, cfile):
 		self.files.append(cfile)
@@ -116,6 +118,8 @@ class BuildFile:
 		self.depends = []
 		self.needs_build = False
 		self.c_run = ""
+		self.prebuild = ""
+		self.postbuild = ""
 	
 	def set_c_run(self, c_run):
 		self.c_run = c_run
@@ -146,7 +150,7 @@ class BuildFile:
 
 def build_worker(manager,ofile):
 	'''this method compiles a single object.'''
-	
+
 	o_name = ofile.enc_name + ".o"
 	c_name = relpath(ofile.name)
 
@@ -173,13 +177,13 @@ def build_worker(manager,ofile):
 				print(str(e) + " -> Ignoring for now.")
 
 	if(ofile.needs_build):
-		print("build -> " + c_name)
+		print("== building -> " + c_name)
 		#ret = subprocess.call(shlex.split(ofile.c_run), shell=True)
 		time.sleep(1)
-		print("done building -> " + c_name)
-		
-		#ret = round(random.random())
-		ret = 0
+		print("== done building -> " + c_name)
+
+		ret = round(random.random())
+		#ret = 0
 
 		if(ret > 0):
 			fail = True
@@ -188,7 +192,7 @@ def build_worker(manager,ofile):
 
 		if fail:
 			print("\n======= Fail at building " + repr(ofile) + " =========")
-			manager.e.error = ret
+			manager.error = ret
 			print("""Canceled build because of error at building:
 	""" + c_name + "\n")
 			return 1
@@ -204,7 +208,7 @@ class Builder:
 	def __init__(self, conf):
 		self.conf = conf
 		self.error = 0
-	
+
 	def build(self, order):
 		'''process a build_order'''
 		if(type(order) != BuildOrder):
@@ -225,14 +229,13 @@ class Builder:
 			worker_results = []
 			for ofile in target.files:
 				if(self.error == 0):
-					print(str(self.error) + " __ state")
+					print("state:" + str(self.error))
 
 					#submit a new job to queue:
 					f = self.e.submit(build_worker, self, ofile)
 
 					worker_results.append(f)
 				else:
-					self.e.shutdown(wait=True)
 					print(" [ Job queue canceled ]")
 					break
 
@@ -241,6 +244,7 @@ class Builder:
 			for res in worker_results:
 				print("ret => " + str(res.result()) + " -> " + relpath(ofile.name))
 			if(self.error > 0):
+				self.e.shutdown(wait=True)
 				break
 			else:
 				print("\n=== Linking target " + rtarget)
@@ -326,20 +330,20 @@ class Builder:
 
 			t_run = self.conf["c"].get(target)		#compiler
 			t_run += " " + self.conf["cflags"].get(target)	#compiler flags
-			t_run += " " + self.conf["ldflags"].get(target)
-			t_run += " -o " + relpath(target)
-			
+			t_run += " " + self.conf["ldflags"].get(target)	#link flags
+			t_run += " -o " + relpath(target)		#target output name
+
+			#append all object files for linkage
 			for ofile in order_target.files:
 				t_run += " " + relpath(ofile.enc_name + ".o")
 
-
 			t_prb = self.conf["prebuild"].get(target)
 			if(len(s_prb) > 0):
-				t_run = t_prb + " ; " + t_run
+				order_target.prebuild = t_prb
 
 			s_pob = self.conf["postbuild"].get(target)
 			if(len(s_pob) > 0):
-				t_run = t_run + " ; " + t_pob
+				order_target.postbuild = t_pob
 
 			order_target.set_t_run(t_run)
 
