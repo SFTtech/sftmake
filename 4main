@@ -193,8 +193,7 @@ def build_worker(manager,ofile):
 		if fail:
 			print("\n======= Fail at building " + repr(ofile) + " =========")
 			manager.error = ret
-			print("""Canceled build because of error at building:
-	""" + c_name + "\n")
+			print("Error when building "+ c_name )
 			return 1
 		else:
 			return 0
