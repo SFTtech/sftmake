@@ -58,13 +58,50 @@ def get_thread_count():
 		return fallback;
 
 
+class BuildJob:
+	def __init__(self):
+		self.thread = threading.Thread(target=self.run)
+
+	def run(self):
+		pass
+
+
+class JobStatus:
+	def __init__(self, job):
+		self.running = False
+		self.exitstate = 0
+		self.job = job
+
+	def status(self):
+		self.job.thread.join()
+		return self.exitstate
+
+
 class JobManager:
 	"""thread manager for invoking the compilers"""
-	def __init__(self):
-		self.current_threads = []
+	def __init__(self, max_workers=get_thread_count()):
+		self.current_jobs = []
+		self.pending_jobs = []
+		self.max_workers = max_workers
 
-	def submit(self, func, *args):
+	def job_finished(self, job):
+		"""one executing job was finished"""
+
+		#TODO: check for exit status etc.
+		if(len(self.current_jobs) < self.max_workers):
+
+			if(len(self.pending_jobs) > 0):
+				to_execute = self.pending_jobs.pop(0)
+				#launch the next pending job
+
+	def submit(self, job):
 		"""insert a function in the execution queue"""
+		if(not isinstance(job, BuildJob)):
+			raise Exception("only BuildJobs can be submitted")
+
+		newone = JobStatus(job) #the new job gets it's own status wrapper
+		self.pending_jobs.append(newone)
+		
 		pass
 
 
@@ -177,13 +214,38 @@ def build_worker(manager,ofile):
 				print(str(e) + " -> Ignoring for now.")
 
 	if(ofile.needs_build):
-		print("== building -> " + c_name)
-		#ret = subprocess.call(shlex.split(ofile.c_run), shell=True)
-		time.sleep(1)
-		print("== done building -> " + c_name)
 
-		ret = round(random.random())
-		#ret = 0
+		ret = 0
+
+		if(ofile.prebuild):
+			print("prebuild for " + ofile + " '" + ofile.prebuild + "'")
+			#ret = subprocess.call(shlex.split(ofile.prebuild), shell=False)
+			pass
+
+		if(ret != 0):
+			failat = "prebuild for"
+			pass
+		else:
+			print("== building -> " + c_name)
+			#ret = subprocess.call(shlex.split(ofile.c_run), shell=False)
+			time.sleep(1)
+			print("== done building -> " + c_name)
+
+		#TODO: don't forget to remove...
+		if(manager.error == 0): #generate ONE random build fail
+			ret = round(random.random())
+		else:
+			ret = 0
+
+		if(ret != 0):
+			failat = "compiling"
+		else:
+			if(ofile.postbuild):
+				print("postbuild for " + ofile + " '" + ofile.postbuild + "'")
+				#ret = subprocess.call(shlex.split(ofile.postbuild), shell=False)
+				pass
+			if(ret != 0):
+				failat = "postbuild for"
 
 		if(ret > 0):
 			fail = True
@@ -191,7 +253,7 @@ def build_worker(manager,ofile):
 			fail = False
 
 		if fail:
-			print("\n======= Fail at building " + repr(ofile) + " =========")
+			print("\n======= Fail at "+ failat +" " + repr(ofile) + " =========")
 			manager.error = ret
 			print("Error when building "+ c_name )
 			return 1
@@ -235,7 +297,7 @@ class Builder:
 
 					worker_results.append(f)
 				else:
-					print(" [ Job queue canceled ]")
+					print("[ Job queue canceled ]")
 					break
 
 				#b = threading.Thread(target=build_worker, args=[self, ofile])
