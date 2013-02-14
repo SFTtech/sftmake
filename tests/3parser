@@ -21,7 +21,7 @@ testlines = [
 	"var[(c==value]=val",
 	"var[version<=20 && (mode <> rls ; ! c == \"ms proprietary compiler\")]=test",
 	"var[a=b | c=d & e=f]=value",
-	"\\x41\\u0041"
+	" \t\\x41\n \n\\u0041\t\n\t"
 	]
 
 for line in testlines:

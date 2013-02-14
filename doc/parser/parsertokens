@@ -1,0 +1,6 @@
+tokens:
+!=<>()[]{}$'"|&,;:~			same name as character			
+[space] \t					WHITESPACE
+a-zA-Z_						ALPHABETIC
+0-9							DIGIT
+other						OTHER

@@ -35,11 +35,26 @@ def tokenize_line(line):
 		elif c in "!=<>()[]{}$'\"|&,;:~":
 			tokens.append((str(c), (str(c), i)))
 		elif c.isspace():
-			tokens.append(("WHITESPACE", (str(c), i)))
+			pos = i
+			content = str(c)
+			while i+1 < len(line) and line[i+1].isspace():
+				content += line[i+1]
+				i = i+1
+			tokens.append(("WHITESPACE", (content, pos)))
 		elif c.isalpha() or c == '_':
-			tokens.append(("ALPHABETIC", (str(c), i)))
+			pos = i
+			content = str(c)
+			while  i+1 < len(line) and (line[i+1].isalpha() or line[i+1] == '_'):
+				content += line[i+1]
+				i = i+1
+			tokens.append(("ALPHABETIC", (content, pos)))
 		elif c.isdigit():
-			tokens.append(("DIGIT", (str(c), i)))
+			pos = i
+			content = str(c)
+			while  i+1 < len(line) and line[i+1].isdigit():
+				content += line[i+1]
+				i = i+1
+			tokens.append(("DIGIT", (content, pos)))
 		else:
 			tokens.append(("OTHER", (str(c), i)))
 		i = i + 1
