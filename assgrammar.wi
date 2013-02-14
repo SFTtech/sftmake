@@ -1,12 +1,23 @@
-assignment:  (_assignmentvarwithop ',' | assignmentvarwithoutop ',')* _assignmentvarwithop _paddedvaluelist EOF;
-assignmentvarwithop: _paddedvarname _paddedassignmentop;
-assignmentvarwithoutop: _paddedvarname;
+assignment: WHITESPACE? (_assignmentvarwithop ',' | assignmentvarwithoutop ',')* _assignmentvarwithop _paddedvaluelist EOF;
+assignmentvarwithop: _paddedvarname _paddedcondition? _paddedassignmentop;
+assignmentvarwithoutop: _paddedvarname _paddedcondition;
 
 _paddedvarname: varname WHITESPACE?;
 varname: ALPHABETIC (ALPHABETIC | DIGIT)*;
 
+_paddedcondition: '[' WHITESPACE? disjunction WHITESPACE? ']' WHITESPACE?;
+
 _paddedassignmentop: assignmentop WHITESPACE?;
 assignmentop: (':' '=') | ('+' '=') | ('=') | ('-' '=');
+
+disjunction: conjunction (WHITESPACE? disjunctionop WHITESPACE? conjunction);
+conjunction: test (WHITESPACE? conjunctionop WHITESPACE? test);
+test: (varname WHITESPACE? testop WHITESPACE? value) | ('(' WHITESPACE? conjunction WHITESPACE? ')') | (logicunop WHITESPACE? conjunction);
+
+logicunop: '!';
+disjunctionop: (';') | ('|') | ('|' '|');
+conjunctionop: (',') | ('&') | ('&' '&');
+testop: ('=') | ('=' '=') | ('!' '=') | ('<') | ('>') | ('<' '=') | ('>' '=') | ('~' '=') | ('=' '~');
 
 _paddedvaluelist: valuelist;
 valuelist: value (WHITESPACE value)* WHITESPACE? |  ;

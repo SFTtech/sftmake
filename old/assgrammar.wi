@@ -1,0 +1,13 @@
+assignment:  (_assignmentvarwithop ',' | assignmentvarwithoutop ',')* _assignmentvarwithop _paddedvaluelist EOF;
+assignmentvarwithop: _paddedvarname _paddedassignmentop;
+assignmentvarwithoutop: _paddedvarname;
+
+_paddedvarname: varname WHITESPACE?;
+varname: ALPHABETIC (ALPHABETIC | DIGIT)*;
+
+_paddedassignmentop: assignmentop WHITESPACE?;
+assignmentop: (':' '=') | ('+' '=') | ('=') | ('-' '=');
+
+_paddedvaluelist: valuelist;
+valuelist: value (WHITESPACE value)* WHITESPACE? |  ;
+value: (ALPHABETIC | DIGIT | OTHER)+;
