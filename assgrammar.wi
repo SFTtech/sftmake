@@ -1,24 +1,29 @@
-assignment: WHITESPACE? (_assignmentvarwithop ',' | assignmentvarwithoutop ',')* _assignmentvarwithop _paddedvaluelist EOF;
-assignmentvarwithop: _paddedvarname _paddedcondition? _paddedassignmentop;
-assignmentvarwithoutop: _paddedvarname _paddedcondition;
+assignment: WHITESPACE? (assignmentvarwithop ',' | assignmentvarwithoutop ',')* assignmentvarwithop valuelist EOF;
+assignmentvarwithop: identifier WHITESPACE? condition? assignmentop;
+assignmentvarwithoutop: identifier WHITESPACE? condition?;
 
-_paddedvarname: varname WHITESPACE?;
-varname: ALPHABETIC (ALPHABETIC | DIGIT)*;
+identifier: ALPHAALPHANUM;
 
-_paddedcondition: '[' WHITESPACE? disjunction WHITESPACE? ']' WHITESPACE?;
+condition: '[' WHITESPACE? disjunction WHITESPACE? ']' WHITESPACE?;
 
-_paddedassignmentop: assignmentop WHITESPACE?;
-assignmentop: (':' '=') | ('+' '=') | ('=') | ('-' '=');
+assignmentop: (':' '=') | ('+' '=') | ('=') | ('-' '=') WHITESPACE?;
 
 disjunction: conjunction (WHITESPACE? disjunctionop WHITESPACE? conjunction);
 conjunction: test (WHITESPACE? conjunctionop WHITESPACE? test);
-test: (varname WHITESPACE? testop WHITESPACE? value) | ('(' WHITESPACE? conjunction WHITESPACE? ')') | (logicunop WHITESPACE? conjunction);
+test: (identifier WHITESPACE? testop WHITESPACE? value) | ('(' WHITESPACE? disjunction WHITESPACE? ')') | (logicunop WHITESPACE? disjunction);
 
 logicunop: '!';
 disjunctionop: (';') | ('|') | ('|' '|');
 conjunctionop: (',') | ('&') | ('&' '&');
 testop: ('=') | ('=' '=') | ('!' '=') | ('<') | ('>') | ('<' '=') | ('>' '=') | ('~' '=') | ('=' '~');
 
-_paddedvaluelist: valuelist;
 valuelist: value (WHITESPACE value)* WHITESPACE? |  ;
-value: (ALPHABETIC | DIGIT | OTHER)+;
+#value: (ALPHABETIC | DIGIT | OTHER)+;
+
+value: (literal | funcall | varcall | dblquoted)+;
+
+literal: ALPHAALPHANUM | LITERAL;
+funcall: '$' '(' WHITESPACE? value (WHITESPACE value)* WHITESPACE? ')';
+varcall: ('$' identifier) | ('$' '{' value '}');
+dblquoted: '"' (literal | funcall | varcall | WHITESPACE | '\'')* '"';
+quoted: '\'' literal? '\''

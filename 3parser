@@ -1,71 +1,126 @@
 #!/usr/bin/env python
 
-#the assignment parser, which reads complete assignment lines and delegates parts of its work to the cond and val parsers
+#the assignment parser
 
 def tokenize_line(line):
-	tokens = []
-	is_escaped = False
-	i = 0
-	while i < len(line):
-		c = line[i]
-		if c == '\\':
-			i = i + 1
-			if i < len(line):
-				c = line[i]
-				if c in "\\!=<>()[]{}$'\"|&,;:~ ":
-					tokens.append(("OTHER", (str(c), i-1)))
-				elif c == 'x':
-					if i + 2 < len(line):
-						val = int(line[i+1:i+3],16)
-						tokens.append(("OTHER", (chr(val), i-1)))
-						i = i + 2
+	def tokenize_characters(line):
+		i = 0
+		while i < len(line):
+			c = line[i]
+			if c == '\\':
+				i = i + 1
+				if i < len(line):
+					c = line[i]
+					if c in "\\!=<>()[]{}$'\"|&,;:~+- ":
+						yield ("OTHER", (c, i-1))
+					elif c == 'x':
+						if i + 2 < len(line):
+							val = int(line[i+1:i+3],16)
+							yield ("OTHER", (chr(val), i-1))
+							i = i + 2
+						else:
+							raise Exception("FU4")
+					elif c == 'u':
+						if i + 4 < len(line):
+							val = int(line[i+1:i+5],16)
+							yield ("OTHER", (chr(val), i-1))
+							i = i + 4
+						else:
+							raise Exception("FU3")
 					else:
-						raise Exception("FU4")
-				elif c == 'u':
-					if i + 4 < len(line):
-						val = int(line[i+1:i+5],16)
-						tokens.append(("OTHER", (chr(val), i-1)))
-						i = i + 4
-					else:
-						raise Exception("FU3")
+						raise Exception("FU2")
 				else:
-					raise Exception("FU2")
+					raise Exception("FU")
+			elif c in "!=<>()[]{}$'\"|&,;:~+-":
+				yield (str(c), (c, i))
+			elif c.isspace():
+				yield ("WHITESPACE", (c, i))
+			elif c.isalpha() or c == '_':
+				yield ("ALPHABETIC", (c, i))
+			elif c.isdigit():
+				yield ("DIGIT", (c, i))
 			else:
-				raise Exception("FU")
-		elif c in "!=<>()[]{}$'\"|&,;:~":
-			tokens.append((str(c), (str(c), i)))
-		elif c.isspace():
-			pos = i
-			content = str(c)
-			while i+1 < len(line) and line[i+1].isspace():
-				content += line[i+1]
-				i = i+1
-			tokens.append(("WHITESPACE", (content, pos)))
-		elif c.isalpha() or c == '_':
-			pos = i
-			content = str(c)
-			while  i+1 < len(line) and (line[i+1].isalpha() or line[i+1] == '_'):
-				content += line[i+1]
-				i = i+1
-			tokens.append(("ALPHABETIC", (content, pos)))
-		elif c.isdigit():
-			pos = i
-			content = str(c)
-			while  i+1 < len(line) and line[i+1].isdigit():
-				content += line[i+1]
-				i = i+1
-			tokens.append(("DIGIT", (content, pos)))
+				yield ("OTHER", (c, i))
+			i += 1
+	
+	tokens = []
+
+	current_name = ""
+	current_text = ""
+	current_pos = -1
+
+	is_quoted = False
+	is_dblquoted = False
+	
+	'"""'
+
+	#condense multiple chars of the same type to single tokens, to make the grammar simpler, and LR(1)-parsable
+	for (name, (char, pos)) in tokenize_characters(line):
+		if current_name == "WHITESPACE" and name == "WHITESPACE":
+			#we've read an other whitespace, append
+			current_text += char
+		elif current_name == "ALPHAALPHANUM" and name in ["ALPHABETIC", "DIGIT"]:
+			#we've read an other alphanumeric character
+			current_text += char
+		elif current_name == "ALPHAALPHANUM" and name in ["OTHER"]:
+			#degrade token to 'literal', since it contains non-alphanum characters
+			current_name = "LITERAL"
+			current_text += char
+		elif current_name == "ALPHAALPHANUM" and name == "'" and is_dblquoted:
+			current_name = "LITERAL"
+			current_text += char
+		elif current_name == "ALPHAALPHANUM" and name == "'" and not is_dblquoted:
+			current_name = "LITERAL"
+			is_quoted = True
+		elif current_name == "LITERAL" and name in ["ALPHABETIC", "DIGIT", "OTHER"]:
+			#we've read an other literal character
+			current_text += char
+		elif current_name == "LITERAL" and name == "'" and not is_dblquoted:
+			#current_text does not change, we strip out all "'" characters here
+			#ofc, toggle the 'quoted' state
+			is_quoted = not is_quoted
+		elif current_name == "LITERAL" and name == "'" and is_dblquoted:
+			#we're double quoted, interpret the "'" literally
+			current_text += char
+		elif current_name == "LITERAL" and is_quoted:
+			#everything is interpreted as a literal character
+			current_text += char
 		else:
-			tokens.append(("OTHER", (str(c), i)))
-		i = i + 1
+			#we've read a non-matching follow-on token. write away the current token
+
+			#if we're at the (empty) start token, don't write it to the list
+			if current_name != "":
+				tokens.append((current_name, (current_text, current_pos)))
+
+			#initialize new current token
+			current_name = name
+			current_text = str(char)
+			current_pos = pos
+
+			#literal characters get a special treatment
+			if current_name == "ALPHABETIC":
+				current_name = "ALPHAALPHANUM"
+			elif current_name == "DIGIT" or current_name == "OTHER":
+				current_name = "LITERAL"
+			elif current_name == "'" and is_dblquoted:
+				current_name = "LITERAL"
+			elif current_name == "'" and not is_dblquoted:
+				is_quoted = True
+				current_text = ""
+				current_name = "LITERAL"
+
+		#if we read a '"', toggle the 'dblquoted' status.
+		#the dblquoted status is required only to tell how to interpret "'" characters.
+		if current_name == '"' and not is_quoted:
+			is_dblquoted = not is_dblquoted
+
+	if is_quoted:
+		raise Exception("Line ended, but expected \"'\"")
+
+	if current_name != "":
+		tokens.append((current_name, (current_text, current_pos)))
+	
 	return tokens
-
-
-class LexerException(Exception):
-	def __init__(self, char, pos, expected):
-		Exception.__init__(self, "Unexpected character: " + char + " at position " + str(pos) + ", expected " + expected)
-		self.pos = pos
-
 
 class ConditionNode:
 	def evaluate(self):

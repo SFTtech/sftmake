@@ -2,6 +2,13 @@
 
 from symlink_3parser import tokenize_line
 
+ansi_escape = "\x1b["
+colcode_reset = ansi_escape + "m"
+colcode_redbold = ansi_escape + "1;31m"
+colcode_green = ansi_escape + "32m"
+colcode_cyan = ansi_escape + "36m"
+
+"""
 testlines = [
 	"var1[abc]+=,var2[cde],var3-=value0 value1 'value2'test",
 	"var[\"test\"]=val",
@@ -20,16 +27,77 @@ testlines = [
 	"gschicht[c==''&&lflags=test]=value",
 	"var[(c==value]=val",
 	"var[version<=20 && (mode <> rls ; ! c == \"ms proprietary compiler\")]=test",
-	"var[a=b | c=d & e=f]=value",
-	" \t\\x41\n \n\\u0041\t\n\t"
+	"var[a=b | c=d & e=f]=value?'ab]ba'",
+	" \t\\x41\n \n\\u0041\t\n\t",
+	"a'b$'c\"a'b\"c"
 	]
+"""
 
-for line in testlines:
-	try:
-		print(tokenize_line(line))
-	except Exception as e:
-		print("Caught exception: " + str(e))
-	finally:
-		print("")
 
-print("Tests done")
+def decode_tokens(encoded_tokens):
+	decoded_tokens = []
+	for enc_token in encoded_tokens:
+		if type(enc_token) == type(tuple()):
+			decoded_tokens.append(enc_token)
+		elif type(enc_token) == type(str()):
+			for c in enc_token:
+				decoded_tokens.append((str(c),str(c)))
+		else:
+			raise Exception("Invalid compare token list")
+
+	return decoded_tokens
+
+def compare_tokens(tokens, ctokens):
+	if len(tokens) != len(ctokens):
+		raise Exception("Wrong number of resulting tokens: " + str(len(tokens)) + ", should be " + str(len(ctokens)))
+
+	i = 0
+	while i < len(tokens):
+		(name, (content, pos)) = tokens[i];
+		ctoken = ctokens[i]
+		if (name, content) != ctoken:
+			raise Exception("Unexpected token: " + str((name, content)) + " at position " + str(pos) + ", expected: " + str(ctoken))
+		i += 1
+
+def test_tokenizer():
+	testlines = [
+		("var=value",
+			[("ALPHAALPHANUM", "var"), "=", ("ALPHAALPHANUM", "value")]),
+		("var[cond=val]=val42ue",
+			[("ALPHAALPHANUM", "var"), "[", ("ALPHAALPHANUM", "cond"), "=", ("ALPHAALPHANUM", "val"), "]=", ("ALPHAALPHANUM", "val42ue")]),
+		("var[x=$(fun arg     \"  \" ' '  \" \" ' \" \"')]+=\\u262d",
+			[("ALPHAALPHANUM", "var"), "[", ("ALPHAALPHANUM", "x"), "=$(", ("ALPHAALPHANUM", "fun"), ("WHITESPACE", " "), ("ALPHAALPHANUM", "arg"),
+			("WHITESPACE", "     "), '"', ("WHITESPACE", "  "), '"', ("WHITESPACE", " "), ("LITERAL", " "), ("WHITESPACE", "  "), '"', ("WHITESPACE", " "),
+			'"', ("WHITESPACE", " "), ("LITERAL", " \" \""), ")]+=", ("LITERAL", "\u262d")]),
+		("a'b$'c\"a'b\"c'\"'",
+			[("LITERAL", "ab$c"), '"', ("LITERAL", "a'b"), '"', ("LITERAL", "c\"")])
+		]
+
+	testcount = len(testlines)
+	success = 0
+	testnum = 0
+
+	for testline, enc_expected_tokens in testlines:
+		tokens = expected_tokens = None
+		try:
+			print("Testing: Tokenizer (" + str(testnum) + "/" + str(testcount) + "): " + testline)
+			expected_tokens = decode_tokens(enc_expected_tokens)
+			tokens = tokenize_line(testline)
+			compare_tokens(tokens, expected_tokens)
+			success += 1
+		except Exception as e:
+			print(colcode_redbold + str(e) + colcode_reset)
+			print(colcode_cyan + "Tokenizer returned" + colcode_reset)
+			print(list(map(lambda t: (t[0], t[1][0]), tokens)))
+			print(colcode_cyan + "but we expected" + colcode_reset)
+			print(expected_tokens)
+		finally:
+			testnum += 1
+	
+	if success == testcount:
+		colcode = colcode_green
+	else:
+		colcode = colcode_redbold
+	print(colcode + "Testing: Tokenizer: " + str(success) + "/" + str(testcount) + " successfull" + colcode_reset)
+
+test_tokenizer()

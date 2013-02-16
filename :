@@ -1,2 +1,0 @@
-vlist: v (A+ v)* A*;
-v: X+;
