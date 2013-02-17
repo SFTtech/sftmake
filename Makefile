@@ -60,7 +60,7 @@ runtests:
 
 todo:
 	@#search for all TODO entries in python files
-	@find . -type f -regex '.*\.py' -exec sh -c 'RESULTS="$$(grep -n -B3 -A3 --color=always -E "(TODO)|(NotImplementedError)" {})"; test -n "$$RESULTS" && echo -e "\x1b[33m{}\x1b[m" && echo "$$RESULTS"' \;
+	@find . -type f -regex '.*\.py' -exec sh -c 'RESULTS="$$(grep -n -B3 -A3 --color=always TODO {})"; test -n "$$RESULTS" && echo -e "\x1b[33m{}\x1b[m" && echo "$$RESULTS"' \;
 
 clean:
 	rm -r __pycache__
