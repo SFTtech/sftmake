@@ -4,7 +4,7 @@ assignment: WHITESPACE? (assignmentvarwithop ',' | assignmentvarwithoutop ',')* 
 assignmentvarwithop: identifier WHITESPACE? condition? assignmentop;
 assignmentvarwithoutop: identifier WHITESPACE? condition?;
 
-identifier: ALPHAALPHANUM;
+identifier: IDENTIFIER;
 
 condition: '[' WHITESPACE? disjunction WHITESPACE? ']' WHITESPACE?;
 
@@ -25,7 +25,7 @@ value:            (literal |                                     funcall | varca
 doublequoted: '"' (literal | WHITESPACE | doublequoted_escaped | funcall | varcall)* '"';
 singlequoted: "'" (literal | WHITESPACE | singlequoted_escaped)* "'";
 
-literal: ALPHAALPHANUM | LITERAL;
+literal: IDENTIFIER | LITERAL;
 funcall: '$' '(' WHITESPACE? value (WHITESPACE value)* WHITESPACE? ')';
 varcall: ('$' identifier) | ('$' '{' value '}');
 

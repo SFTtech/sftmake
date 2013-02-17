@@ -1,3 +1,0 @@
-#!/bin/bash
-cat	0header	1util 2conf 3parser 4main > sftmake
-chmod +x sftmake
