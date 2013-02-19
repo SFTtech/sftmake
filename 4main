@@ -188,8 +188,6 @@ class Compilation:
 
 class BuildTarget(Compilation):
 	'''A build target has a list of all files that will be linked in the target'''
-	#TODO: meld with BuildFile
-
 
 	def __init__(self, tname):
 		self.files = []
@@ -214,37 +212,17 @@ class BuildTarget(Compilation):
 	def run(self):
 		'''this method compiles a single target.'''
 
-		o_name = relpath(self.name)
-		c_name = relpath(self.name)
+		t_name = relpath(self.name)
 
-		if(os.path.isfile(o_name)):
-			if (os.path.getmtime(o_name) < os.path.gettime(c_name)):
-				ofile.needs_build = True
-			else:
-				ofile.needs_build = False
-
-		else: # .o does not exist
+		if(not os.path.isfile(t_name)):
 			self.needs_build = True
-
-
-		if(not self.needs_build):
-			for fl in self.depends:
-				try:
-					# check for modification times
-					print("checking mtime of -> " + fl)
-					if(os.path.getmtime(fl) > os.path.getmtime(o_name)):
-						self.needs_build = True
-						break
-
-				except OSError as e:
-					print(str(e) + " -> Ignoring for now.")
 
 		if(self.needs_build):
 
 			ret = 0
 
 			if(self.prebuild):
-				print("prebuild for " + self + " '" + self.prebuild + "'")
+				print("prebuild for " + t_name + " '" + self.prebuild + "'")
 				#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
 				pass
 
@@ -252,14 +230,14 @@ class BuildTarget(Compilation):
 				failat = "prebuild for"
 				pass
 			else:
-				print("== building -> " + c_name)
+				print("== linking -> " + t_name)
 
 				## compiler is launched here
 				#TODO: correct invocation
 				#ret = subprocess.call(shlex.split(self.c_run), shell=False)
 				time.sleep(1)
 
-				print("== done building -> " + c_name)
+				print("== done linking -> " + t_name)
 
 			#TODO: don't forget to remove...
 			if(manager.error == 0): #generate ONE random build fail
@@ -268,10 +246,10 @@ class BuildTarget(Compilation):
 				ret = 0
 
 			if(ret != 0):
-				failat = "compiling"
+				failat = "linking"
 			else:
 				if(self.postbuild):
-					print("postbuild for " + self + " '" + self.postbuild + "'")
+					print("postbuild for " + t_name + " '" + self.postbuild + "'")
 					#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
 					pass
 				if(ret != 0):
@@ -283,9 +261,9 @@ class BuildTarget(Compilation):
 				fail = False
 
 			if fail:
-				print("\n======= Fail at "+ failat +" " + repr(self) + " =========")
+				print("\n======= Fail at "+ failat +" " + t_name + " =========")
 				manager.error = ret
-				print("Error when building "+ c_name )
+				print("Error when linking "+ t_name )
 				return ret
 			else:
 				return 0
@@ -310,9 +288,6 @@ class BuildTarget(Compilation):
 
 class BuildFile(Compilation):
 	'''A build file object only stores the filename and its (header) dependencies'''
-	#TODO: meld with BuildTarget
-
-
 	def __init__(self, fname):
 		self.name = fname
 		self.depends = []
@@ -322,6 +297,7 @@ class BuildFile(Compilation):
 		self.postbuild = ""
 		self.enc_name = None
 		self.loglevel = 2 #TODO: sure?
+		self.target = None
 
 
 	def run(self):
@@ -354,6 +330,10 @@ class BuildFile(Compilation):
 
 		if(self.needs_build):
 
+			if(not self.target == None):
+				#notify the target it needs to be built
+				self.target.needs_build = True
+
 			ret = 0
 
 			if(self.prebuild):
@@ -409,6 +389,9 @@ class BuildFile(Compilation):
 
 	def set_c_run(self, c_run):
 		self.c_run = c_run
+
+	def set_target(self, target):
+		self.target = target
 
 	def set_enc_name(self, e):
 		self.enc_name = e
@@ -548,6 +531,7 @@ class Builder:
 			ct_run += " -o " + relpath(target)		#target output name
 
 			#append all object files for linkage
+			#TODO: shouldn't this be generated in the target job?
 			for ofile in order_target.files:
 				ct_run += " " + relpath(ofile.enc_name + ".o")
 
