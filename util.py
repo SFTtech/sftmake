@@ -1,4 +1,5 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
+import os
 
 class orderedset:
 	""" wrapper around OrderedDict because fak u python

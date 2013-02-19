@@ -1,4 +1,7 @@
-#!/usr/bin/env python
+#!/usr/bin/python3
+
+if not "assembled" in globals():
+	from util import orderedset
 
 #dict that contains all variables. key = varname, value = var object
 variables = {}

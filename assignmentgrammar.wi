@@ -1,0 +1,34 @@
+assignments: assignment (':' assignment)* EOF | EOF;
+
+assignment: WHITESPACE? (assignmentvarwithop ',' | assignmentvarwithoutop ',')* assignmentvarwithop valuelist;
+assignmentvarwithop: identifier WHITESPACE? condition? assignmentop;
+assignmentvarwithoutop: identifier WHITESPACE? condition?;
+
+identifier: IDENTIFIER;
+
+condition: '[' WHITESPACE? disjunction WHITESPACE? ']' WHITESPACE?;
+
+assignmentop: (':' '=') | ('+' '=') | ('=') | ('-' '=') WHITESPACE?;
+
+disjunction: conjunction (WHITESPACE? disjunctionop WHITESPACE? conjunction);
+conjunction: test (WHITESPACE? conjunctionop WHITESPACE? test);
+test: (identifier WHITESPACE? testop WHITESPACE? value) | ('(' WHITESPACE? disjunction WHITESPACE? ')') | (logicunop WHITESPACE? disjunction);
+
+logicunop: '!';
+disjunctionop: (';') | ('|') | ('|' '|');
+conjunctionop: (',') | ('&') | ('&' '&');
+testop: ('=') | ('=' '=') | ('!' '=') | ('<') | ('>') | ('<' '=') | ('>' '=') | ('~' '=') | ('=' '~');
+
+valuelist: value (WHITESPACE value)* WHITESPACE? |  ;
+
+value:            (literal |                                     funcall | varcall | doublequoted | singlequoted)+;
+doublequoted: '"' (literal | WHITESPACE | doublequoted_escaped | funcall | varcall)* '"';
+singlequoted: "'" (literal | WHITESPACE | singlequoted_escaped)* "'";
+
+literal: IDENTIFIER | LITERAL;
+funcall: '$' '(' WHITESPACE? value (WHITESPACE value)* WHITESPACE? ')';
+varcall: ('$' identifier) | ('$' '{' value '}');
+
+#these special characters are allowed/interpreted as literals within single/double quotes in values
+doublequoted_escaped: '!' | '=' | '<' | '>' | '[' | ']' | '|' | '&' | ',' | ';' | ':' | '~' | '+' | '-' | "'";
+singlequoted_escaped: '!' | '=' | '<' | '>' | '[' | ']' | '|' | '&' | ',' | ';' | ':' | '~' | '+' | '-' | '"' | '$' | '(' | ')' | '{' | '}';
