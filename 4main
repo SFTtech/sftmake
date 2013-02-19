@@ -10,6 +10,8 @@ import subprocess
 import shlex
 import time
 import random
+from collections import deque
+
 
 class vartest():
 	def __init__(self, arg):
@@ -50,6 +52,8 @@ variables["ldflags"] = vartest("-lsft")
 
 
 def get_thread_count():
+	"""gets the number or hardware threads, or 1 if that can't be done"""
+
 	try:
 		return multiprocessing.cpu_count()
 	except NotImplementedError: # may happen under !POSIX
@@ -58,19 +62,68 @@ def get_thread_count():
 		return fallback;
 
 
+# Build process works as follows:
+#
+# Factory Class: Builder
+#	-> initialize with variable storage
+#	-> generate a BuildOrder with order = (Builder).prepare()
+#		* BuildOrder:
+#			* targets: list of BuildTargets to build
+#			* max_jobs: maximum number of concurrent jobs
+#		* BuildTarget:
+#			* files: list of BuildFiles to build
+#			* name: target output name (e.g. liblol.so)
+#			* c_run: complete compiler invokation
+#			* pre, postbuild: shell command before/after compilation
+#		* BuildFile:
+#			* depends: list of header dependencies
+#			* enc_name: CC invokation and filename encoded
+#			* name: filename to build (e.g. lolfile.cpp)
+#			* c_run: complete compiler invokation
+#			* pre,postbuild: shell command before/after compiler invokation
+#			* needs_build: a correct and up2date object file shall be created
+#
+#	-> process BuildOrder with (Builder).build(order)
+#		* JobManager is created (coordinates available job distribution)
+#		* all sources of a target are submitted as BuildJobs
+#		* the sources are built or skipped
+#		* the target is linked as soon as one souces wasn't skipped
+
 class BuildJob:
-	def __init__(self):
+	"""one build job, will build a object or target"""
+
+	def __init__(self, job):
 		self.thread = threading.Thread(target=self.run)
+		self.manager = None    #manager calls set_manager upon submission
+
+		if(not isinstance(job, Compilation)):
+			raise Exception("only a compilation can be a BuildJob")
+		else:
+			self.job = job
+
+	def start(self):
+		self.thread.start()
 
 	def run(self):
-		pass
+		result = self.job.run()
+
+		if(not self.manager == None):
+			self.manager.finished(self, result)
+
+	def set_manager(self, manager):
+		self.manager = manager
 
 
 class JobStatus:
+	"""status wrapper for a BuildJob"""
+
 	def __init__(self, job):
 		self.running = False
 		self.exitstate = 0
-		self.job = job
+		if(not isinstance(job, BuildJob)):
+			raise Exception("Only a BuildJob can be wrapped by JobStatus")
+		else:
+			self.job = job
 
 	def status(self):
 		self.job.thread.join()
@@ -79,9 +132,10 @@ class JobStatus:
 
 class JobManager:
 	"""thread manager for invoking the compilers"""
+
 	def __init__(self, max_workers=get_thread_count()):
 		self.current_jobs = []
-		self.pending_jobs = []
+		self.pending_jobs = deque()
 		self.max_workers = max_workers
 
 	def job_finished(self, job):
@@ -91,7 +145,7 @@ class JobManager:
 		if(len(self.current_jobs) < self.max_workers):
 
 			if(len(self.pending_jobs) > 0):
-				to_execute = self.pending_jobs.pop(0)
+				to_execute = self.pending_jobs.popleft()
 				#launch the next pending job
 
 	def submit(self, job):
@@ -99,6 +153,7 @@ class JobManager:
 		if(not isinstance(job, BuildJob)):
 			raise Exception("only BuildJobs can be submitted")
 
+		job.set_manager(self)
 		newone = JobStatus(job) #the new job gets it's own status wrapper
 		self.pending_jobs.append(newone)
 		
@@ -107,6 +162,7 @@ class JobManager:
 
 class BuildOrder:
 	'''A build order contains all targets that must be built'''
+
 	def __init__(self):
 		self.targets = []
 		self.max_jobs = get_thread_count()
@@ -122,20 +178,124 @@ class BuildOrder:
 		out += "\n%%%%%%%%%%%%%%%%%\n"
 		return out
 
-class BuildTarget:
-	'''A build target has a list of all sources that will be linked in the target'''
+class Compilation:
+	def __init__(self):
+		pass
+
+	def run(self):
+		raise NotImplementedError("Implement this shit for a working compilation...")
+
+
+class BuildTarget(Compilation):
+	'''A build target has a list of all files that will be linked in the target'''
+	#TODO: meld with BuildFile
+
+
 	def __init__(self, tname):
 		self.files = []
 		self.name = tname
-		self.t_run = ""
+		self.c_run = ""
 		self.prebuild = ""
 		self.postbuild = ""
+		self.needs_build = False
+		self.loglevel = 2 #TODO: sure?
 
 	def add_file(self, cfile):
-		self.files.append(cfile)
+		if(not isinstance(cfile, BuildFile)):
+			raise Exception("a target can only have BuildFiles as dependency")
+		else:
+			cfile.set_target(self)
+			self.files.append(cfile)
 
-	def set_t_run(self, t_run):
-		self.t_run = t_run
+	def set_c_run(self, c_run):
+		self.c_run = c_run
+
+
+	def run(self):
+		'''this method compiles a single target.'''
+
+		o_name = relpath(self.name)
+		c_name = relpath(self.name)
+
+		if(os.path.isfile(o_name)):
+			if (os.path.getmtime(o_name) < os.path.gettime(c_name)):
+				ofile.needs_build = True
+			else:
+				ofile.needs_build = False
+
+		else: # .o does not exist
+			self.needs_build = True
+
+
+		if(not self.needs_build):
+			for fl in self.depends:
+				try:
+					# check for modification times
+					print("checking mtime of -> " + fl)
+					if(os.path.getmtime(fl) > os.path.getmtime(o_name)):
+						self.needs_build = True
+						break
+
+				except OSError as e:
+					print(str(e) + " -> Ignoring for now.")
+
+		if(self.needs_build):
+
+			ret = 0
+
+			if(self.prebuild):
+				print("prebuild for " + self + " '" + self.prebuild + "'")
+				#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
+				pass
+
+			if(ret != 0):
+				failat = "prebuild for"
+				pass
+			else:
+				print("== building -> " + c_name)
+
+				## compiler is launched here
+				#TODO: correct invocation
+				#ret = subprocess.call(shlex.split(self.c_run), shell=False)
+				time.sleep(1)
+
+				print("== done building -> " + c_name)
+
+			#TODO: don't forget to remove...
+			if(manager.error == 0): #generate ONE random build fail
+				ret = round(random.random())
+			else:
+				ret = 0
+
+			if(ret != 0):
+				failat = "compiling"
+			else:
+				if(self.postbuild):
+					print("postbuild for " + self + " '" + self.postbuild + "'")
+					#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
+					pass
+				if(ret != 0):
+					failat = "postbuild for"
+
+			if(ret > 0):
+				fail = True
+			else:
+				fail = False
+
+			if fail:
+				print("\n======= Fail at "+ failat +" " + repr(self) + " =========")
+				manager.error = ret
+				print("Error when building "+ c_name )
+				return ret
+			else:
+				return 0
+
+		#doesn't need build
+		else:
+			print("skipping " + c_name)
+
+
+
 
 	def __str__(self):
 		out = "\n>>>>>>>>>>>>>>>>>>>>>>>>>\ntarget file: " + relpath(self.name)
@@ -144,12 +304,15 @@ class BuildTarget:
 		for f in self.files:
 			out += "\n-- file " + str(n) + ":" + str(f)
 			n += 1
-		out += "\t c_invokation: " + self.t_run + "\n>>>>>>>>>>>>>>>>>>>>>>>>>\n"
+		out += "\t c_invokation: " + self.c_run + "\n>>>>>>>>>>>>>>>>>>>>>>>>>\n"
 		return out
 
 
-class BuildFile:
+class BuildFile(Compilation):
 	'''A build file object only stores the filename and its (header) dependencies'''
+	#TODO: meld with BuildTarget
+
+
 	def __init__(self, fname):
 		self.name = fname
 		self.depends = []
@@ -157,7 +320,93 @@ class BuildFile:
 		self.c_run = ""
 		self.prebuild = ""
 		self.postbuild = ""
-	
+		self.enc_name = None
+		self.loglevel = 2 #TODO: sure?
+
+
+	def run(self):
+		'''this method compiles a single object.'''
+
+		o_name = self.enc_name + ".o"
+		c_name = relpath(self.name)
+
+		if(os.path.isfile(o_name)):
+			if (os.path.getmtime(o_name) < os.path.gettime(c_name)):
+				ofile.needs_build = True
+			else:
+				ofile.needs_build = False
+
+		else: # .o does not exist
+			self.needs_build = True
+
+
+		if(not self.needs_build):
+			for fl in self.depends:
+				try:
+					# check for modification times
+					print("checking mtime of -> " + fl)
+					if(os.path.getmtime(fl) > os.path.getmtime(o_name)):
+						self.needs_build = True
+						break
+
+				except OSError as e:
+					print(str(e) + " -> Ignoring for now.")
+
+		if(self.needs_build):
+
+			ret = 0
+
+			if(self.prebuild):
+				print("prebuild for " + self + " '" + self.prebuild + "'")
+				#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
+				pass
+
+			if(ret != 0):
+				failat = "prebuild for"
+				pass
+			else:
+				print("== building -> " + c_name)
+
+				## compiler is launched here
+				#TODO: correct invocation
+				#ret = subprocess.call(shlex.split(self.c_run), shell=False)
+				time.sleep(1)
+
+				print("== done building -> " + c_name)
+
+			#TODO: don't forget to remove...
+			if(manager.error == 0): #generate ONE random build fail
+				ret = round(random.random())
+			else:
+				ret = 0
+
+			if(ret != 0):
+				failat = "compiling"
+			else:
+				if(self.postbuild):
+					print("postbuild for " + self + " '" + self.postbuild + "'")
+					#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
+					pass
+				if(ret != 0):
+					failat = "postbuild for"
+
+			if(ret > 0):
+				fail = True
+			else:
+				fail = False
+
+			if fail:
+				print("\n======= Fail at "+ failat +" " + repr(self) + " =========")
+				manager.error = ret
+				print("Error when building "+ c_name )
+				return ret
+			else:
+				return 0
+
+		#doesn't need build
+		else:
+			print("skipping " + c_name)
+
 	def set_c_run(self, c_run):
 		self.c_run = c_run
 
@@ -185,97 +434,19 @@ class BuildFile:
 
 
 
-def build_worker(manager,ofile):
-	'''this method compiles a single object.'''
-
-	o_name = ofile.enc_name + ".o"
-	c_name = relpath(ofile.name)
-
-	if(os.path.isfile(o_name)):
-		if (os.path.getmtime(o_name) < os.path.gettime(c_name)):
-			ofile.needs_build = True
-		else:
-			ofile.needs_build = False
-
-	else: # .o does not exist
-		ofile.needs_build = True
-
-
-	if(not ofile.needs_build):
-		for fl in ofile.depends:
-			try:
-				# check for modification times
-				print("checking mtime of -> " + fl)
-				if(os.path.getmtime(fl) > os.path.getmtime(o_name)):
-					ofile.needs_build = True
-					break
-
-			except OSError as e:
-				print(str(e) + " -> Ignoring for now.")
-
-	if(ofile.needs_build):
-
-		ret = 0
-
-		if(ofile.prebuild):
-			print("prebuild for " + ofile + " '" + ofile.prebuild + "'")
-			#ret = subprocess.call(shlex.split(ofile.prebuild), shell=False)
-			pass
-
-		if(ret != 0):
-			failat = "prebuild for"
-			pass
-		else:
-			print("== building -> " + c_name)
-			#ret = subprocess.call(shlex.split(ofile.c_run), shell=False)
-			time.sleep(1)
-			print("== done building -> " + c_name)
-
-		#TODO: don't forget to remove...
-		if(manager.error == 0): #generate ONE random build fail
-			ret = round(random.random())
-		else:
-			ret = 0
-
-		if(ret != 0):
-			failat = "compiling"
-		else:
-			if(ofile.postbuild):
-				print("postbuild for " + ofile + " '" + ofile.postbuild + "'")
-				#ret = subprocess.call(shlex.split(ofile.postbuild), shell=False)
-				pass
-			if(ret != 0):
-				failat = "postbuild for"
-
-		if(ret > 0):
-			fail = True
-		else:
-			fail = False
-
-		if fail:
-			print("\n======= Fail at "+ failat +" " + repr(ofile) + " =========")
-			manager.error = ret
-			print("Error when building "+ c_name )
-			return 1
-		else:
-			return 0
-
-	#doesn't need build
-	else:
-		print("skipping " + c_name)
-
-
 class Builder:
 	def __init__(self, conf):
 		self.conf = conf
 		self.error = 0
 
 	def build(self, order):
-		'''process a build_order'''
+		'''process a BuildOrder -> compile everything needed'''
+
 		if(type(order) != BuildOrder):
 			raise Exception("Builder: the build() function needs a BuildOrder")
 
-		self.e = concurrent.futures.ThreadPoolExecutor(max_workers=order.max_jobs)
+		#TODO: optional job limiting
+		self.m = JobManager(max_workers=get_thread_count())
 
 		targetsstr = "'"
 		for t in order.targets:
@@ -287,30 +458,14 @@ class Builder:
 			rtarget = relpath(target.name)
 			print("\n\n===== Building target " + rtarget)
 
-			worker_results = []
+			#submit all new jobs to queue:
 			for ofile in target.files:
-				if(self.error == 0):
-					print("state:" + str(self.error))
+					self.m.submit(BuildJob(ofile))
 
-					#submit a new job to queue:
-					f = self.e.submit(build_worker, self, ofile)
+			self.m.submit(BuildJob(target))
 
-					worker_results.append(f)
-				else:
-					print("[ Job queue canceled ]")
-					break
-
-				#b = threading.Thread(target=build_worker, args=[self, ofile])
-
-			for res in worker_results:
-				print("ret => " + str(res.result()) + " -> " + relpath(ofile.name))
-			if(self.error > 0):
-				self.e.shutdown(wait=True)
-				break
-			else:
-				print("\n=== Linking target " + rtarget)
-				print(" => " + target.t_run)
-				time.sleep(2)
+			#TODO: wait for target completion
+			print("\n\n+++++ Finished target " + rtarget)
 
 		#after all targets:
 		if(self.error == 0):
@@ -323,7 +478,7 @@ class Builder:
 
 
 	def prepare(self):
-		'''generate a build order for later processing'''
+		'''generate a BuildOrder for later processing'''
 		order = BuildOrder()
 		for target in self.conf["build"].get():
 			order_target = BuildTarget(target)
@@ -331,9 +486,7 @@ class Builder:
 			for source in self.conf["use"].get(target):
 				order_file = BuildFile(source)
 
-				c_run = ""
-
-				c_run += self.conf["c"].get(source)		#compiler
+				c_run = self.conf["c"].get(source)		#compiler
 				c_run += " " + self.conf["cflags"].get(source)	#compiler flags
 				c_run += " -c " + relpath(source)		#sourcefile name
 
@@ -355,19 +508,20 @@ class Builder:
 					mdfile = enc_name + ".d"
 
 					if(os.path.isfile(mdfile)):
+						#if .d file exists, parse its contents as dependencies
 						order_file.add_dependency(parse_dfile(mdfile))
-
 					else:
-						order_target.add_file(order_file)
+						#TODO: notification of first time .d generation
+						pass
 
-					c_run += " -MD"  # generate c headers dependency file
+					c_run += " -MD"  # (re)generate c headers dependency file
 
 				elif(ad == "no"):
 					#kp evtl auch iwas
 					pass
 				else:
-					#let's ignore an unknown autodetection mode
-					print(source + ": unknow autodetection mode: " + ad);
+					#let's not ignore an unknown autodetection mode bwahaha
+					raise Exception(source + ": unknow autodetection mode: " + ad)
 
 				order_file.loglevel = self.conf["loglevel"].get(source)
 
@@ -387,16 +541,15 @@ class Builder:
 				#print(str(order_file))
 
 			#=> continuation for each target
-			#compiler_invocation = \{prebuild}; \{c} \{cflags} \{lflags} \{libs} [type-specific flags] \{objects} -o \(oname); \{postbuild}
 
-			t_run = self.conf["c"].get(target)		#compiler
-			t_run += " " + self.conf["cflags"].get(target)	#compiler flags
-			t_run += " " + self.conf["ldflags"].get(target)	#link flags
-			t_run += " -o " + relpath(target)		#target output name
+			ct_run = self.conf["c"].get(target)		#compiler for TARGET
+			ct_run += " " + self.conf["cflags"].get(target)	#compiler flags
+			ct_run += " " + self.conf["ldflags"].get(target)	#link flags
+			ct_run += " -o " + relpath(target)		#target output name
 
 			#append all object files for linkage
 			for ofile in order_target.files:
-				t_run += " " + relpath(ofile.enc_name + ".o")
+				ct_run += " " + relpath(ofile.enc_name + ".o")
 
 			t_prb = self.conf["prebuild"].get(target)
 			if(len(s_prb) > 0):
@@ -406,7 +559,7 @@ class Builder:
 			if(len(s_pob) > 0):
 				order_target.postbuild = t_pob
 
-			order_target.set_t_run(t_run)
+			order_target.set_c_run(ct_run)
 
 			#include current target to the build order
 			order.add_target(order_target)
@@ -418,7 +571,7 @@ class Builder:
 
 
 def parse_dfile(filename):
-	'''parse a .dfile and return a list of dependency headers'''
+	'''parse a .dfile and return a list of dependency header filenames'''
 	try:
 		with open(filename, 'r') as f:
 			content = f.readlines() #list of line, including a trailing \\n (sic)
@@ -429,6 +582,9 @@ def parse_dfile(filename):
 
 			return dependencies
 	except IOError as e:
+		print(str(e) + " -> parsing dependency header failed")
+
+		#TODO: really ignore?
 		return [];
 
 def clean_dfile_line(line):
