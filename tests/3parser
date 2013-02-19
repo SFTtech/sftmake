@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from symlink_3parser import parse_assignment
+from symlink_3parser import tokenize_line
 
 testlines = [
 	"var1[abc]+=,var2[cde],var3-=value0 value1 'value2'test",
@@ -20,13 +20,13 @@ testlines = [
 	"gschicht[c==''&&lflags=test]=value",
 	"var[(c==value]=val",
 	"var[version<=20 && (mode <> rls ; ! c == \"ms proprietary compiler\")]=test",
-	"var[a=b | c=d & e=f]=value"
+	"var[a=b | c=d & e=f]=value",
+	"\\x41\\u0041"
 	]
 
 for line in testlines:
-	print("Testing parser for line: " + line)
 	try:
-		print(parse_assignment(line))
+		print(tokenize_line(line))
 	except Exception as e:
 		print("Caught exception: " + str(e))
 	finally:
