@@ -70,11 +70,31 @@ def get_thread_count():
 		return fallback;
 
 
+class BuildWorker:
+	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
+
+	def __init__(self, manager):
+		self.thread = threading.Thread(target=self.run)
+		self.manager = manager
+		self.job = None		#The job currently being processed
+
+	def run(self):
+		while True:
+			self.job = self.manager.get_next()
+			if(self.job == None):
+				#no more jobs available
+				#so the worker can die!
+				return
+
+			self.job.run()
+
+
 class BuildJob:
 	"""one build job, will build a BuildThing"""
 
 	def __init__(self, job):
-		self.manager = None    #manager calls set_manager upon submission
+		self.manager = None
+		self.exitstate = 0
 
 		if(not isinstance(job, BuildThing)):
 			raise Exception("only a BuildThing can be a processed with a BuildJob")
@@ -85,32 +105,10 @@ class BuildJob:
 		"""set the BuildManager if this BuildJob"""
 		self.manager = manager
 
-
-class BuildWorker:
-	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
-
-	def __init__(self, manager):
-		self.thread = threading.Thread(target=self.run)
-		self.current_job = None
-
-	def run(self):
-		pass
-
-
-class JobStatus:
-	"""status wrapper for a BuildJob"""
-
-	def __init__(self, job):
-		self.running = False
-		self.exitstate = 0
-		if(not isinstance(job, BuildJob)):
-			raise Exception("Only a BuildJob can be wrapped by JobStatus")
-		else:
-			self.job = job
-
-	def status(self):
-		self.job.thread.join()
-		return self.exitstate
+	def success(self):
+		#TODO: eventually wait til termination of job
+		#TODO: or: just return a status that maybe says
+		return (self.exitstate == 0)
 
 
 class JobManager:
@@ -118,10 +116,12 @@ class JobManager:
 
 	def __init__(self, max_workers=get_thread_count()):
 		self.workers = []
-		self.waiting_jobs = set()
-		self.ready_jobs = set()
-		self.finished_jobs = set()
-		self.max_workers = max_workers
+
+		self.pending_jobs = set()		# jobs that will be processed sometime
+		self.ready_jobs = set()		# jobs that are ready to be executed
+		self.running_jobs = set()		# jobs currently running	#TODO: maybe obsolete, worker just picks job
+		self.finished_jobs = set()		# jobs that were executed successfully
+		self.max_workers = max_workers	# worker limitation
 
 	def submit(self, job):
 		"""insert a function in the execution queue"""
@@ -129,11 +129,10 @@ class JobManager:
 			raise Exception("only BuildJobs can be submitted")
 
 		job.set_manager(self)
-		newone = JobStatus(job) #the new job gets it's own status wrapper
-		self.pending_jobs.append(newone)
+		self.pending_jobs.add(job)
 
-	def finished(self, jobstatus):
-		if(jobstatus.success()):
+	def finished(self, job):
+		if(job.success()):
 			job = jobstatus.get_job()
 			self.finished_jobs.add(job)
 		else
@@ -144,6 +143,10 @@ class JobManager:
 		if(len(self.ready_jobs) > 0):
 			newjob = self.ready_jobs.pop()
 			return newjob
+		elif(True):
+			#TODO: do something intelligent to find the next job
+			# but wait, actually then there really is no job available
+			return None
 		else:
 			return None
 
@@ -154,13 +157,18 @@ class JobManager:
 			self.workers.append(newworker)
 
 	def _launch_workers(self):
-		#TODO: make workers aware of the pending jobs
-		pass
+		"""all worker threads are launched"""
+		for(worker in self.workers):
+			worker.start()
 
 	def run(self):
 		"""launch the maximum number of concurrent jobs"""
 		self._create_workers()
 		self._launch_workers()
+
+	def join(self):
+		"""wait here for all jobs to finish"""
+		pass
 
 
 class BuildOrder:
@@ -189,11 +197,12 @@ class BuildThing:
 		self.inname = relpath(name)
 		self.outname = ""
 		self.encname = ""
-		self.c_run = ""
+		self.crun = ""
 		self.prebuild = ""
 		self.postbuild = ""
 		self.needs_build = False	# does this file need to be rebuilt
 		self.parent = None			# the parent BuildThing may be notified of stuff #TODO: actually use
+		self.manager = None
 		self.loglevel = 2 #TODO: sure?
 
 	def run(self):
@@ -237,8 +246,8 @@ class BuildThing:
 	def check_ready_to_build(self):
 		pass
 
-	def set_c_run(self, c_run):
-		self.c_run = c_run
+	def set_crun(self, crun):
+		self.crun = crun
 
 
 class HeaderFile(BuildThing):
@@ -260,10 +269,6 @@ class SourceFile(BuildThing):
 	def __init__(self, filename):
 		BuildThing.__init__(self, filename)
 
-	def set_encname(self, new_enc):
-		self.encname = new_enc
-		self.outname = self.encname + ".o"
-
 	def run(self):
 		'''this method compiles a the file into a single object.'''
 
@@ -274,34 +279,28 @@ class SourceFile(BuildThing):
 			if(self.prebuild):
 				print("prebuild for " + self + " '" + self.prebuild + "'")
 				#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
-				pass
 
 			if(ret != 0):
 				failat = "prebuild for"
-				pass
 			else:
-				print("== building -> " + c_name)
+				print("== building -> " + repr(self))
 
 				## compiler is launched here
 				#TODO: correct invocation
-				#ret = subprocess.call(shlex.split(self.c_run), shell=False)
+				#ret = subprocess.call(shlex.split(self.crun), shell=False)
 				time.sleep(1)
 
-				print("== done building -> " + c_name)
+				print("== done building -> " + repr(self))
 
 			#TODO: don't forget to remove...
-			if(manager.error == 0): #generate ONE random build fail
-				ret = round(random.random())
-			else:
-				ret = 0
+			ret = round(random.random())
 
 			if(ret != 0):
 				failat = "compiling"
 			else:
 				if(self.postbuild):
-					print("postbuild for " + self + " '" + self.postbuild + "'")
+					print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
 					#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
-					pass
 				if(ret != 0):
 					failat = "postbuild for"
 
@@ -311,16 +310,16 @@ class SourceFile(BuildThing):
 				fail = False
 
 			if fail:
-				print("\n======= Fail at "+ failat +" " + repr(self) + " =========")
-				manager.error = ret
-				print("Error when building "+ c_name )
+				print("\n======= Fail at " + failat +" " + repr(self) + " =========")
+				#TODO: manager notification of build failure
+				print("Error when building " + repr(self) )
 				return ret
 			else:
 				return 0
 
 		#doesn't need build
 		else:
-			print("skipping " + c_name)
+			print("skipping " + repr(self))
 
 	def add_dependency(self, dfile):
 		if(type(dfile) == list):
@@ -329,16 +328,16 @@ class SourceFile(BuildThing):
 			self.depends.append(dfile)
 
 	def __repr__(self):
-		return relpath(self.name)
+		return self.inname
 
 	def __str__(self):
-		out = "\n===========\nsource file: " + relpath(self.name) + " -> \n"
+		out = "\n===========\nsource file: " + self.inname + " -> \n"
 		n = 0
 		for d in self.depends:
-			out += "\tdep " + str(n) + ":\t" + relpath(d) + "\n"
+			out += "\tdep " + str(n) + ":\t" + d.inname + "\n"
 			n += 1
 
-		out += "\tc_invokation: " + self.c_run + "\n===========\n"
+		out += "\tc-invokation: " + self.crun + "\n===========\n"
 		return out
 
 
@@ -348,6 +347,8 @@ class BuildTarget(BuildThing):
 	def __init__(self, tname):
 		self.files = []
 		self.name = tname
+		self.outname = relpath(tname)
+		self.inname = self.outname
 
 	def add_file(self, cfile):
 		if(not isinstance(cfile, BuildFile)):
@@ -356,8 +357,8 @@ class BuildTarget(BuildThing):
 			cfile.set_target(self)
 			self.files.append(cfile)
 
-	def set_c_run(self, c_run):
-		self.c_run = c_run
+	def set_crun(self, crun):
+		self.crun = crun
 
 	def check_needs_build(self):
 		if(not os.path.isfile(t_name)):
@@ -365,28 +366,26 @@ class BuildTarget(BuildThing):
 		#TODO: check the dependencies etc
 
 	def run(self):
-		'''this method compiles a single target.'''
+		'''this method compiles a single target, if needed.'''
 
 		if(self.needs_build):
-
-			ret = 0
+			ret = 0		#return value storage
 
 			if(self.prebuild):
-				print("prebuild for " + self.name + " '" + self.prebuild + "'")
+				print("prebuild for " + repr(self) + " '" + self.prebuild + "'")
 				#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
-				pass
 
 			if(ret != 0):
 				failat = "prebuild for"
 			else:
-				print("== linking -> " + self.name)
+				print("== linking -> " + repr(self))
 
 				## compiler is launched here
 				#TODO: correct invocation
-				#ret = subprocess.call(shlex.split(self.c_run), shell=False)
+				#ret = subprocess.call(shlex.split(self.crun), shell=False)
 				time.sleep(1)
 
-				print("== done linking -> " + self.name)
+				print("== done linking -> " + repr(self))
 
 			#TODO: don't forget to remove...
 			ret = round(random.random())
@@ -395,9 +394,9 @@ class BuildTarget(BuildThing):
 				failat = "linking"
 			else:
 				if(self.postbuild):
-					print("postbuild for " + self.name + " '" + self.postbuild + "'")
+					print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
 					#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
-					
+
 				if(ret != 0):
 					failat = "postbuild for"
 
@@ -407,9 +406,9 @@ class BuildTarget(BuildThing):
 				fail = False
 
 			if fail:
-				print("\n======= Fail at "+ failat +" " + t_name + " =========")
-				manager.error = ret
-				print("Error when linking "+ t_name )
+				print("\n======= Fail at " + failat +" " + repr(self) + " =========")
+				#TODO: notify manager of job failure
+				print("Error when linking " + repr(self) )
 				return ret
 			else:
 				return 0
@@ -425,10 +424,11 @@ class BuildTarget(BuildThing):
 		for f in self.depends:
 			out += "\n-- file " + str(n) + ":" + str(f)
 			n += 1
-		out += "\t c_invokation: " + self.c_run + "\n>>>>>>>>>>>>>>>>>>>>>>>>>\n"
+		out += "\t c-invokation: " + self.crun + "\n>>>>>>>>>>>>>>>>>>>>>>>>>\n"
 		return out
 
-
+	def __repr__(self):
+		return self.outname
 
 
 
@@ -457,7 +457,7 @@ class Builder:
 
 			#submit all new jobs to queue:
 			for ofile in target.files:
-					self.m.submit(BuildJob(ofile))
+				self.m.submit(BuildJob(ofile))
 
 			self.m.submit(BuildJob(target))
 
@@ -480,17 +480,22 @@ class Builder:
 			for source in self.conf["use"].get(target):
 				order_file = SourceFile(source)
 
-				c_run = self.conf["c"].get(source)		#compiler
-				c_run += " " + self.conf["cflags"].get(source)	#compiler flags
-				c_run += " -c " + relpath(source)		#sourcefile name
+				crun = self.conf["c"].get(source)		#compiler
+				crun += " " + self.conf["cflags"].get(source)	#compiler flags
+				crun += " -c " + relpath(source)		#sourcefile name
 
 				# encode the compiler flags etc
 				objdir = self.conf["objdir"].get(source)
-				enc_name = relpath(objdir) + "/" + relpath(source) + "-" + generate_oname(c_run)	#TODO: This line contains 99% bugs
-				order_file.set_encname(enc_name)
 
-				o_name = enc_name + ".o"
-				c_run += " -o " + o_name	 		#output object file name generation
+				#the encoded name 
+				
+				encname = generate_oname(crun)
+				order_file.encname = encname
+				encpathname = relpath(objdir) + "/" + relpath(source) + "-" + encname
+
+				o_name = encpathname + ".o"
+				order_file.outname = o_name
+				crun += " -o " + o_name			#output object file name generation
 
 				# add known (by config) dependency files
 				order_file.add_dependency(self.conf["depends"].get(source))
@@ -499,7 +504,7 @@ class Builder:
 				ad = self.conf["autodepends"].get(source)
 
 				if(ad == "MD"):
-					mdfile = enc_name + ".d"
+					mdfile = encpathname + ".d"
 
 					if(os.path.isfile(mdfile)):
 						#if .d file exists, parse its contents as dependencies
@@ -508,7 +513,7 @@ class Builder:
 						#TODO: notification of first time .d generation
 						pass
 
-					c_run += " -MD"  # (re)generate c headers dependency file
+					crun += " -MD"  # (re)generate c headers dependency file
 
 				elif(ad == "no"):
 					#kp evtl auch iwas
@@ -528,7 +533,7 @@ class Builder:
 					order_file.postbuild = s_pub
 
 				# compiler invocation complete -> add it to the source file build order
-				order_file.set_c_run(c_run)
+				order_file.set_crun(crun)
 
 
 				order_target.add_file(order_file)
@@ -536,15 +541,15 @@ class Builder:
 
 			#=> continuation for each target
 
-			ct_run = self.conf["c"].get(target)		#compiler for TARGET
-			ct_run += " " + self.conf["cflags"].get(target)	#compiler flags
-			ct_run += " " + self.conf["ldflags"].get(target)	#link flags
-			ct_run += " -o " + relpath(target)		#target output name
+			ctrun = self.conf["c"].get(target)		#compiler for TARGET
+			ctrun += " " + self.conf["cflags"].get(target)	#compiler flags
+			ctrun += " " + self.conf["ldflags"].get(target)	#link flags
+			ctrun += " -o " + relpath(target)		#target output name
 
 			#append all object files for linkage
 			#TODO: shouldn't this be generated in the target job?
 			for ofile in order_target.files:
-				ct_run += " " + relpath(ofile.enc_name + ".o")
+				ctrun += " " + ofile.outname
 
 			t_prb = self.conf["prebuild"].get(target)
 			if(len(s_prb) > 0):
@@ -554,7 +559,7 @@ class Builder:
 			if(len(s_pob) > 0):
 				order_target.postbuild = t_pob
 
-			order_target.set_c_run(ct_run)
+			order_target.set_crun(ctrun)
 
 			#include current target to the build order
 			order.add_target(order_target)
