@@ -119,7 +119,6 @@ class JobManager:
 
 		self.pending_jobs = set()		# jobs that will be processed sometime
 		self.ready_jobs = set()		# jobs that are ready to be executed
-		self.running_jobs = set()		# jobs currently running	#TODO: maybe obsolete, worker just picks job
 		self.finished_jobs = set()		# jobs that were executed successfully
 		self.max_workers = max_workers	# worker limitation
 
@@ -140,15 +139,18 @@ class JobManager:
 			pass
 
 	def get_next(self):
+		#TODO: maybe introduce a running_job set
+		self._find_ready_jobs()
 		if(len(self.ready_jobs) > 0):
 			newjob = self.ready_jobs.pop()
 			return newjob
-		elif(True):
-			#TODO: do something intelligent to find the next job
-			# but wait, actually then there really is no job available
-			return None
 		else:
 			return None
+
+	def _find_ready_jobs(self):
+		for(job in self.pending_jobs):
+			job.check_ready_to_build()
+			#TODO
 
 	def _create_workers(self):
 		'''creates all BuildWorkers'''
@@ -168,6 +170,7 @@ class JobManager:
 
 	def join(self):
 		"""wait here for all jobs to finish"""
+		#TODO
 		pass
 
 
@@ -201,6 +204,7 @@ class BuildThing:
 		self.prebuild = ""
 		self.postbuild = ""
 		self.needs_build = False	# does this file need to be rebuilt
+		self.ready = False
 		self.parent = None			# the parent BuildThing may be notified of stuff #TODO: actually use
 		self.manager = None
 		self.loglevel = 2 #TODO: sure?
@@ -231,20 +235,27 @@ class BuildThing:
 
 		#only check dependencies, if thing itself doesn't need a build
 		if(not self.needs_build):
-			for fl in self.depends:
+			for d in self.depends:
 				try:
 					# check for modification times
-					print("checking mtime of -> " + fl)
+					print("checking mtime of -> " + repr(d))
 					if(os.path.getmtime(fl) > os.path.getmtime(self.outname)):
 						self.needs_build = True
-						print("==> Build needed: " + fl + " is newer than " + self.outname)
+						print("==> Build needed: " + repr(d) + " is newer than " + self.outname)
 						break
 
 				except OSError as e:
 					print(str(e) + " -> Ignoring for now.")
+		return self.needs_build
 
 	def check_ready_to_build(self):
-		pass
+	'''when all dependencies are ready (or no more dependencies), return true'''
+		self.ready = True
+		for(d in self.depends):
+			if(not d.check_ready_to_build()):
+				self.ready = False
+				break
+		return self.ready
 
 	def set_crun(self, crun):
 		self.crun = crun
@@ -255,13 +266,17 @@ class HeaderFile(BuildThing):
 
 	def __init__(self, hname):
 		BuildThing.__init__(self, hname)
+		#no need to set self.outname, as we never need it
 
 	def check_needs_build(self):
 		self.needs_build = False
 
 	def run(self):
-		#hahahahaha
+		#TODO: notify parent that this dependency is ready
 		pass
+
+	def __repr__(self):
+		return self.inname
 
 class SourceFile(BuildThing):
 	"""a source file that is compiled to an object file"""
@@ -331,10 +346,10 @@ class SourceFile(BuildThing):
 		return self.inname
 
 	def __str__(self):
-		out = "\n===========\nsource file: " + self.inname + " -> \n"
+		out = "\n===========\nsource file: " + repr(self) + " -> \n"
 		n = 0
 		for d in self.depends:
-			out += "\tdep " + str(n) + ":\t" + d.inname + "\n"
+			out += "\tdep " + str(n) + ":\t" + repr(d) + "\n"
 			n += 1
 
 		out += "\tc-invokation: " + self.crun + "\n===========\n"
