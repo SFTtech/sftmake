@@ -73,10 +73,11 @@ def get_thread_count():
 class BuildWorker:
 	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
 
-	def __init__(self, manager):
+	def __init__(self, manager, num):
 		self.thread = threading.Thread(target=self.run)
 		self.manager = manager
-		self.job = None		#The job currently being processed
+		self.num = num
+		self.job = None		#The BuildElement currently being processed by this worker
 
 	def run(self):
 		while True:
@@ -86,29 +87,17 @@ class BuildWorker:
 				#so the worker can die!
 				return
 
-			self.job.run()
+			self.job.set_worker(self)
 
+			if(self.job.needs_build):
+				#TODO: same output colors for each worker
+				#print("[worker " + str(self.num) + "]:")
+				self.job.run()
 
-class BuildJob:
-	"""one build job, will build a BuildThing"""
+			self.manager.finished(self.job)
 
-	def __init__(self, job):
-		self.manager = None
-		self.exitstate = 0
-
-		if(not isinstance(job, BuildThing)):
-			raise Exception("only a BuildThing can be a processed with a BuildJob")
-		else:
-			self.job = job
-
-	def set_manager(self, manager):
-		"""set the BuildManager if this BuildJob"""
-		self.manager = manager
-
-	def success(self):
-		#TODO: eventually wait til termination of job
-		#TODO: or: just return a status that maybe says
-		return (self.exitstate == 0)
+	def start(self):
+		self.thread.start()
 
 
 class JobManager:
@@ -119,38 +108,65 @@ class JobManager:
 
 		self.pending_jobs = set()		# jobs that will be processed sometime
 		self.ready_jobs = set()		# jobs that are ready to be executed
+		self.running_jobs = set()		# currently executing jobs
 		self.finished_jobs = set()		# jobs that were executed successfully
 		self.max_workers = max_workers	# worker limitation
 
+		self.error = 0
+		self.erroreus_job = None
+
+		self.job_lock = threading.Condition()
+
 	def submit(self, job):
 		"""insert a function in the execution queue"""
-		if(not isinstance(job, BuildJob)):
-			raise Exception("only BuildJobs can be submitted")
+		if(not isinstance(job, BuildContainer)):
+			raise Exception("only BuildContainers can be submitted")
 
-		job.set_manager(self)
-		self.pending_jobs.add(job)
+		with self.job_lock:
+			job.set_manager(self)
+			self.pending_jobs.add(job)
 
 	def finished(self, job):
-		if(job.success()):
-			job = jobstatus.get_job()
-			self.finished_jobs.add(job)
-		else
-			#TODO: somehow kill everybody/thing
-			pass
+		with self.job_lock:
+			if(job.success()):
+				self.running_jobs.remove(job)
+				self.finished_jobs.add(job)
+				job.notify_parents()
+				self._find_ready_jobs()
+				self.job_lock.notify()
+				#TODO: notify the get_next block (down there vvv)
+			else
+				self.error = job.exitstate
+				self.erroreus_job = job
 
 	def get_next(self):
-		#TODO: maybe introduce a running_job set
-		self._find_ready_jobs()
-		if(len(self.ready_jobs) > 0):
-			newjob = self.ready_jobs.pop()
-			return newjob
-		else:
-			return None
+		with self.job_lock:
+			if(len(self.ready_jobs) > 0):
+				newjob = self.ready_jobs.pop()
+				self.running_jobs.add(newjob)
+				return newjob
+
+			else if(len(self.running_jobs) > 0 && len(self.pending_jobs) > 0):
+				#running jobs are probably blocking the pending_jobs
+				self.job_lock.wait_for(len(self.ready_jobs) > 0 && self.error == 0)
+				newjob = self.ready_jobs.pop()
+				self.running_jobs.add(newjob)
+				return newjob
+
+			else: #we are out of jobs!
+				return None
 
 	def _find_ready_jobs(self):
-		for(job in self.pending_jobs):
-			job.check_ready_to_build()
-			#TODO
+		with self.job_lock:
+			new_ready_jobs = filter(lambda job: job.ready_to_build, self.pending_jobs)
+			self.pending_jobs -= new_ready_jobs
+			self.ready_jobs |= new_ready_jobs
+
+			#old version:
+#			for(job in self.pending_jobs):
+#				if(job.ready_to_build()):
+#					self.pending_jobs.remove(job)
+#					self.ready_jobs.add(job)
 
 	def _create_workers(self):
 		'''creates all BuildWorkers'''
@@ -166,12 +182,17 @@ class JobManager:
 	def run(self):
 		"""launch the maximum number of concurrent jobs"""
 		self._create_workers()
+		self._find_ready_jobs()
 		self._launch_workers()
 
 	def join(self):
 		"""wait here for all jobs to finish"""
 		#TODO
-		pass
+		if(len(self.pending_jobs) > 0):
+			#not all jobs have been built
+			print("\nnot all jobs have been built:")
+			for(job in self.pending_jobs):
+				print(repr(job))
 
 
 class BuildOrder:
@@ -192,7 +213,8 @@ class BuildOrder:
 		out += "\n%%%%%%%%%%%%%%%%%\n"
 		return out
 
-class BuildThing:
+
+class BuildElement:
 
 	def __init__(self, name):
 		self.depends = set()
@@ -205,18 +227,35 @@ class BuildThing:
 		self.postbuild = ""
 		self.needs_build = False	# does this file need to be rebuilt
 		self.ready = False
-		self.parent = None			# the parent BuildThing may be notified of stuff #TODO: actually use
-		self.manager = None
+		self.parents = set()	# the parent BuildElement may be notified of stuff
+		self.worker = None
 		self.loglevel = 2 #TODO: sure?
+		self.exitstate = 0
 
 	def run(self):
 		raise NotImplementedError("Implement this shit for a working compilation...")
 
+	def notify_parents():
+		'''upon a successful run, notify parents that this dependency is ready'''
+		for(parent in self.parents):
+			parent.depends.remove(self)
+		pass
+
+
+	def set_worker(self, worker):
+		'''set the worker of this BuildElement'''
+		self.worker = worker
+
+	def success(self):
+		#TODO: eventually wait til termination of job
+		#TODO: or: just return a status that maybe says "not ready yet"
+		return (self.exitstate == 0)
+
 	def add_dependency(self, newone):
 		'''adds a dependency to this compilation job'''
 
-		if(not isinstance(newone, BuildThing)):
-			raise Exception("only BuildThings can be added as a dependency for another BuildThing")
+		if(not isinstance(newone, BuildElement)):
+			raise Exception("only BuildElements can be added as a dependency for another BuildElement")
 
 		self.depends.add(newone)
 
@@ -232,7 +271,6 @@ class BuildThing:
 		else: # outname does not exist
 			self.needs_build = True
 
-
 		#only check dependencies, if thing itself doesn't need a build
 		if(not self.needs_build):
 			for d in self.depends:
@@ -246,13 +284,12 @@ class BuildThing:
 
 				except OSError as e:
 					print(str(e) + " -> Ignoring for now.")
-		return self.needs_build
 
-	def check_ready_to_build(self):
+	def ready_to_build(self):
 	'''when all dependencies are ready (or no more dependencies), return true'''
 		self.ready = True
 		for(d in self.depends):
-			if(not d.check_ready_to_build()):
+			if(not d.ready_to_build()):
 				self.ready = False
 				break
 		return self.ready
@@ -261,80 +298,74 @@ class BuildThing:
 		self.crun = crun
 
 
-class HeaderFile(BuildThing):
+class HeaderFile(BuildElement):
 	"""headerfile for a source file, never needs to be built"""
 
 	def __init__(self, hname):
-		BuildThing.__init__(self, hname)
+		BuildElement.__init__(self, hname)
 		#no need to set self.outname, as we never need it
 
 	def check_needs_build(self):
 		self.needs_build = False
 
 	def run(self):
-		#TODO: notify parent that this dependency is ready
-		pass
+		print("[" + self.worker.num + "]: " + repr(self))
 
 	def __repr__(self):
 		return self.inname
 
-class SourceFile(BuildThing):
+class SourceFile(BuildElement):
 	"""a source file that is compiled to an object file"""
 
 	def __init__(self, filename):
-		BuildThing.__init__(self, filename)
+		BuildElement.__init__(self, filename)
 
 	def run(self):
 		'''this method compiles a the file into a single object.'''
 
-		if(self.needs_build):
+		ret = 0
 
-			ret = 0
+		if(self.prebuild):
+			print("prebuild for " + self + " '" + self.prebuild + "'")
+			#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
 
-			if(self.prebuild):
-				print("prebuild for " + self + " '" + self.prebuild + "'")
-				#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
-
-			if(ret != 0):
-				failat = "prebuild for"
-			else:
-				print("== building -> " + repr(self))
-
-				## compiler is launched here
-				#TODO: correct invocation
-				#ret = subprocess.call(shlex.split(self.crun), shell=False)
-				time.sleep(1)
-
-				print("== done building -> " + repr(self))
-
-			#TODO: don't forget to remove...
-			ret = round(random.random())
-
-			if(ret != 0):
-				failat = "compiling"
-			else:
-				if(self.postbuild):
-					print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
-					#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
-				if(ret != 0):
-					failat = "postbuild for"
-
-			if(ret > 0):
-				fail = True
-			else:
-				fail = False
-
-			if fail:
-				print("\n======= Fail at " + failat +" " + repr(self) + " =========")
-				#TODO: manager notification of build failure
-				print("Error when building " + repr(self) )
-				return ret
-			else:
-				return 0
-
-		#doesn't need build
+		if(ret != 0):
+			failat = "prebuild for"
 		else:
-			print("skipping " + repr(self))
+			print("== building -> " + repr(self))
+
+			## compiler is launched here
+			#TODO: correct invocation
+			print("[" + self.worker.num + "]: " + repr(self))
+			#ret = subprocess.call(shlex.split(self.crun), shell=False)
+			time.sleep(1)
+
+			print("== done building -> " + repr(self))
+
+		#TODO: don't forget to remove...
+		ret = round(random.random())
+
+		if(ret != 0):
+			failat = "compiling"
+		else:
+			if(self.postbuild):
+				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
+				#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
+			if(ret != 0):
+				failat = "postbuild for"
+
+		if(ret > 0):
+			fail = True
+		else:
+			fail = False
+
+		if fail:
+			print("\n======= Fail at " + failat +" " + repr(self) + " =========")
+			print("Error when building " + repr(self) )
+			self.exitstate = ret
+		else:
+			self.exitstate = 0
+		return self.exitstate
 
 	def add_dependency(self, dfile):
 		if(type(dfile) == list):
@@ -356,7 +387,7 @@ class SourceFile(BuildThing):
 		return out
 
 
-class BuildTarget(BuildThing):
+class BuildTarget(BuildElement):
 	'''A build target has a list of all files that will be linked in the target'''
 
 	def __init__(self, tname):
@@ -375,62 +406,53 @@ class BuildTarget(BuildThing):
 	def set_crun(self, crun):
 		self.crun = crun
 
-	def check_needs_build(self):
-		if(not os.path.isfile(t_name)):
-			self.needs_build = True
-		#TODO: check the dependencies etc
-
 	def run(self):
-		'''this method compiles a single target, if needed.'''
+		'''this method compiles a single target.'''
 
-		if(self.needs_build):
-			ret = 0		#return value storage
+		ret = 0		#return value storage
 
-			if(self.prebuild):
-				print("prebuild for " + repr(self) + " '" + self.prebuild + "'")
-				#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
+		if(self.prebuild):
+			print("prebuild for " + repr(self) + " '" + self.prebuild + "'")
+			#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
 
-			if(ret != 0):
-				failat = "prebuild for"
-			else:
-				print("== linking -> " + repr(self))
-
-				## compiler is launched here
-				#TODO: correct invocation
-				#ret = subprocess.call(shlex.split(self.crun), shell=False)
-				time.sleep(1)
-
-				print("== done linking -> " + repr(self))
-
-			#TODO: don't forget to remove...
-			ret = round(random.random())
-
-			if(ret != 0):
-				failat = "linking"
-			else:
-				if(self.postbuild):
-					print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
-					#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
-
-				if(ret != 0):
-					failat = "postbuild for"
-
-			if(ret > 0):
-				fail = True
-			else:
-				fail = False
-
-			if fail:
-				print("\n======= Fail at " + failat +" " + repr(self) + " =========")
-				#TODO: notify manager of job failure
-				print("Error when linking " + repr(self) )
-				return ret
-			else:
-				return 0
-
-		#doesn't need build
+		if(ret != 0):
+			failat = "prebuild for"
 		else:
-			print("skipping " + c_name)
+			print("== linking -> " + repr(self))
+
+			## compiler is launched here
+			#TODO: correct invocation
+			print("[" + self.worker.num + "]: " + repr(self))
+			#ret = subprocess.call(shlex.split(self.crun), shell=False)
+			time.sleep(1)
+
+			print("== done linking -> " + repr(self))
+
+		#TODO: don't forget to remove...
+		ret = round(random.random())
+
+		if(ret != 0):
+			failat = "linking"
+		else:
+			if(self.postbuild):
+				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
+				#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
+
+			if(ret != 0):
+				failat = "postbuild for"
+
+		if(ret > 0):
+			fail = True
+		else:
+			fail = False
+
+		if fail:
+			print("\n======= Fail at " + failat +" " + repr(self) + " =========")
+			print("Error when linking " + repr(self) )
+			self.exitstate = ret
+		else:
+			self.exitstate = 0
+		return self.exitstate
 
 	def __str__(self):
 		out = "\n>>>>>>>>>>>>>>>>>>>>>>>>>\ntarget file: " + relpath(self.name)
@@ -472,9 +494,9 @@ class Builder:
 
 			#submit all new jobs to queue:
 			for ofile in target.files:
-				self.m.submit(BuildJob(ofile))
+				self.m.submit(ofile)
 
-			self.m.submit(BuildJob(target))
+			self.m.submit(target)
 
 		self.m.start()
 		self.m.join()
