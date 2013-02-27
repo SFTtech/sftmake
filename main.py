@@ -122,6 +122,7 @@ class BuildWorker:
 			if(self.job.needs_build):
 				#TODO: same output colors for each worker
 				#print("[worker " + str(self.num) + "]:")
+				print(repr(self) + " running now: " + repr(self.job))
 				self.job.run()
 			else:
 				print(repr(self) + " skipped " + repr(self.job))
@@ -328,6 +329,7 @@ class BuildElement:
 					raise Exception("only BuildElements can be added as a dependency for another BuildElement")
 
 				print(repr(self) + " -> adding dependency from list " + repr(newone))
+				e.add_parent(self)
 				self.depends.add(e)
 
 		else:
@@ -335,6 +337,7 @@ class BuildElement:
 				raise Exception("only BuildElements can be added as a dependency for another BuildElement")
 
 			print(repr(self) + " -> adding dependency " + repr(newone))
+			newone.add_parent(self)
 			self.depends.add(newone)
 
 	def check_needs_build(self): #can/should be overridden if appropriate (e.g. header file)
@@ -468,17 +471,9 @@ class BuildTarget(BuildElement):
 
 	def __init__(self, tname):
 		BuildElement.__init__(self, tname)
-		self.files = []
 		self.name = tname
 		self.outname = relpath(tname)
 		self.inname = self.outname
-
-	def add_file(self, cfile):
-		if(not isinstance(cfile, SourceFile)):
-			raise Exception("a target can only have SourceFiles as dependency")
-		else:
-			cfile.add_parent(self)
-			self.files.append(cfile)
 
 	def set_crun(self, crun):
 		self.crun = crun
@@ -612,7 +607,8 @@ class Builder:
 				print("processing " + source + ": \n -----")
 				for dep in file_depends:
 					#TODO: maybe this is always a HeaderFile
-					order_file.add_dependency(build_element_factory(dep))
+					d = build_element_factory(dep)
+					order_file.add_dependency(d)
 				
 				#add sourcefile path itself to depends
 				ad = self.conf["autodepends"].get(source)
@@ -622,7 +618,8 @@ class Builder:
 
 					if(os.path.isfile(mdfile)):
 						#if .d file exists, parse its contents as dependencies
-						order_file.add_dependency(parse_dfile(mdfile))
+						for dep in parse_dfile(mdfile):
+							order_file.add_dependency(build_element_factory(dep))
 					else:
 						#TODO: notification of first time .d generation
 						pass
@@ -649,9 +646,7 @@ class Builder:
 				# compiler invocation complete -> add it to the source file build order
 				order_file.set_crun(crun)
 
-
-				order_target.add_file(order_file)
-				#print(str(order_file))
+				order_target.add_dependency(order_file)
 
 			#=> continuation for each target
 
@@ -662,7 +657,7 @@ class Builder:
 
 			#append all object files for linkage
 			#TODO: shouldn't this be generated in the target job?
-			for ofile in order_target.files:
+			for ofile in order_target.depends:
 				ctrun += " " + ofile.outname
 
 			t_prb = self.conf["prebuild"].get(target)
