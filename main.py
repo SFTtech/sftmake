@@ -108,6 +108,7 @@ class BuildWorker:
 		self.job = None		#The BuildElement currently being processed by this worker
 
 	def run(self):
+		print(repr(self) + " alive")
 		while True:
 			self.job = self.manager.get_next()
 			if(self.job == None):
@@ -115,20 +116,27 @@ class BuildWorker:
 				#so the worker can die!
 				return
 
+			print(repr(self) + " fetched " + repr(self.job))
 			self.job.set_worker(self)
 
 			if(self.job.needs_build):
 				#TODO: same output colors for each worker
 				#print("[worker " + str(self.num) + "]:")
 				self.job.run()
+			else:
+				print(repr(self) + " skipped " + repr(self.job))
 
 			self.manager.finished(self.job)
+		print(repr(self) + " dead")
 
 	def start(self):
 		self.thread.start()
 
 	def join(self):
 		self.thread.join()
+	
+	def __repr__(self):
+		return "BuildWorker [" + str(self.num) + "]"
 
 
 class JobManager:
@@ -228,7 +236,7 @@ class JobManager:
 		self._create_workers()
 		self._find_ready_jobs()
 		self._launch_workers()
-	
+
 	def start(self):
 		self.run()
 #		threading.Thread(target=self.start).start()
@@ -237,6 +245,7 @@ class JobManager:
 		"""wait here for all jobs to finish"""
 		for worker in self.workers:
 			worker.join()
+			print("exited " + repr(worker))
 
 		if(len(self.pending_jobs) > 0):
 			#not all jobs have been built
@@ -290,7 +299,8 @@ class BuildElement:
 
 	def add_deps_to_manager(self, manager):
 		for f in self.depends:
-			manager.submit_single(f)
+			f.add_deps_to_manager(manager)
+		manager.submit_single(self)
 
 	def finished_notify_parents(self):
 		'''upon a successful run, notify parents that this dependency is ready'''
@@ -538,6 +548,7 @@ class BuildTarget(BuildElement):
 
 class Builder:
 	"""Class for using and preparing the sftmake build process"""
+
 	def __init__(self, conf):
 		self.conf = conf
 
@@ -547,7 +558,7 @@ class Builder:
 		if(type(order) != BuildOrder):
 			raise Exception("Builder: the build() function needs a BuildOrder")
 
-		#TODO: job limiting
+		#TODO: job limiting by program parameters (or by "variables")
 		self.m = JobManager(max_workers=get_thread_count())
 
 		targetsstr = "'"
