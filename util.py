@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import os
+import re
 
 class orderedset:
 	""" wrapper around OrderedDict because fak u python

@@ -12,36 +12,51 @@ import time
 import random
 
 
-class vartest():
+class vartest:
 	def __init__(self, arg):
 		self.l = arg
 	def get(self, a = ""):
 		return self.l
 
+class vartestadv:
+	def __init__(self):
+		self.l = dict()
+
+	def get(self, param):
+		ret = self.l[param]
+		print("getting [" + param + "]: " + str(ret))
+		return ret
+
+	def addv(self, key, val):
+		self.l[key] = val
+
 
 try:
 	smpath("/tmp/a")
 except NameError:
-	print("redefining smpath() as stub")
-	def smpath(path):
-		'''stub for testing'''
-		return path
+	from util import smpath
+#	print("redefining smpath() as stub")
+#	def smpath(path):
+#		'''stub for testing'''
+#		return path
 
 try:
 	relpath("^/a")
 except NameError:
-	print("redefining relpath() as stub")
-	def relpath(path):
-		'''stub for testing'''
-		return path
+	from util import relpath
+#	print("redefining relpath() as stub")
+#	def relpath(path):
+#		'''stub for testing'''
+#		return path
 
 try:
 	generate_oname("gschicht")
 except NameError:
-	print("redefining generate_oname() as stub")
-	def generate_oname(name):
-		encoded = base64.b64encode(bytearray(name, 'utf-8'))
-		return encoded.decode('utf-8')
+	from util import generate_oname
+#	print("redefining generate_oname() as stub")
+#	def generate_oname(name):
+#		encoded = base64.b64encode(bytearray(name, 'utf-8'))
+#		return encoded.decode('utf-8')
 
 
 #test purpose only
@@ -49,14 +64,27 @@ variables = {}
 variables["c"] = vartest("gcc")
 variables["build"] = vartest(["^/test", "^/liblol.so"])
 variables["cflags"] = vartest("-O8 -flto=4")
-variables["use"] = vartest(["^/gschicht.c", "^/asdf.c", "^/lolfolder/file.c"])
 variables["objdir"] = vartest("^/.objdir")
-variables["depends"] = vartest(['^/asdf.h','^/lol.h'])
+
+variables["use"] = vartestadv()
+variables["depends"] = vartestadv()
+variables["depends"].addv("^/gschicht.c", ['^/asdf.h'])
+variables["depends"].addv("^/asdf.c", ['^/lol.h'])
+variables["depends"].addv("^/lolfolder/file.c", ['^/asdf.h','^/lol.h'])
+variables["use"].addv("^/test", ['^/asdf.c', '^/gschicht.c'])
+variables["use"].addv("^/liblol.so", ['^/lolfolder/file.c'])
+
 variables["autodepends"] = vartest("MD")
 variables["prebuild"] = vartest("")
 variables["postbuild"] = vartest("")
 variables["loglevel"] = vartest("2")
 variables["ldflags"] = vartest("-lsft")
+
+print("var initialisation: \n" + str(variables) + "\n\n\n")
+
+
+
+#TODO: when buildelements are used by multiple parents, detect that (e.g. header files) (respecting the differing variable values!)
 
 
 def get_thread_count():
@@ -73,7 +101,7 @@ def get_thread_count():
 class BuildWorker:
 	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
 
-	def __init__(self, manager, num):
+	def __init__(self, manager, num=-1):
 		self.thread = threading.Thread(target=self.run)
 		self.manager = manager
 		self.num = num
@@ -99,6 +127,9 @@ class BuildWorker:
 	def start(self):
 		self.thread.start()
 
+	def join(self):
+		self.thread.join()
+
 
 class JobManager:
 	"""thread manager for invoking the compilers"""
@@ -119,11 +150,17 @@ class JobManager:
 
 	def submit(self, job):
 		"""insert a function in the execution queue"""
-		if(not isinstance(job, BuildContainer)):
-			raise Exception("only BuildContainers can be submitted")
+		if(not isinstance(job, BuildElement)):
+			raise Exception("only BuildElements can be submitted")
+
+		job.add_deps_to_manager(self)
+
+	def submit_single(self, job):
+		"""insert a function in the execution queue"""
+		if(not isinstance(job, BuildElement)):
+			raise Exception("only BuildElements can be submitted")
 
 		with self.job_lock:
-			job.set_manager(self)
 			self.pending_jobs.add(job)
 
 	def finished(self, job):
@@ -131,24 +168,31 @@ class JobManager:
 			if(job.success()):
 				self.running_jobs.remove(job)
 				self.finished_jobs.add(job)
-				job.notify_parents()
+				job.finished_notify_parents()
 				self._find_ready_jobs()
 				self.job_lock.notify()
-				#TODO: notify the get_next block (down there vvv)
-			else
+			else:
 				self.error = job.exitstate
 				self.erroreus_job = job
 
 	def get_next(self):
 		with self.job_lock:
 			if(len(self.ready_jobs) > 0):
+
+				if(self.error != 0):
+					return None
+
 				newjob = self.ready_jobs.pop()
 				self.running_jobs.add(newjob)
 				return newjob
 
-			else if(len(self.running_jobs) > 0 && len(self.pending_jobs) > 0):
+			elif(len(self.running_jobs) > 0 and len(self.pending_jobs) > 0):
+
 				#running jobs are probably blocking the pending_jobs
-				self.job_lock.wait_for(len(self.ready_jobs) > 0 && self.error == 0)
+				self.job_lock.wait_for(len(self.ready_jobs) > 0 or self.error != 0)
+				if(self.error != 0):
+					return None
+
 				newjob = self.ready_jobs.pop()
 				self.running_jobs.add(newjob)
 				return newjob
@@ -158,7 +202,7 @@ class JobManager:
 
 	def _find_ready_jobs(self):
 		with self.job_lock:
-			new_ready_jobs = filter(lambda job: job.ready_to_build, self.pending_jobs)
+			new_ready_jobs = set(filter(lambda job: job.ready_to_build, self.pending_jobs))
 			self.pending_jobs -= new_ready_jobs
 			self.ready_jobs |= new_ready_jobs
 
@@ -170,13 +214,13 @@ class JobManager:
 
 	def _create_workers(self):
 		'''creates all BuildWorkers'''
-		for(i in range(self.max_workers)):
-			newworker = BuildWorker(self)
+		for i in range(self.max_workers):
+			newworker = BuildWorker(self, i)
 			self.workers.append(newworker)
 
 	def _launch_workers(self):
 		"""all worker threads are launched"""
-		for(worker in self.workers):
+		for worker in self.workers:
 			worker.start()
 
 	def run(self):
@@ -184,15 +228,24 @@ class JobManager:
 		self._create_workers()
 		self._find_ready_jobs()
 		self._launch_workers()
+	
+	def start(self):
+		self.run()
+#		threading.Thread(target=self.start).start()
 
 	def join(self):
 		"""wait here for all jobs to finish"""
-		#TODO
+		for worker in self.workers:
+			worker.join()
+
 		if(len(self.pending_jobs) > 0):
 			#not all jobs have been built
 			print("\nnot all jobs have been built:")
-			for(job in self.pending_jobs):
+			for job in self.pending_jobs:
 				print(repr(job))
+
+	def get_error(self):
+		return self.error
 
 
 class BuildOrder:
@@ -235,12 +288,18 @@ class BuildElement:
 	def run(self):
 		raise NotImplementedError("Implement this shit for a working compilation...")
 
-	def notify_parents():
-		'''upon a successful run, notify parents that this dependency is ready'''
-		for(parent in self.parents):
-			parent.depends.remove(self)
-		pass
+	def add_deps_to_manager(self, manager):
+		for f in self.depends:
+			manager.submit_single(f)
 
+	def finished_notify_parents(self):
+		'''upon a successful run, notify parents that this dependency is ready'''
+		for parent in self.parents:
+			print(repr(self) + " -> parent.depends=" + repr(parent.depends))
+			parent.depends.remove(self)
+
+	def add_parent(self, newp):
+		self.parents.add(newp)
 
 	def set_worker(self, worker):
 		'''set the worker of this BuildElement'''
@@ -253,11 +312,20 @@ class BuildElement:
 
 	def add_dependency(self, newone):
 		'''adds a dependency to this compilation job'''
+		if(type(newone) == list):
+			for e in newone:
+				if(not isinstance(newone, BuildElement)):
+					raise Exception("only BuildElements can be added as a dependency for another BuildElement")
 
-		if(not isinstance(newone, BuildElement)):
-			raise Exception("only BuildElements can be added as a dependency for another BuildElement")
+				print(repr(self) + " -> adding dependency from list " + repr(newone))
+				self.depends.add(e)
 
-		self.depends.add(newone)
+		else:
+			if(not isinstance(newone, BuildElement)):
+				raise Exception("only BuildElements can be added as a dependency for another BuildElement")
+
+			print(repr(self) + " -> adding dependency " + repr(newone))
+			self.depends.add(newone)
 
 	def check_needs_build(self): #can/should be overridden if appropriate (e.g. header file)
 		'''set self.needs_build to the correct value'''
@@ -286,9 +354,9 @@ class BuildElement:
 					print(str(e) + " -> Ignoring for now.")
 
 	def ready_to_build(self):
-	'''when all dependencies are ready (or no more dependencies), return true'''
+		'''when all dependencies are ready (or no more dependencies), return true'''
 		self.ready = True
-		for(d in self.depends):
+		for d in self.depends:
 			if(not d.ready_to_build()):
 				self.ready = False
 				break
@@ -313,6 +381,7 @@ class HeaderFile(BuildElement):
 
 	def __repr__(self):
 		return self.inname
+
 
 class SourceFile(BuildElement):
 	"""a source file that is compiled to an object file"""
@@ -367,11 +436,8 @@ class SourceFile(BuildElement):
 			self.exitstate = 0
 		return self.exitstate
 
-	def add_dependency(self, dfile):
-		if(type(dfile) == list):
-			self.depends += dfile
-		else:
-			self.depends.append(dfile)
+	def set_outname(self, newo):
+		self.outname = newo
 
 	def __repr__(self):
 		return self.inname
@@ -391,16 +457,17 @@ class BuildTarget(BuildElement):
 	'''A build target has a list of all files that will be linked in the target'''
 
 	def __init__(self, tname):
+		BuildElement.__init__(self, tname)
 		self.files = []
 		self.name = tname
 		self.outname = relpath(tname)
 		self.inname = self.outname
 
 	def add_file(self, cfile):
-		if(not isinstance(cfile, BuildFile)):
-			raise Exception("a target can only have BuildFiles as dependency")
+		if(not isinstance(cfile, SourceFile)):
+			raise Exception("a target can only have SourceFiles as dependency")
 		else:
-			cfile.set_target(self)
+			cfile.add_parent(self)
 			self.files.append(cfile)
 
 	def set_crun(self, crun):
@@ -489,13 +556,8 @@ class Builder:
 		targetsstr += "'"
 		print("\n\norder contains " + targetsstr)
 
+		#submit all new jobs to queue:
 		for target in order.targets:
-			rtarget = relpath(target.name)
-
-			#submit all new jobs to queue:
-			for ofile in target.files:
-				self.m.submit(ofile)
-
 			self.m.submit(target)
 
 		self.m.start()
@@ -531,11 +593,15 @@ class Builder:
 				encpathname = relpath(objdir) + "/" + relpath(source) + "-" + encname
 
 				o_name = encpathname + ".o"
-				order_file.outname = o_name
+				order_file.set_outname(o_name)
 				crun += " -o " + o_name			#output object file name generation
 
 				# add known (by config) dependency files
-				order_file.add_dependency(self.conf["depends"].get(source))
+				file_depends = self.conf["depends"].get(source)
+				print("processing " + source + ": \n -----")
+				for dep in file_depends:
+					#TODO: maybe this is always a HeaderFile
+					order_file.add_dependency(build_element_factory(dep))
 				
 				#add sourcefile path itself to depends
 				ad = self.conf["autodepends"].get(source)
@@ -602,7 +668,6 @@ class Builder:
 			order.add_target(order_target)
 
 		#direct function level
-		print(str(order))
 		return order
 
 
@@ -633,6 +698,13 @@ def clean_dfile_line(line):
 	return filter(lambda part: hmatch.match(part), parts)
 #	return [ part for part in parts if hmatch.match(part) ]
 
+def build_element_factory(filename):
+	#TODO: actually this is a hacky dirt.
+	if(re.match(".*\\.(h|hpp)", filename)):
+		#print(filename + " generated HeaderFile")
+		return HeaderFile(filename)
+	else:
+		return SourceFile(filename)
 
 
 
@@ -641,6 +713,7 @@ def main():
 	#print(str(variables["build"].get()))
 	builder = Builder(variables)
 	order = builder.prepare()
+	print(str(order))
 	builder.build(order)
 
 
