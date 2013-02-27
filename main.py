@@ -119,7 +119,7 @@ class BuildWorker:
 			print(repr(self) + " fetched " + repr(self.job))
 			self.job.set_worker(self)
 
-			if(self.job.needs_build):
+			if(self.job.check_needs_build()):
 				#TODO: same output colors for each worker
 				#print("[worker " + str(self.num) + "]:")
 				print(repr(self) + " running now: " + repr(self.job))
@@ -248,11 +248,23 @@ class JobManager:
 			worker.join()
 			print("exited " + repr(worker))
 
+		if(len(self.ready_jobs) > 0):
+			print("==========\njobs currently ready to build:")
+			for job in self.ready_jobs:
+				print(repr(job))
+
 		if(len(self.pending_jobs) > 0):
 			#not all jobs have been built
-			print("\nnot all jobs have been built:")
+			print("==========\njobs missing some dependencies:")
 			for job in self.pending_jobs:
 				print(repr(job))
+
+		if(len(self.finished_jobs) > 0):
+			print("==========\njobs that were successfully been built:")
+			for job in self.finished_jobs:
+				print(repr(job))
+		else:
+			print("=========\n NO JOBS have been run successfully")
 
 	def get_error(self):
 		return self.error
@@ -365,6 +377,7 @@ class BuildElement:
 
 				except OSError as e:
 					print(str(e) + " -> Ignoring for now.")
+		return self.needs_build
 
 	def ready_to_build(self):
 		'''when all dependencies are ready (or no more dependencies), return true'''
@@ -418,14 +431,14 @@ class SourceFile(BuildElement):
 
 			## compiler is launched here
 			#TODO: correct invocation
-			print("[" + self.worker.num + "]: " + repr(self))
+			print("[" + repr(self.worker) + "]: " + repr(self))
 			#ret = subprocess.call(shlex.split(self.crun), shell=False)
 			time.sleep(1)
 
 			print("== done building -> " + repr(self))
 
 		#TODO: don't forget to remove...
-		ret = round(random.random())
+		#ret = round(random.random())
 
 		if(ret != 0):
 			failat = "compiling"
@@ -494,14 +507,14 @@ class BuildTarget(BuildElement):
 
 			## compiler is launched here
 			#TODO: correct invocation
-			print("[" + self.worker.num + "]: " + repr(self))
+			print("[" + repr(self.worker) + "]: " + repr(self))
 			#ret = subprocess.call(shlex.split(self.crun), shell=False)
 			time.sleep(1)
 
 			print("== done linking -> " + repr(self))
 
 		#TODO: don't forget to remove...
-		ret = round(random.random())
+		#ret = round(random.random())
 
 		if(ret != 0):
 			failat = "linking"
