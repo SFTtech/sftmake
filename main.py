@@ -114,7 +114,7 @@ class BuildWorker:
 			if(self.job == None):
 				#no more jobs available
 				#so the worker can die!
-				return
+				break
 
 			print(repr(self) + " fetched " + repr(self.job))
 			self.job.set_worker(self)
@@ -174,7 +174,7 @@ class JobManager:
 
 	def finished(self, job):
 		with self.job_lock:
-			if(job.success()):
+			if(job.exitstate == 0):
 				self.running_jobs.remove(job)
 				self.finished_jobs.add(job)
 				job.finished_notify_parents()
@@ -195,11 +195,15 @@ class JobManager:
 				self.running_jobs.add(newjob)
 				return newjob
 
+			#TODO: could cause errors
 			elif(len(self.running_jobs) > 0 and len(self.pending_jobs) > 0):
 
 				#running jobs are probably blocking the pending_jobs
-				self.job_lock.wait_for(len(self.ready_jobs) > 0 or self.error != 0)
+				self.job_lock.wait_for(len(self.ready_jobs) > 0 or self.error != 0 or self.running_jobs == 0)
 				if(self.error != 0):
+					return None
+
+				if(self.running_jobs == 0):
 					return None
 
 				newjob = self.ready_jobs.pop()
@@ -211,9 +215,11 @@ class JobManager:
 
 	def _find_ready_jobs(self):
 		with self.job_lock:
-			new_ready_jobs = set(filter(lambda job: job.ready_to_build, self.pending_jobs))
+			new_ready_jobs = set(filter(lambda job: job.ready, self.pending_jobs))
 			self.pending_jobs -= new_ready_jobs
 			self.ready_jobs |= new_ready_jobs
+
+			#TODO: finished_notify_parents should completely do this
 
 			#old version:
 #			for(job in self.pending_jobs):
@@ -260,11 +266,11 @@ class JobManager:
 				print(repr(job))
 
 		if(len(self.finished_jobs) > 0):
-			print("==========\njobs that were successfully been built:")
+			print("==========\njobs that have been built successfully:")
 			for job in self.finished_jobs:
 				print(repr(job))
 		else:
-			print("=========\n NO JOBS have been run successfully")
+			print("=========\n NO JOBS have been run successfully\n==========")
 
 	def get_error(self):
 		return self.error
@@ -275,10 +281,12 @@ class BuildOrder:
 
 	def __init__(self):
 		self.targets = []
-		self.max_jobs = get_thread_count()
+		self.max_jobs = get_thread_count()  #TODO: use this value in the builder
+
 	def add_target(self, target):
 		self.targets.append(target)
-	def job_count(self, n = get_thread_count()):
+
+	def set_thread_count(self, n = get_thread_count()):
 		self.max_jobs = n
 
 	def __str__(self):
@@ -304,7 +312,7 @@ class BuildElement:
 		self.ready = False
 		self.parents = set()	# the parent BuildElement may be notified of stuff
 		self.worker = None
-		self.loglevel = 2 #TODO: sure?
+		self.loglevel = 2 #TODO: get from variables
 		self.exitstate = 0
 
 	def run(self):
@@ -319,7 +327,9 @@ class BuildElement:
 		'''upon a successful run, notify parents that this dependency is ready'''
 		for parent in self.parents:
 			print(repr(self) + " -> parent.depends=" + repr(parent.depends))
+			#TODO: not remove ourselve, but just notify our success
 			parent.depends.remove(self)
+
 
 	def add_parent(self, newp):
 		self.parents.add(newp)
@@ -327,11 +337,6 @@ class BuildElement:
 	def set_worker(self, worker):
 		'''set the worker of this BuildElement'''
 		self.worker = worker
-
-	def success(self):
-		#TODO: eventually wait til termination of job
-		#TODO: or: just return a status that maybe says "not ready yet"
-		return (self.exitstate == 0)
 
 	def add_dependency(self, newone):
 		'''adds a dependency to this compilation job'''
@@ -356,27 +361,29 @@ class BuildElement:
 		'''set self.needs_build to the correct value'''
 
 		if(os.path.isfile(self.outname)):
-			if (os.path.getmtime(self.outname) < os.path.gettime(self.inname)):
+			if (os.path.getmtime(self.outname) < os.path.getmtime(self.inname)):
 				self.needs_build = True
+				return True
 			else:
 				self.needs_build = False
 
 		else: # outname does not exist
 			self.needs_build = True
+			return True
 
-		#only check dependencies, if thing itself doesn't need a build
-		if(not self.needs_build):
-			for d in self.depends:
-				try:
-					# check for modification times
-					print("checking mtime of -> " + repr(d))
-					if(os.path.getmtime(fl) > os.path.getmtime(self.outname)):
-						self.needs_build = True
-						print("==> Build needed: " + repr(d) + " is newer than " + self.outname)
-						break
+		#only check dependencies, if we don't need a build (we'd have returned then)
+		for d in self.depends:
+			try:
+				# check for modification times
+				print("checking mtime of -> " + repr(d))
+				#TODO: use dict of mtimes
+				if(os.path.getmtime(fl) > os.path.getmtime(self.outname)):
+					self.needs_build = True
+					print("==> Build needed: " + repr(d) + " is newer than " + self.outname)
+					break
 
-				except OSError as e:
-					print(str(e) + " -> Ignoring for now.")
+			except OSError as e:
+				print(str(e) + " -> Ignoring for now.")
 		return self.needs_build
 
 	def ready_to_build(self):
@@ -401,6 +408,7 @@ class HeaderFile(BuildElement):
 
 	def check_needs_build(self):
 		self.needs_build = False
+		return False
 
 	def run(self):
 		print("[" + self.worker.num + "]: " + repr(self))
@@ -422,6 +430,7 @@ class SourceFile(BuildElement):
 
 		if(self.prebuild):
 			print("prebuild for " + self + " '" + self.prebuild + "'")
+			#TODO: os.system()
 			#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
 
 		if(ret != 0):
@@ -450,17 +459,11 @@ class SourceFile(BuildElement):
 				failat = "postbuild for"
 
 		if(ret > 0):
-			fail = True
-		else:
-			fail = False
-
-		if fail:
 			print("\n======= Fail at " + failat +" " + repr(self) + " =========")
 			print("Error when building " + repr(self) )
 			self.exitstate = ret
 		else:
 			self.exitstate = 0
-		return self.exitstate
 
 	def set_outname(self, newo):
 		self.outname = newo
@@ -486,7 +489,7 @@ class BuildTarget(BuildElement):
 		BuildElement.__init__(self, tname)
 		self.name = tname
 		self.outname = relpath(tname)
-		self.inname = self.outname
+		self.inname = self.outname #TODO: respect suffix variables
 
 	def set_crun(self, crun):
 		self.crun = crun
@@ -537,7 +540,6 @@ class BuildTarget(BuildElement):
 			self.exitstate = ret
 		else:
 			self.exitstate = 0
-		return self.exitstate
 
 	def __str__(self):
 		out = "\n>>>>>>>>>>>>>>>>>>>>>>>>>\ntarget file: " + relpath(self.name)
@@ -584,9 +586,9 @@ class Builder:
 
 		#after all targets:
 		if(self.m.get_error() == 0):
-			print("sftmake shutting down...")
+			print("sftmake builder shutting down regularly")
 		else:
-			print("errors caused sftmake to exit")
+			print("sftmake builder exiting due to error")
 
 
 	def prepare(self):
