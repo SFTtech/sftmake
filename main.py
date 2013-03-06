@@ -85,6 +85,7 @@ print("var initialisation: \n" + str(variables) + "\n\n\n")
 
 
 #TODO: when buildelements are used by multiple parents, detect that (e.g. header files) (respecting the differing variable values!)
+#This means: extend the current tree model of dependencies to a graph model.
 
 
 def get_thread_count():
@@ -170,13 +171,17 @@ class JobManager:
 			raise Exception("only BuildElements can be submitted")
 
 		with self.job_lock:
-			self.pending_jobs.add(job)
+			if(job.ready_to_build()):
+				self.ready_jobs.add(job)
+			else:
+				self.pending_jobs.add(job)
 
 	def finished(self, job):
 		with self.job_lock:
 			if(job.exitstate == 0):
 				self.running_jobs.remove(job)
 				self.finished_jobs.add(job)
+				job.finished = True
 				job.finished_notify_parents()
 				self._find_ready_jobs()
 				self.job_lock.notify()
@@ -249,19 +254,19 @@ class JobManager:
 #		threading.Thread(target=self.start).start()
 
 	def join(self):
-		"""wait here for all jobs to finish"""
+		"""wait here for all jobs to finish and generate a work summary"""
 		for worker in self.workers:
 			worker.join()
 			print("exited " + repr(worker))
 
 		if(len(self.ready_jobs) > 0):
-			print("==========\njobs currently ready to build:")
+			print("++++++++++\njobs currently ready to build:")
 			for job in self.ready_jobs:
 				print(repr(job))
 
 		if(len(self.pending_jobs) > 0):
 			#not all jobs have been built
-			print("==========\njobs missing some dependencies:")
+			print("++++++++++\njobs blocked by dependencies:")
 			for job in self.pending_jobs:
 				print(repr(job))
 
@@ -296,6 +301,27 @@ class BuildOrder:
 		out += "\n%%%%%%%%%%%%%%%%%\n"
 		return out
 
+	def text(self):
+		out = "+++ BuildOrder " + str(id(self)) + " has " + str(len(self.targets)) + " targets."
+		for t in self.targets:
+			out += t.text()
+		out += "+++ End BuildOrder"
+		return out
+
+	def makefile(self):
+		'''generate a GNU Makefile for this BuildOrder, then has the same functionality as Builder.build(order)'''
+		#TODO
+		pass
+
+	def graphviz(self):
+		'''neat graph representation of the dependencies'''
+		#TODO
+		pass
+
+	def ascii(self):
+		#TODO: maybe even something text-only -> awesome build overview.
+		pass
+
 
 class BuildElement:
 
@@ -314,6 +340,7 @@ class BuildElement:
 		self.worker = None
 		self.loglevel = 2 #TODO: get from variables
 		self.exitstate = 0
+		self.finished = False
 
 	def run(self):
 		raise NotImplementedError("Implement this shit for a working compilation...")
@@ -327,7 +354,9 @@ class BuildElement:
 		'''upon a successful run, notify parents that this dependency is ready'''
 		for parent in self.parents:
 			print(repr(self) + " -> parent.depends=" + repr(parent.depends))
+
 			#TODO: not remove ourselve, but just notify our success
+			#HIGH PRIORITY!!!!11
 			parent.depends.remove(self)
 
 
@@ -397,6 +426,31 @@ class BuildElement:
 
 	def set_crun(self, crun):
 		self.crun = crun
+
+	def text(self, depth=0):
+		'''inname, outname, ready, encname, parents'''
+		space = ''.join([' ' for i in range(depth)])
+		out = space + "++ " + str(type(self)) + " " + str(id(self)) + "\n"
+		out += space + "* Dependency count: " + str(len(self.depends)) + "\n"
+		if(self.inname):
+			out += space + "* Input filename: " + self.inname + "\n"
+
+		if(self.outname):
+			out += space + "* Output filename: " + self.outname + "\n"
+
+		if(self.ready):
+			if(self.finished):
+				out += space + "BUILT SUCCESSFULLY\n"
+			else:
+				out += space + "READY TO BUILD\n"
+		else:
+			out += space + "* Missing dependencies:\n"
+			for f in self.depends:
+				out += f.text(depth + 4)
+
+		out += space + "++\n"
+
+		return out
 
 
 class HeaderFile(BuildElement):
@@ -584,6 +638,8 @@ class Builder:
 		self.m.start()
 		self.m.join()
 
+		print(order.text())
+
 		#after all targets:
 		if(self.m.get_error() == 0):
 			print("sftmake builder shutting down regularly")
@@ -592,7 +648,11 @@ class Builder:
 
 
 	def prepare(self):
-		'''generate a BuildOrder for later processing'''
+		'''
+		generate a BuildOrder for later processing
+
+		attention: black magic is involved here.
+		'''
 		order = BuildOrder()
 		for target in self.conf["build"].get():
 			order_target = BuildTarget(target)
@@ -621,7 +681,7 @@ class Builder:
 				file_depends = self.conf["depends"].get(source)
 				print("processing " + source + ": \n -----")
 				for dep in file_depends:
-					#TODO: maybe this is always a HeaderFile
+					#TODO: a compilation/whatever can be dependent on e.g. a library.
 					d = build_element_factory(dep)
 					order_file.add_dependency(d)
 				
@@ -636,13 +696,13 @@ class Builder:
 						for dep in parse_dfile(mdfile):
 							order_file.add_dependency(build_element_factory(dep))
 					else:
-						#TODO: notification of first time .d generation
+						#TODO: notification of first time .d generation?
 						pass
 
 					crun += " -MD"  # (re)generate c headers dependency file
 
 				elif(ad == "no"):
-					#kp evtl auch iwas
+					#TODO: evtl a warning of the MD skipping
 					pass
 				else:
 					#let's not ignore an unknown autodetection mode bwahaha
@@ -671,9 +731,10 @@ class Builder:
 			ctrun += " -o " + relpath(target)		#target output name
 
 			#append all object files for linkage
-			#TODO: shouldn't this be generated in the target job?
 			for ofile in order_target.depends:
 				ctrun += " " + ofile.outname
+
+			#TODO: a compilation/whatever can be dependent on e.g. a library.
 
 			t_prb = self.conf["prebuild"].get(target)
 			if(len(s_prb) > 0):
