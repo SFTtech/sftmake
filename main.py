@@ -316,8 +316,11 @@ class BuildOrder:
 
 	def text(self):
 		out = "===== BuildOrder " + str(id(self)) + " has " + str(len(self.targets)) + " targets.\n"
+
+		n = 0
 		for t in self.targets:
-			out += t.text()
+			out += "target " + str(n) + ":\n" + t.text() + "\n"
+			n = n+1
 		out += "===== End BuildOrder\n"
 		return out
 
@@ -463,7 +466,7 @@ class BuildElement:
 	def text(self, depth=0):
 		'''inname, outname, ready, encname, parents'''
 		space = ''.join(['\t' for i in range(depth)])
-		out = space + "++ " + str(type(self)) + " " + str(id(self)) + "\n"
+		out = space + "++++ " + str(type(self)) + " " + str(id(self)) + "\n"
 
 
 		if(self.inname):
@@ -476,11 +479,13 @@ class BuildElement:
 		deps_pending = len(self.depends)
 		deps_sum = deps_done + deps_pending
 
+		out += space + "--- status: " + str(self.exitstate) + " ---\n"
+
 		if(deps_sum > 0):
 			deps_percent =  "{0:.2f}".format(float(deps_done/deps_sum) * 100)
 
 
-			out += space + "--- ["
+			out += space + "--- deps: ["
 			out += str(deps_done) + "/" + str(deps_sum) + "] "
 			out += "[" + deps_percent + "%"
 			out += "] ---\n"
@@ -510,9 +515,12 @@ class BuildElement:
 				else:
 					out += space + "* READY TO BUILD\n"
 		else:
-			out += space + "* WAITING FOR DEPENDENCIES\n"
+			if(len(self.depends) > 0):
+				out += space + "* BLOCKED BY DEPENDENCIES\n"
+			else:
+				out += space + "* NOT READY\n"
 
-		out += space + "++\n"
+		out += space + "++++\n"
 
 		return out
 
@@ -566,7 +574,7 @@ class SourceFile(BuildElement):
 			print("== done building -> " + repr(self))
 
 		#TODO: don't forget to remove...
-		ret = round(0.3 * random.random())
+		ret = random.choice([0,0,0,0,1,8])
 
 		if(ret != 0):
 			failat = "compiling"
@@ -607,8 +615,8 @@ class BuildTarget(BuildElement):
 	def __init__(self, tname):
 		BuildElement.__init__(self, tname)
 		self.name = tname
-		self.outname = relpath(tname)
-		self.inname = self.outname #TODO: respect suffix variables
+		self.outname = relpath(tname) #TODO: respect suffix variables
+		self.inname = "" #self.outname
 
 	def set_crun(self, crun):
 		self.crun = crun
@@ -636,7 +644,7 @@ class BuildTarget(BuildElement):
 			print("== done linking -> " + repr(self))
 
 		#TODO: don't forget to remove...
-		ret = round(random.random())
+		ret = random.choice([0,0,1])
 
 		if(ret != 0):
 			failat = "linking"
@@ -688,12 +696,13 @@ class Builder:
 		if(type(order) != BuildOrder):
 			raise Exception("Builder: the build() function needs a BuildOrder")
 
-		#TODO: respect verbosity and use repr/str/none
-		print("\n\nBuilding " + str(order))
 
 		#submit all new jobs to queue:
 		for target in order.targets:
 			self.m.submit(target)
+
+		#TODO: respect verbosity and use repr/str/none
+		print("\n\nBuilding " + order.text())
 
 		self.m.start()
 		self.m.join()
