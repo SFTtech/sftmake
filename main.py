@@ -185,13 +185,12 @@ class JobManager:
 			if(job.exitstate == 0):
 				self.running_jobs.remove(job)
 				self.finished_jobs.add(job)
-				job.finish()
-				self._find_ready_jobs()
-				self.job_lock.notify()
+				job.finish(self)
 			else:
 				self.running_jobs.remove(job)
 				self.failed_jobs.add(job)
 				self.error = job.exitstate
+			self.job_lock.notify()
 
 	def get_next(self):
 		with self.job_lock:
@@ -204,17 +203,15 @@ class JobManager:
 				self.running_jobs.add(newjob)
 				return newjob
 
-			#TODO: could cause errors
+			#TODO: could cause errors, investigate pls
 			elif(len(self.running_jobs) > 0 and len(self.pending_jobs) > 0):
 				#if no jobs are ready, then remaining(pending) jobs are unlocked by currently running jobs
 				#so the current worker has to wait here, until a job is ready, errors occur, or all jobs died.
 
-				self.job_lock.wait_for(len(self.ready_jobs) > 0 or self.error != 0 or self.running_jobs == 0)
+				self._find_ready_jobs()
+				self.job_lock.wait_for(self.nextjob_continue)
 
-				if(self.error != 0):
-					return None
-
-				if(self.running_jobs == 0):
+				if(self.error != 0 or len(self.ready_jobs) == 0):
 					return None
 
 				newjob = self.ready_jobs.pop()
@@ -223,13 +220,22 @@ class JobManager:
 
 			else: #we are out of jobs!
 				return None
+	
+	def nextjob_continue(self):
+		'''return true, if:
+		error occured
+		out of jobs
+		no more jobs running
+		new job is ready
+		'''
+		return (self.error != 0 or self.running_jobs == 0 or len(self.ready_jobs) > 0 or len(self.pending_jobs) == 0)
 
 	def _find_ready_jobs(self):
-		return DeprecationWarning("ready jobs no longer need to be found")
-		#with self.job_lock:
-			#new_ready_jobs = set(filter(lambda job: job.ready, self.pending_jobs))
-			#self.pending_jobs -= new_ready_jobs
-			#self.ready_jobs |= new_ready_jobs
+		'''find new jobs that are ready cause all their dependencies have been resolved'''
+		with self.job_lock:
+			new_ready_jobs = set(filter(lambda job: job.ready_to_build(), self.pending_jobs))
+			self.pending_jobs -= new_ready_jobs
+			self.ready_jobs |= new_ready_jobs
 
 	def _create_workers(self):
 		'''creates all BuildWorkers'''
@@ -329,9 +335,6 @@ class BuildOrder:
 		#TODO: maybe even something text-only -> awesome build overview.
 		pass
 
-	def __str__(self):
-		return self.text()
-
 	def __repr__(self):
 		ret = "BuildOrder: [ "
 		for t in order.targets:
@@ -370,7 +373,7 @@ class BuildElement:
 			f.add_deps_to_manager(manager)
 		manager.submit_single(self)
 
-	def finish(self):
+	def finish(self, manager=None):
 		'''
 		upon a successful run, set finished to True
 		notify parents that this dependency is ready
@@ -378,13 +381,19 @@ class BuildElement:
 
 		self.finished = True
 
-		for parent in self.parents:
-			print(repr(self) + " -> parent.depends=" + repr(parent.depends))
+		domgr = not (manager == None)
 
+		for parent in self.parents:
 			parent.depends.remove(self)
 
 			#TODO: suppress this via config
 			parent.depends_finished.add(self)
+
+			print(repr(self) + " finished -> left parent.depends=" + repr(parent.depends))
+
+			if(domgr and parent.ready_to_build()):
+				manager.pending_jobs.remove(parent)
+				manager.ready_jobs.add(parent)
 
 
 	def add_parent(self, newp):
@@ -441,12 +450,11 @@ class BuildElement:
 		return self.needs_build
 
 	def ready_to_build(self):
-		'''when all dependencies are ready (or no more dependencies), return true'''
-		self.ready = True
-		for d in self.depends:
-			if(not d.ready_to_build()):
-				self.ready = False
-				break
+		'''when all dependencies are done, return true'''
+		if(len(self.depends) > 0):
+			self.ready = False
+		else:
+			self.ready = True
 		return self.ready
 
 	def set_crun(self, crun):
@@ -497,7 +505,10 @@ class BuildElement:
 			if(self.finished):
 				out += space + "* BUILT SUCCESSFULLY\n"
 			else:
-				out += space + "* READY TO BUILD\n"
+				if(self.exitstate != 0):
+					out += space + "* FAILED\n"
+				else:
+					out += space + "* READY TO BUILD\n"
 		else:
 			out += space + "* WAITING FOR DEPENDENCIES\n"
 
@@ -555,7 +566,7 @@ class SourceFile(BuildElement):
 			print("== done building -> " + repr(self))
 
 		#TODO: don't forget to remove...
-		ret = round(random.random())
+		ret = round(0.3 * random.random())
 
 		if(ret != 0):
 			failat = "compiling"
@@ -687,6 +698,7 @@ class Builder:
 		self.m.start()
 		self.m.join()
 
+		#show status after the build
 		print(order.text())
 
 		#after all targets:
