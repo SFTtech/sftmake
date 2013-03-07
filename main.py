@@ -71,7 +71,8 @@ variables["depends"] = vartestadv()
 variables["depends"].addv("^/gschicht.c", ['^/asdf.h'])
 variables["depends"].addv("^/asdf.c", ['^/lol.h'])
 variables["depends"].addv("^/lolfolder/file.c", ['^/asdf.h','^/lol.h'])
-variables["use"].addv("^/test", ['^/asdf.c', '^/gschicht.c'])
+variables["depends"].addv("^/nahleut.c", [])
+variables["use"].addv("^/test", ['^/asdf.c', '^/gschicht.c', '^/nahleut.c'])
 variables["use"].addv("^/liblol.so", ['^/lolfolder/file.c'])
 
 variables["autodepends"] = vartest("MD")
@@ -87,6 +88,9 @@ print("var initialisation: \n" + str(variables) + "\n\n\n")
 #TODO: when buildelements are used by multiple parents, detect that (e.g. header files) (respecting the differing variable values!)
 #This means: extend the current tree model of dependencies to a graph model.
 
+#TODO: colored output
+
+#TODO: output queue, fixing thread interferences with msgs containing newlines
 
 def get_thread_count():
 	"""gets the number or hardware threads, or 1 if that can't be done"""
@@ -109,7 +113,7 @@ class BuildWorker:
 		self.job = None		#The BuildElement currently being processed by this worker
 
 	def run(self):
-		print(repr(self) + " alive")
+		print("" + repr(self) + ": started")
 		while True:
 			self.job = self.manager.get_next()
 			if(self.job == None):
@@ -117,19 +121,19 @@ class BuildWorker:
 				#so the worker can die!
 				break
 
-			print(repr(self) + " fetched " + repr(self.job))
-			self.job.set_worker(self)
+			print(repr(self) + ": fetched " + repr(self.job))
+			self.job.worker = self
 
 			if(self.job.check_needs_build()):
 				#TODO: same output colors for each worker
 				#print("[worker " + str(self.num) + "]:")
-				print(repr(self) + " running now: " + repr(self.job))
+				print("" + repr(self) + ": making -> " + repr(self.job))
 				self.job.run()
 			else:
-				print(repr(self) + " skipped " + repr(self.job))
+				print("" + repr(self) + ": skipped -> " + repr(self.job))
 
 			self.manager.finished(self.job)
-		print(repr(self) + " dead")
+		print(repr(self) + ": dead")
 
 	def start(self):
 		self.thread.start()
@@ -138,7 +142,7 @@ class BuildWorker:
 		self.thread.join()
 	
 	def __repr__(self):
-		return "BuildWorker [" + str(self.num) + "]"
+		return "[worker [" + str(self.num) + "]]"
 
 
 class JobManager:
@@ -147,14 +151,14 @@ class JobManager:
 	def __init__(self, max_workers=get_thread_count()):
 		self.workers = []
 
-		self.pending_jobs = set()		# jobs that will be processed sometime
-		self.ready_jobs = set()		# jobs that are ready to be executed
-		self.running_jobs = set()		# currently executing jobs
+		self.pending_jobs  = set()		# jobs that will be processed sometime
+		self.ready_jobs    = set()		# jobs that are ready to be executed
+		self.running_jobs  = set()		# currently executing jobs
 		self.finished_jobs = set()		# jobs that were executed successfully
-		self.max_workers = max_workers	# worker limitation
+		self.failed_jobs   = set()		# jobs that exited with errors
+		self.max_workers   = max_workers	# worker limitation
 
 		self.error = 0
-		self.erroreus_job = None
 
 		self.job_lock = threading.Condition()
 
@@ -181,13 +185,13 @@ class JobManager:
 			if(job.exitstate == 0):
 				self.running_jobs.remove(job)
 				self.finished_jobs.add(job)
-				job.finished = True
-				job.finished_notify_parents()
+				job.finish()
 				self._find_ready_jobs()
 				self.job_lock.notify()
 			else:
+				self.running_jobs.remove(job)
+				self.failed_jobs.add(job)
 				self.error = job.exitstate
-				self.erroreus_job = job
 
 	def get_next(self):
 		with self.job_lock:
@@ -202,9 +206,11 @@ class JobManager:
 
 			#TODO: could cause errors
 			elif(len(self.running_jobs) > 0 and len(self.pending_jobs) > 0):
+				#if no jobs are ready, then remaining(pending) jobs are unlocked by currently running jobs
+				#so the current worker has to wait here, until a job is ready, errors occur, or all jobs died.
 
-				#running jobs are probably blocking the pending_jobs
 				self.job_lock.wait_for(len(self.ready_jobs) > 0 or self.error != 0 or self.running_jobs == 0)
+
 				if(self.error != 0):
 					return None
 
@@ -219,21 +225,18 @@ class JobManager:
 				return None
 
 	def _find_ready_jobs(self):
-		with self.job_lock:
-			new_ready_jobs = set(filter(lambda job: job.ready, self.pending_jobs))
-			self.pending_jobs -= new_ready_jobs
-			self.ready_jobs |= new_ready_jobs
-
-			#TODO: finished_notify_parents should completely do this
-
-			#old version:
-#			for(job in self.pending_jobs):
-#				if(job.ready_to_build()):
-#					self.pending_jobs.remove(job)
-#					self.ready_jobs.add(job)
+		return DeprecationWarning("ready jobs no longer need to be found")
+		#with self.job_lock:
+			#new_ready_jobs = set(filter(lambda job: job.ready, self.pending_jobs))
+			#self.pending_jobs -= new_ready_jobs
+			#self.ready_jobs |= new_ready_jobs
 
 	def _create_workers(self):
 		'''creates all BuildWorkers'''
+
+		#delete the old workers from list, as they cannot be rerun.
+		self.workers = []
+
 		for i in range(self.max_workers):
 			newworker = BuildWorker(self, i)
 			self.workers.append(newworker)
@@ -246,7 +249,6 @@ class JobManager:
 	def run(self):
 		"""launch the maximum number of concurrent jobs"""
 		self._create_workers()
-		self._find_ready_jobs()
 		self._launch_workers()
 
 	def start(self):
@@ -257,7 +259,12 @@ class JobManager:
 		"""wait here for all jobs to finish and generate a work summary"""
 		for worker in self.workers:
 			worker.join()
-			print("exited " + repr(worker))
+			print(repr(worker) + ": joined")
+
+		if(len(self.failed_jobs) > 0):
+			print("==========\nFAILED jobs:")
+			for job in self.failed_jobs:
+				print(repr(job))
 
 		if(len(self.ready_jobs) > 0):
 			print("++++++++++\njobs currently ready to build:")
@@ -302,10 +309,10 @@ class BuildOrder:
 		return out
 
 	def text(self):
-		out = "+++ BuildOrder " + str(id(self)) + " has " + str(len(self.targets)) + " targets."
+		out = "===== BuildOrder " + str(id(self)) + " has " + str(len(self.targets)) + " targets.\n"
 		for t in self.targets:
 			out += t.text()
-		out += "+++ End BuildOrder"
+		out += "===== End BuildOrder\n"
 		return out
 
 	def makefile(self):
@@ -315,18 +322,30 @@ class BuildOrder:
 
 	def graphviz(self):
 		'''neat graph representation of the dependencies'''
-		#TODO
+		#TODO http://linux.die.net/man/1/graph-easy
 		pass
 
 	def ascii(self):
 		#TODO: maybe even something text-only -> awesome build overview.
 		pass
 
+	def __str__(self):
+		return self.text()
+
+	def __repr__(self):
+		ret = "BuildOrder: [ "
+		for t in order.targets:
+			ret += t.name + " "
+		ret += "]"
+		return ret
+
+
 
 class BuildElement:
 
 	def __init__(self, name):
 		self.depends = set()
+		self.depends_finished = set()
 		self.name = smpath(name)
 		self.inname = relpath(name)
 		self.outname = ""
@@ -346,26 +365,30 @@ class BuildElement:
 		raise NotImplementedError("Implement this shit for a working compilation...")
 
 	def add_deps_to_manager(self, manager):
+		#TODO: respect graph model instead of tree
 		for f in self.depends:
 			f.add_deps_to_manager(manager)
 		manager.submit_single(self)
 
-	def finished_notify_parents(self):
-		'''upon a successful run, notify parents that this dependency is ready'''
+	def finish(self):
+		'''
+		upon a successful run, set finished to True
+		notify parents that this dependency is ready
+		'''
+
+		self.finished = True
+
 		for parent in self.parents:
 			print(repr(self) + " -> parent.depends=" + repr(parent.depends))
 
-			#TODO: not remove ourselve, but just notify our success
-			#HIGH PRIORITY!!!!11
 			parent.depends.remove(self)
+
+			#TODO: suppress this via config
+			parent.depends_finished.add(self)
 
 
 	def add_parent(self, newp):
 		self.parents.add(newp)
-
-	def set_worker(self, worker):
-		'''set the worker of this BuildElement'''
-		self.worker = worker
 
 	def add_dependency(self, newone):
 		'''adds a dependency to this compilation job'''
@@ -413,6 +436,8 @@ class BuildElement:
 
 			except OSError as e:
 				print(str(e) + " -> Ignoring for now.")
+
+		self.finished = not self.needs_build
 		return self.needs_build
 
 	def ready_to_build(self):
@@ -429,24 +454,52 @@ class BuildElement:
 
 	def text(self, depth=0):
 		'''inname, outname, ready, encname, parents'''
-		space = ''.join([' ' for i in range(depth)])
+		space = ''.join(['\t' for i in range(depth)])
 		out = space + "++ " + str(type(self)) + " " + str(id(self)) + "\n"
-		out += space + "* Dependency count: " + str(len(self.depends)) + "\n"
+
+
 		if(self.inname):
 			out += space + "* Input filename: " + self.inname + "\n"
 
 		if(self.outname):
 			out += space + "* Output filename: " + self.outname + "\n"
 
+		deps_done = len(self.depends_finished)
+		deps_pending = len(self.depends)
+		deps_sum = deps_done + deps_pending
+
+		if(deps_sum > 0):
+			deps_percent =  "{0:.2f}".format(float(deps_done/deps_sum) * 100)
+
+
+			out += space + "--- ["
+			out += str(deps_done) + "/" + str(deps_sum) + "] "
+			out += "[" + deps_percent + "%"
+			out += "] ---\n"
+
+
+			if(len(self.depends) > 0):
+				out += space + "--- pending dependencies:\n"
+				for f in self.depends:
+					out += f.text(depth + 1)
+					out += space + "---\n"
+
+			if(len(self.depends_finished) > 0):
+				out += space + "--- finished dependencies:\n"
+
+				for f in self.depends_finished:
+					out += f.text(depth + 1)
+					out += space + "---\n"
+		else:
+			out += space + "* NO dependencies\n"
+
 		if(self.ready):
 			if(self.finished):
-				out += space + "BUILT SUCCESSFULLY\n"
+				out += space + "* BUILT SUCCESSFULLY\n"
 			else:
-				out += space + "READY TO BUILD\n"
+				out += space + "* READY TO BUILD\n"
 		else:
-			out += space + "* Missing dependencies:\n"
-			for f in self.depends:
-				out += f.text(depth + 4)
+			out += space + "* WAITING FOR DEPENDENCIES\n"
 
 		out += space + "++\n"
 
@@ -465,7 +518,8 @@ class HeaderFile(BuildElement):
 		return False
 
 	def run(self):
-		print("[" + self.worker.num + "]: " + repr(self))
+		return Exception("HeaderFiles should never be run. skip them.")
+		#print("[" + self.worker.num + "]: " + repr(self))
 
 	def __repr__(self):
 		return self.inname
@@ -494,14 +548,14 @@ class SourceFile(BuildElement):
 
 			## compiler is launched here
 			#TODO: correct invocation
-			print("[" + repr(self.worker) + "]: " + repr(self))
+			print(repr(self.worker) + ": EXEC:: " + self.crun)
 			#ret = subprocess.call(shlex.split(self.crun), shell=False)
 			time.sleep(1)
 
 			print("== done building -> " + repr(self))
 
 		#TODO: don't forget to remove...
-		#ret = round(random.random())
+		ret = round(random.random())
 
 		if(ret != 0):
 			failat = "compiling"
@@ -564,14 +618,14 @@ class BuildTarget(BuildElement):
 
 			## compiler is launched here
 			#TODO: correct invocation
-			print("[" + repr(self.worker) + "]: " + repr(self))
+			print(repr(self.worker) + ": " + repr(self))
 			#ret = subprocess.call(shlex.split(self.crun), shell=False)
 			time.sleep(1)
 
 			print("== done linking -> " + repr(self))
 
 		#TODO: don't forget to remove...
-		#ret = round(random.random())
+		ret = round(random.random())
 
 		if(ret != 0):
 			failat = "linking"
@@ -615,6 +669,7 @@ class Builder:
 
 	def __init__(self, conf):
 		self.conf = conf
+		self.m = JobManager()
 
 	def build(self, order):
 		'''process a BuildOrder -> compile everything needed'''
@@ -622,14 +677,8 @@ class Builder:
 		if(type(order) != BuildOrder):
 			raise Exception("Builder: the build() function needs a BuildOrder")
 
-		#TODO: job limiting by program parameters (or by "variables")
-		self.m = JobManager(max_workers=get_thread_count())
-
-		targetsstr = "'"
-		for t in order.targets:
-			targetsstr += t.name + " "
-		targetsstr += "'"
-		print("\n\norder contains " + targetsstr)
+		#TODO: respect verbosity and use repr/str/none
+		print("\n\nBuilding " + str(order))
 
 		#submit all new jobs to queue:
 		for target in order.targets:
