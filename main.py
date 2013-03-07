@@ -162,6 +162,18 @@ class JobManager:
 
 		self.job_lock = threading.Condition()
 
+	def queue_order(self, order):
+		if(not isinstance(order, BuildOrder)):
+			raise Exception("Only a whole BuildOrder can be processed")
+
+		for target in order.targets:
+			self.submit(target)
+
+		#TODO: respect verbosity and use repr/str/none/text()/whatevvur
+		print("\n\n Submitted: " + order.text())
+
+
+
 	def submit(self, job):
 		"""insert a function in the execution queue"""
 		if(not isinstance(job, BuildElement)):
@@ -298,14 +310,126 @@ class BuildOrder:
 	'''A build order contains all targets that must be built'''
 
 	def __init__(self):
-		self.targets = []
-		self.max_jobs = get_thread_count()  #TODO: use this value in the builder
-
-	def add_target(self, target):
-		self.targets.append(target)
+		self.targets = set()
+		self.filedict = dict()
 
 	def set_thread_count(self, n = get_thread_count()):
 		self.max_jobs = n
+
+	def find_create_header(self, fname):
+		'''if not yet existing, this HeaderFile is created and returned'''
+		rname = relpath(fname)
+		if(rname in self.filedict):
+			return self.filedict[rname]
+		else:
+			newheader = HeaderFile(fname)
+			self.filedict[rname] = newheader
+			return newheader
+
+
+	def fill(self, conf):
+		'''
+		fill this BuildOrder with contents for later processing
+
+		attention: black magic is involved here.
+		'''
+
+		for target in conf["build"].get():
+			order_target = BuildTarget(target)
+
+			for source in conf["use"].get(target):
+				order_file = SourceFile(source)
+
+				crun = conf["c"].get(source)		#compiler
+				crun += " " + conf["cflags"].get(source)	#compiler flags
+				crun += " -c " + relpath(source)		#sourcefile name
+
+				# encode the compiler flags etc
+				objdir = conf["objdir"].get(source)
+
+				#the encoded name 
+				
+				encname = generate_oname(crun)
+				order_file.encname = encname
+				encpathname = relpath(objdir) + "/" + relpath(source) + "-" + encname
+
+				o_name = encpathname + ".o"
+				order_file.set_outname(o_name)
+				crun += " -o " + o_name			#output object file name generation
+
+				# add known (by config) dependency files
+				file_depends = conf["depends"].get(source)
+				print("processing " + source + ": \n -----")
+				for dep in file_depends:
+					#TODO: a compilation/whatever can be dependent on e.g. a library.
+					d = build_element_factory(dep)
+					order_file.add_dependency(d)
+				
+				#add sourcefile path itself to depends
+				ad = conf["autodepends"].get(source)
+
+				if(ad == "MD"):
+					mdfile = encpathname + ".d"
+
+					if(os.path.isfile(mdfile)):
+						#if .d file exists, parse its contents as dependencies
+						for dep in parse_dfile(mdfile):
+							order_file.add_dependency(self.find_create_header(dep))
+					else:
+						#TODO: notification of first time .d generation?
+						pass
+
+					crun += " -MD"  # (re)generate c headers dependency file
+
+				elif(ad == "no"):
+					#TODO: maybe a warning of the MD skipping
+					pass
+				else:
+					#let's not ignore an unknown autodetection mode bwahaha
+					raise Exception(source + ": unknow autodetection mode: " + ad)
+
+				order_file.loglevel = conf["loglevel"].get(source)
+
+				s_prb = conf["prebuild"].get(source)
+				if(len(s_prb) > 0):
+					order_file.prebuild = s_prb
+
+				s_pob = conf["postbuild"].get(source)
+				if(len(s_pob) > 0):
+					order_file.postbuild = s_pub
+
+				# compiler invocation complete -> add it to the source file build order
+				order_file.set_crun(crun)
+
+				order_target.add_dependency(order_file)
+
+			#=> continuation for each target
+
+			ctrun = conf["c"].get(target)		#compiler for TARGET
+			ctrun += " " + conf["cflags"].get(target)	#compiler flags
+			ctrun += " " + conf["ldflags"].get(target)	#link flags
+			ctrun += " -o " + relpath(target)		#target output name
+
+			#append all object files for linkage
+			for ofile in order_target.depends:
+				ctrun += " " + ofile.outname
+
+			#TODO: a compilation/whatever can be dependent on e.g. a library.
+
+			t_prb = conf["prebuild"].get(target)
+			if(len(s_prb) > 0):
+				order_target.prebuild = t_prb
+
+			s_pob = conf["postbuild"].get(target)
+			if(len(s_pob) > 0):
+				order_target.postbuild = t_pob
+
+			order_target.set_crun(ctrun)
+
+			#include current target to the build order
+			self.targets.add(order_target)
+
+		#direct function level here
 
 	def __str__(self):
 		out = "\n\n%%%%%%%%%%%%%%%%%\n BUILD ORDER"
@@ -563,7 +687,7 @@ class SourceFile(BuildElement):
 		if(ret != 0):
 			failat = "prebuild for"
 		else:
-			print("== building -> " + repr(self))
+			print(repr(self.worker) + " == building -> " + repr(self))
 
 			## compiler is launched here
 			#TODO: correct invocation
@@ -571,7 +695,7 @@ class SourceFile(BuildElement):
 			#ret = subprocess.call(shlex.split(self.crun), shell=False)
 			time.sleep(1)
 
-			print("== done building -> " + repr(self))
+			print(repr(self.worker) + " == done building -> " + repr(self))
 
 		#TODO: don't forget to remove...
 		ret = random.choice([0,0,0,0,1,8])
@@ -682,148 +806,6 @@ class BuildTarget(BuildElement):
 		return self.outname
 
 
-
-class Builder:
-	"""Class for using and preparing the sftmake build process"""
-
-	def __init__(self, conf):
-		self.conf = conf
-		self.m = JobManager()
-
-	def build(self, order):
-		'''process a BuildOrder -> compile everything needed'''
-
-		if(type(order) != BuildOrder):
-			raise Exception("Builder: the build() function needs a BuildOrder")
-
-
-		#submit all new jobs to queue:
-		for target in order.targets:
-			self.m.submit(target)
-
-		#TODO: respect verbosity and use repr/str/none
-		print("\n\nBuilding " + order.text())
-
-		self.m.start()
-		self.m.join()
-
-		#show status after the build
-		print(order.text())
-
-		#after all targets:
-		if(self.m.get_error() == 0):
-			print("sftmake builder shutting down regularly")
-		else:
-			print("sftmake builder exiting due to error")
-
-
-	def prepare(self):
-		'''
-		generate a BuildOrder for later processing
-
-		attention: black magic is involved here.
-		'''
-		order = BuildOrder()
-		for target in self.conf["build"].get():
-			order_target = BuildTarget(target)
-
-			for source in self.conf["use"].get(target):
-				order_file = SourceFile(source)
-
-				crun = self.conf["c"].get(source)		#compiler
-				crun += " " + self.conf["cflags"].get(source)	#compiler flags
-				crun += " -c " + relpath(source)		#sourcefile name
-
-				# encode the compiler flags etc
-				objdir = self.conf["objdir"].get(source)
-
-				#the encoded name 
-				
-				encname = generate_oname(crun)
-				order_file.encname = encname
-				encpathname = relpath(objdir) + "/" + relpath(source) + "-" + encname
-
-				o_name = encpathname + ".o"
-				order_file.set_outname(o_name)
-				crun += " -o " + o_name			#output object file name generation
-
-				# add known (by config) dependency files
-				file_depends = self.conf["depends"].get(source)
-				print("processing " + source + ": \n -----")
-				for dep in file_depends:
-					#TODO: a compilation/whatever can be dependent on e.g. a library.
-					d = build_element_factory(dep)
-					order_file.add_dependency(d)
-				
-				#add sourcefile path itself to depends
-				ad = self.conf["autodepends"].get(source)
-
-				if(ad == "MD"):
-					mdfile = encpathname + ".d"
-
-					if(os.path.isfile(mdfile)):
-						#if .d file exists, parse its contents as dependencies
-						for dep in parse_dfile(mdfile):
-							order_file.add_dependency(build_element_factory(dep))
-					else:
-						#TODO: notification of first time .d generation?
-						pass
-
-					crun += " -MD"  # (re)generate c headers dependency file
-
-				elif(ad == "no"):
-					#TODO: evtl a warning of the MD skipping
-					pass
-				else:
-					#let's not ignore an unknown autodetection mode bwahaha
-					raise Exception(source + ": unknow autodetection mode: " + ad)
-
-				order_file.loglevel = self.conf["loglevel"].get(source)
-
-				s_prb = self.conf["prebuild"].get(source)
-				if(len(s_prb) > 0):
-					order_file.prebuild = s_prb
-
-				s_pob = self.conf["postbuild"].get(source)
-				if(len(s_pob) > 0):
-					order_file.postbuild = s_pub
-
-				# compiler invocation complete -> add it to the source file build order
-				order_file.set_crun(crun)
-
-				order_target.add_dependency(order_file)
-
-			#=> continuation for each target
-
-			ctrun = self.conf["c"].get(target)		#compiler for TARGET
-			ctrun += " " + self.conf["cflags"].get(target)	#compiler flags
-			ctrun += " " + self.conf["ldflags"].get(target)	#link flags
-			ctrun += " -o " + relpath(target)		#target output name
-
-			#append all object files for linkage
-			for ofile in order_target.depends:
-				ctrun += " " + ofile.outname
-
-			#TODO: a compilation/whatever can be dependent on e.g. a library.
-
-			t_prb = self.conf["prebuild"].get(target)
-			if(len(s_prb) > 0):
-				order_target.prebuild = t_prb
-
-			s_pob = self.conf["postbuild"].get(target)
-			if(len(s_pob) > 0):
-				order_target.postbuild = t_pob
-
-			order_target.set_crun(ctrun)
-
-			#include current target to the build order
-			order.add_target(order_target)
-
-		#direct function level
-		return order
-
-
-
 def parse_dfile(filename):
 	'''parse a gcc .d file and return a list of dependency header filenames'''
 	try:
@@ -862,11 +844,25 @@ def build_element_factory(filename):
 
 def main():
 	print("fak u dolan")
-	#print(str(variables["build"].get()))
-	builder = Builder(variables)
-	order = builder.prepare()
-	print(str(order))
-	builder.build(order)
+	order = BuildOrder()
+	order.fill(variables)
+
+	m = JobManager()
+	m.queue_order(order)
+
+	print(order.text())
+
+	m.start()
+	m.join()
+
+	#show status after the build
+	print(order.text())
+
+	#after all targets:
+	if(m.get_error() == 0):
+		print("sftmake builder shutting down regularly")
+	else:
+		print("sftmake builder exiting due to error")
 
 
 if __name__ == "__main__":
