@@ -170,19 +170,19 @@ class JobManager:
 			self.submit(target)
 
 		#TODO: respect verbosity and use repr/str/none/text()/whatevvur
-		print("\n\n Submitted: " + order.text())
+		#print("\n\n Submitted: " + order.text())
 
 
 
 	def submit(self, job):
-		"""insert a function in the execution queue"""
+		"""insert a job and it's dependencies in the execution queue"""
 		if(not isinstance(job, BuildElement)):
 			raise Exception("only BuildElements can be submitted")
 
 		job.add_deps_to_manager(self)
 
 	def submit_single(self, job):
-		"""insert a function in the execution queue"""
+		"""insert a single job in the correct job queue"""
 		if(not isinstance(job, BuildElement)):
 			raise Exception("only BuildElements can be submitted")
 
@@ -193,6 +193,7 @@ class JobManager:
 				self.pending_jobs.add(job)
 
 	def finished(self, job):
+		'''must be called when a job is done executing'''
 		with self.job_lock:
 			if(job.exitstate == 0):
 				self.running_jobs.remove(job)
@@ -316,10 +317,22 @@ class BuildOrder:
 	def set_thread_count(self, n = get_thread_count()):
 		self.max_jobs = n
 
+	def build_element_factory(self, filename):
+		#TODO: actually this is a hacky dirt.
+		if(re.match(".*\\.(h|hpp)", filename)):
+			#print(filename + " generated HeaderFile")
+			return self.find_create_header(filename)
+		else:
+			return SourceFile(filename)
+
 	def find_create_header(self, fname):
 		'''if not yet existing, this HeaderFile is created and returned'''
 		rname = relpath(fname)
+
+		print("self.filedict: " + str(self.filedict))
+
 		if(rname in self.filedict):
+			print("reusing " + fname)
 			return self.filedict[rname]
 		else:
 			newheader = HeaderFile(fname)
@@ -338,6 +351,7 @@ class BuildOrder:
 			order_target = BuildTarget(target)
 
 			for source in conf["use"].get(target):
+				#TODO: reuse source files if it's identical
 				order_file = SourceFile(source)
 
 				crun = conf["c"].get(source)		#compiler
@@ -362,7 +376,7 @@ class BuildOrder:
 				print("processing " + source + ": \n -----")
 				for dep in file_depends:
 					#TODO: a compilation/whatever can be dependent on e.g. a library.
-					d = build_element_factory(dep)
+					d = self.build_element_factory(dep)
 					order_file.add_dependency(d)
 				
 				#add sourcefile path itself to depends
@@ -825,20 +839,13 @@ def parse_dfile(filename):
 
 def clean_dfile_line(line):
 	'''converts a .dfile line to a list of header dependencies'''
+	#TODO: will need testing
 	hmatch = re.compile(r"[-\w/\.]+\.(h|hpp)") #matches a single header file
 	parts = re.split(r"\s+", line)
 
 	#return all matching header files as list
 	return filter(lambda part: hmatch.match(part), parts)
 #	return [ part for part in parts if hmatch.match(part) ]
-
-def build_element_factory(filename):
-	#TODO: actually this is a hacky dirt.
-	if(re.match(".*\\.(h|hpp)", filename)):
-		#print(filename + " generated HeaderFile")
-		return HeaderFile(filename)
-	else:
-		return SourceFile(filename)
 
 
 
