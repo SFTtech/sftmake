@@ -116,7 +116,7 @@ class BuildWorker:
 		print("" + repr(self) + ": started")
 		while True:
 			self.job = self.manager.get_next()
-			if(self.job == None):
+			if self.job == None:
 				#no more jobs available
 				#so the worker can die!
 				break
@@ -124,7 +124,7 @@ class BuildWorker:
 			print(repr(self) + ": fetched " + repr(self.job))
 			self.job.worker = self
 
-			if(self.job.check_needs_build()):
+			if self.job.check_needs_build():
 				#TODO: same output colors for each worker
 				#print("[worker " + str(self.num) + "]:")
 				print("" + repr(self) + ": making -> " + repr(self.job))
@@ -163,7 +163,7 @@ class JobManager:
 		self.job_lock = threading.Condition()
 
 	def queue_order(self, order):
-		if(not isinstance(order, BuildOrder)):
+		if not isinstance(order, BuildOrder):
 			raise Exception("Only a whole BuildOrder can be processed")
 
 		for target in order.targets:
@@ -176,18 +176,18 @@ class JobManager:
 
 	def submit(self, job):
 		"""insert a job and it's dependencies in the execution queue"""
-		if(not isinstance(job, BuildElement)):
+		if not isinstance(job, BuildElement):
 			raise Exception("only BuildElements can be submitted")
 
 		job.add_deps_to_manager(self)
 
 	def submit_single(self, job):
 		"""insert a single job in the correct job queue"""
-		if(not isinstance(job, BuildElement)):
+		if not isinstance(job, BuildElement):
 			raise Exception("only BuildElements can be submitted")
 
 		with self.job_lock:
-			if(job.ready_to_build()):
+			if job.ready_to_build():
 				self.ready_jobs.add(job)
 			else:
 				self.pending_jobs.add(job)
@@ -195,7 +195,7 @@ class JobManager:
 	def finished(self, job):
 		'''must be called when a job is done executing'''
 		with self.job_lock:
-			if(job.exitstate == 0):
+			if job.exitstate == 0:
 				self.running_jobs.remove(job)
 				self.finished_jobs.add(job)
 				job.finish(self)
@@ -207,9 +207,9 @@ class JobManager:
 
 	def get_next(self):
 		with self.job_lock:
-			if(len(self.ready_jobs) > 0):
+			if len(self.ready_jobs) > 0:
 
-				if(self.error != 0):
+				if self.error != 0:
 					return None
 
 				newjob = self.ready_jobs.pop()
@@ -217,14 +217,14 @@ class JobManager:
 				return newjob
 
 			#TODO: could cause errors, investigate pls
-			elif(len(self.running_jobs) > 0 and len(self.pending_jobs) > 0):
+			elif len(self.running_jobs) > 0 and len(self.pending_jobs) > 0:
 				#if no jobs are ready, then remaining(pending) jobs are unlocked by currently running jobs
 				#so the current worker has to wait here, until a job is ready, errors occur, or all jobs died.
 
 				self._find_ready_jobs()
 				self.job_lock.wait_for(self.nextjob_continue)
 
-				if(self.error != 0 or len(self.ready_jobs) == 0):
+				if self.error != 0 or len(self.ready_jobs) == 0:
 					return None
 
 				newjob = self.ready_jobs.pop()
@@ -280,23 +280,23 @@ class JobManager:
 			worker.join()
 			print(repr(worker) + ": joined")
 
-		if(len(self.failed_jobs) > 0):
+		if len(self.failed_jobs) > 0:
 			print("==========\nFAILED jobs:")
 			for job in self.failed_jobs:
 				print(repr(job))
 
-		if(len(self.ready_jobs) > 0):
+		if len(self.ready_jobs) > 0:
 			print("++++++++++\njobs currently ready to build:")
 			for job in self.ready_jobs:
 				print(repr(job))
 
-		if(len(self.pending_jobs) > 0):
+		if len(self.pending_jobs) > 0:
 			#not all jobs have been built
 			print("++++++++++\njobs blocked by dependencies:")
 			for job in self.pending_jobs:
 				print(repr(job))
 
-		if(len(self.finished_jobs) > 0):
+		if len(self.finished_jobs) > 0:
 			print("==========\njobs that have been built successfully:")
 			for job in self.finished_jobs:
 				print(repr(job))
@@ -319,7 +319,7 @@ class BuildOrder:
 
 	def build_element_factory(self, filename):
 		#TODO: actually this is a hacky dirt.
-		if(re.match(".*\\.(h|hpp)", filename)):
+		if re.match(".*\\.(h|hpp)", filename):
 			#print(filename + " generated HeaderFile")
 			return self.find_create_header(filename)
 		else:
@@ -331,7 +331,7 @@ class BuildOrder:
 
 		print("self.filedict: " + str(self.filedict))
 
-		if(rname in self.filedict):
+		if rname in self.filedict:
 			print("reusing " + fname)
 			return self.filedict[rname]
 		else:
@@ -382,10 +382,10 @@ class BuildOrder:
 				#add sourcefile path itself to depends
 				ad = conf["autodepends"].get(source)
 
-				if(ad == "MD"):
+				if ad == "MD":
 					mdfile = encpathname + ".d"
 
-					if(os.path.isfile(mdfile)):
+					if os.path.isfile(mdfile):
 						#if .d file exists, parse its contents as dependencies
 						for dep in parse_dfile(mdfile):
 							order_file.add_dependency(self.find_create_header(dep))
@@ -395,7 +395,7 @@ class BuildOrder:
 
 					crun += " -MD"  # (re)generate c headers dependency file
 
-				elif(ad == "no"):
+				elif ad == "no":
 					#TODO: maybe a warning of the MD skipping
 					pass
 				else:
@@ -405,11 +405,11 @@ class BuildOrder:
 				order_file.loglevel = conf["loglevel"].get(source)
 
 				s_prb = conf["prebuild"].get(source)
-				if(len(s_prb) > 0):
+				if len(s_prb) > 0:
 					order_file.prebuild = s_prb
 
 				s_pob = conf["postbuild"].get(source)
-				if(len(s_pob) > 0):
+				if len(s_pob) > 0:
 					order_file.postbuild = s_pub
 
 				# compiler invocation complete -> add it to the source file build order
@@ -431,11 +431,11 @@ class BuildOrder:
 			#TODO: a compilation/whatever can be dependent on e.g. a library.
 
 			t_prb = conf["prebuild"].get(target)
-			if(len(s_prb) > 0):
+			if len(s_prb) > 0:
 				order_target.prebuild = t_prb
 
 			s_pob = conf["postbuild"].get(target)
-			if(len(s_pob) > 0):
+			if len(s_pob) > 0:
 				order_target.postbuild = t_pob
 
 			order_target.set_crun(ctrun)
@@ -532,7 +532,7 @@ class BuildElement:
 
 			print(repr(self) + " finished -> left parent.depends=" + repr(parent.depends))
 
-			if(domgr and parent.ready_to_build()):
+			if domgr and parent.ready_to_build():
 				manager.pending_jobs.remove(parent)
 				manager.ready_jobs.add(parent)
 
@@ -542,9 +542,9 @@ class BuildElement:
 
 	def add_dependency(self, newone):
 		'''adds a dependency to this compilation job'''
-		if(type(newone) == list):
+		if type(newone) == list:
 			for e in newone:
-				if(not isinstance(newone, BuildElement)):
+				if not isinstance(newone, BuildElement):
 					raise Exception("only BuildElements can be added as a dependency for another BuildElement")
 
 				print(repr(self) + " -> adding dependency from list " + repr(newone))
@@ -552,7 +552,7 @@ class BuildElement:
 				self.depends.add(e)
 
 		else:
-			if(not isinstance(newone, BuildElement)):
+			if not isinstance(newone, BuildElement):
 				raise Exception("only BuildElements can be added as a dependency for another BuildElement")
 
 			print(repr(self) + " -> adding dependency " + repr(newone))
@@ -562,8 +562,8 @@ class BuildElement:
 	def check_needs_build(self): #can/should be overridden if appropriate (e.g. header file)
 		'''set self.needs_build to the correct value'''
 
-		if(os.path.isfile(self.outname)):
-			if (os.path.getmtime(self.outname) < os.path.getmtime(self.inname)):
+		if os.path.isfile(self.outname):
+			if os.path.getmtime(self.outname) < os.path.getmtime(self.inname):
 				self.needs_build = True
 				return True
 			else:
@@ -579,7 +579,7 @@ class BuildElement:
 				# check for modification times
 				print("checking mtime of -> " + repr(d))
 				#TODO: use dict of mtimes
-				if(os.path.getmtime(fl) > os.path.getmtime(self.outname)):
+				if os.path.getmtime(fl) > os.path.getmtime(self.outname):
 					self.needs_build = True
 					print("==> Build needed: " + repr(d) + " is newer than " + self.outname)
 					break
@@ -592,7 +592,7 @@ class BuildElement:
 
 	def ready_to_build(self):
 		'''when all dependencies are done, return true'''
-		if(len(self.depends) > 0):
+		if len(self.depends) > 0:
 			self.ready = False
 		else:
 			self.ready = True
@@ -607,10 +607,10 @@ class BuildElement:
 		out = space + "++++ " + str(type(self)) + " " + str(id(self)) + "\n"
 
 
-		if(self.inname):
+		if self.inname:
 			out += space + "* Input filename: " + self.inname + "\n"
 
-		if(self.outname):
+		if self.outname:
 			out += space + "* Output filename: " + self.outname + "\n"
 
 		deps_done = len(self.depends_finished)
@@ -619,7 +619,7 @@ class BuildElement:
 
 		out += space + "--- status: " + str(self.exitstate) + " ---\n"
 
-		if(deps_sum > 0):
+		if deps_sum > 0:
 			deps_percent =  "{0:.2f}".format(float(deps_done/deps_sum) * 100)
 
 
@@ -629,13 +629,13 @@ class BuildElement:
 			out += "] ---\n"
 
 
-			if(len(self.depends) > 0):
+			if len(self.depends) > 0:
 				out += space + "--- pending dependencies:\n"
 				for f in self.depends:
 					out += f.text(depth + 1)
 					out += space + "---\n"
 
-			if(len(self.depends_finished) > 0):
+			if len(self.depends_finished) > 0:
 				out += space + "--- finished dependencies:\n"
 
 				for f in self.depends_finished:
@@ -644,16 +644,16 @@ class BuildElement:
 		else:
 			out += space + "* NO dependencies\n"
 
-		if(self.ready):
-			if(self.finished):
+		if self.ready:
+			if self.finished:
 				out += space + "* BUILT SUCCESSFULLY\n"
 			else:
-				if(self.exitstate != 0):
+				if self.exitstate != 0:
 					out += space + "* FAILED\n"
 				else:
 					out += space + "* READY TO BUILD\n"
 		else:
-			if(len(self.depends) > 0):
+			if len(self.depends) > 0:
 				out += space + "* BLOCKED BY DEPENDENCIES\n"
 			else:
 				out += space + "* NOT READY\n"
@@ -693,12 +693,12 @@ class SourceFile(BuildElement):
 
 		ret = 0
 
-		if(self.prebuild):
+		if self.prebuild:
 			print("prebuild for " + self + " '" + self.prebuild + "'")
 			#TODO: os.system()
 			#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
 
-		if(ret != 0):
+		if ret != 0:
 			failat = "prebuild for"
 		else:
 			print(repr(self.worker) + " == building -> " + repr(self))
@@ -714,16 +714,16 @@ class SourceFile(BuildElement):
 		#TODO: don't forget to remove...
 		ret = random.choice([0,0,0,0,1,8])
 
-		if(ret != 0):
+		if ret != 0:
 			failat = "compiling"
 		else:
-			if(self.postbuild):
+			if self.postbuild:
 				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
 				#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
-			if(ret != 0):
+			if ret != 0:
 				failat = "postbuild for"
 
-		if(ret > 0):
+		if ret > 0:
 			print("\n======= Fail at " + failat +" " + repr(self) + " =========")
 			print("Error when building " + repr(self) )
 			self.exitstate = ret
@@ -764,11 +764,11 @@ class BuildTarget(BuildElement):
 
 		ret = 0		#return value storage
 
-		if(self.prebuild):
+		if self.prebuild:
 			print("prebuild for " + repr(self) + " '" + self.prebuild + "'")
 			#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
 
-		if(ret != 0):
+		if ret != 0:
 			failat = "prebuild for"
 		else:
 			print("== linking -> " + repr(self))
@@ -784,17 +784,17 @@ class BuildTarget(BuildElement):
 		#TODO: don't forget to remove...
 		ret = random.choice([0,0,1])
 
-		if(ret != 0):
+		if ret != 0:
 			failat = "linking"
 		else:
-			if(self.postbuild):
+			if self.postbuild:
 				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
 				#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
 
-			if(ret != 0):
+			if ret != 0:
 				failat = "postbuild for"
 
-		if(ret > 0):
+		if ret > 0:
 			fail = True
 		else:
 			fail = False
@@ -866,7 +866,7 @@ def main():
 	print(order.text())
 
 	#after all targets:
-	if(m.get_error() == 0):
+	if m.get_error() == 0:
 		print("sftmake builder shutting down regularly")
 	else:
 		print("sftmake builder exiting due to error")
