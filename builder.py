@@ -530,12 +530,11 @@ class BuildElement:
 			#TODO: suppress this via config
 			parent.depends_finished.add(self)
 
-			print(repr(self) + " finished -> left parent.depends=" + repr(parent.depends))
+			#print(repr(self) + " finished -> left parent.depends=" + repr(parent.depends))
 
 			if domgr and parent.ready_to_build():
 				manager.pending_jobs.remove(parent)
 				manager.ready_jobs.add(parent)
-
 
 	def add_parent(self, newp):
 		self.parents.add(newp)
@@ -694,14 +693,14 @@ class SourceFile(BuildElement):
 		ret = 0
 
 		if self.prebuild:
-			print("prebuild for " + self + " '" + self.prebuild + "'")
-			#TODO: os.system()
-			#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
+			print(repr(self.worker) + ": prebuild for " + repr(self) + " '" + self.prebuild + "'")
+			#TODO: redirect the output if we get a global logger
+			#ret = os.system(self.prebuild)
 
 		if ret != 0:
-			failat = "prebuild for"
+			failat = "prebuilding"
 		else:
-			print(repr(self.worker) + " == building -> " + repr(self))
+			print(repr(self.worker) + ": == building -> " + repr(self))
 
 			## compiler is launched here
 			#TODO: correct invocation
@@ -709,7 +708,7 @@ class SourceFile(BuildElement):
 			#ret = subprocess.call(shlex.split(self.crun), shell=False)
 			time.sleep(1)
 
-			print(repr(self.worker) + " == done building -> " + repr(self))
+			print(repr(self.worker) + ": == done building -> " + repr(self))
 
 		#TODO: don't forget to remove...
 		ret = random.choice([0,0,0,0,1,8])
@@ -718,14 +717,14 @@ class SourceFile(BuildElement):
 			failat = "compiling"
 		else:
 			if self.postbuild:
-				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
-				#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
+				print(repr(self.worker) + ": postbuild for " + repr(self) + " '" + self.postbuild + "'")
+				#TODO: also redirecto output stream
+				#ret = os.system(self.postbuild)
 			if ret != 0:
-				failat = "postbuild for"
+				failat = "postbuilding"
 
 		if ret > 0:
-			print("\n======= Fail at " + failat +" " + repr(self) + " =========")
-			print("Error when building " + repr(self) )
+			print(repr(self.worker) + ": " + repr(self) + " Error " + str(ret) + " " + failat  + " ===============")
 			self.exitstate = ret
 		else:
 			self.exitstate = 0
@@ -766,20 +765,20 @@ class BuildTarget(BuildElement):
 
 		if self.prebuild:
 			print("prebuild for " + repr(self) + " '" + self.prebuild + "'")
-			#ret = subprocess.call(shlex.split(self.prebuild), shell=False)
+			#ret = os.system(self.prebuild)
 
 		if ret != 0:
-			failat = "prebuild for"
+			failat = "prebuilding"
 		else:
-			print("== linking -> " + repr(self))
+			print(repr(self.worker) + ": == linking -> " + repr(self))
 
 			## compiler is launched here
 			#TODO: correct invocation
-			print(repr(self.worker) + ": " + repr(self))
+			print(repr(self.worker) + ": EXEC:: " + self.crun)
 			#ret = subprocess.call(shlex.split(self.crun), shell=False)
 			time.sleep(1)
 
-			print("== done linking -> " + repr(self))
+			print(repr(self.worker) + ": == done linking -> " + repr(self))
 
 		#TODO: don't forget to remove...
 		ret = random.choice([0,0,1])
@@ -789,10 +788,10 @@ class BuildTarget(BuildElement):
 		else:
 			if self.postbuild:
 				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
-				#ret = subprocess.call(shlex.split(self.postbuild), shell=False)
+				#ret = os.system(self.postbuild)
 
 			if ret != 0:
-				failat = "postbuild for"
+				failat = "postbuilding"
 
 		if ret > 0:
 			fail = True
@@ -800,8 +799,7 @@ class BuildTarget(BuildElement):
 			fail = False
 
 		if fail:
-			print("\n======= Fail at " + failat +" " + repr(self) + " =========")
-			print("Error when linking " + repr(self) )
+			print(repr(self.worker) + ": " + repr(self) + " Error " + str(ret) + " " + failat  + " ===============")
 			self.exitstate = ret
 		else:
 			self.exitstate = 0
