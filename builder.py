@@ -359,10 +359,11 @@ class BuildOrder:
 	def find_reuse_source(self, sourcefile):
 		'''if not yet existng, a SourceFile is created and returned'''
 
-		if sourcefile.encname in self.filedict:
-			if sourcefile.equals(self.filedict[sourcefile.encname]):
+		encname = sourcefile.encname
+		if encname in self.filedict:
+			if sourcefile.equals(self.filedict[encname]):
 				print("reusing " + repr(sourcefile))
-				return self.filedict[sourcefile.encname], True
+				return self.filedict[encname], True
 
 		self.filedict[sourcefile.encname] = sourcefile
 		return sourcefile, False
@@ -395,6 +396,7 @@ class BuildOrder:
 				#assemble compiler output file without extension
 				encpathname = relpath(objdir) + "/"
 				encpathname += rsource + "-"
+				encpathname += encname
 				oname = encpathname + ".o"
 
 				crun += " -c " + rsource
@@ -433,7 +435,7 @@ class BuildOrder:
 					raise Exception(source + ": unknow autodetection mode: " + ad)
 
 				order_file.loglevel = conf["loglevel"].get(source)
-				order_file.set_crun(crun)
+				order_file.crun = crun
 				order_file.encname = encname
 				order_file.outname = oname
 
@@ -449,9 +451,11 @@ class BuildOrder:
 
 				final_order_file, reused = self.find_reuse_source(order_file)
 
-				#when reused, the parents of depends changed!
+				#when reused, the parents of depends changed and need to be merged!
 				if reused:
+					#TODO: merge parents of old and new parent!
 					final_order_file.move_parent(order_file, final_order_file)
+					print("reusing " + str(id(final_order_file)) + " instead of " + str(id(order_file)) + "!")
 
 				order_target.add_dependency(final_order_file)
 
@@ -476,7 +480,7 @@ class BuildOrder:
 			if len(s_pob) > 0:
 				order_target.postbuild = t_pob
 
-			order_target.set_crun(ctrun)
+			order_target.crun = ctrun
 
 			#include current target to the build order
 			self.targets.add(order_target)
@@ -547,6 +551,11 @@ class BuildElement:
 		raise NotImplementedError("Implement this shit for a working compilation...")
 
 	def equals(self, other):
+		print(repr(self) + " equal test")
+
+		if id(self) == id(other):
+			return True
+
 		if not type(other) == type(self):
 			return False
 
@@ -565,6 +574,7 @@ class BuildElement:
 		if not self.depends == other.depends:
 			return False
 
+		print(repr(self) + '(' + str(id(self)) + ')' + " is equal to" + repr(other) + '(' + str(id(other)) + ')')
 		return True
 
 	def add_deps_to_manager(self, manager):
@@ -627,8 +637,6 @@ class BuildElement:
 				dependency.parents.remove(old)
 				dependency.parents.add(new)
 
-
-
 	def check_needs_build(self): #can/should be overridden if appropriate (e.g. header file)
 		'''set self.needs_build to the correct value'''
 
@@ -668,14 +676,10 @@ class BuildElement:
 			self.ready = True
 		return self.ready
 
-	def set_crun(self, crun):
-		self.crun = crun
-
 	def text(self, depth=0):
 		'''inname, outname, ready, encname, parents'''
 		space = ''.join(['\t' for i in range(depth)])
 		out = space + "++++ " + str(type(self)) + " " + str(id(self)) + "\n"
-
 
 		if self.inname:
 			out += space + "* Input filename: " + self.inname + "\n"
@@ -683,21 +687,22 @@ class BuildElement:
 		if self.outname:
 			out += space + "* Output filename: " + self.outname + "\n"
 
+		if self.crun:
+			out += space + "* CFLAGS: " + self.crun + "\n"
+
+		out += space + "--- status: " + str(self.exitstate) + " ---\n"
+
 		deps_done = len(self.depends_finished)
 		deps_pending = len(self.depends)
 		deps_sum = deps_done + deps_pending
 
-		out += space + "--- status: " + str(self.exitstate) + " ---\n"
-
 		if deps_sum > 0:
 			deps_percent =  "{0:.2f}".format(float(deps_done/deps_sum) * 100)
-
 
 			out += space + "--- deps: ["
 			out += str(deps_done) + "/" + str(deps_sum) + "] "
 			out += "[" + deps_percent + "%"
 			out += "] ---\n"
-
 
 			if len(self.depends) > 0:
 				out += space + "--- pending dependencies:\n"
@@ -729,8 +734,11 @@ class BuildElement:
 				out += space + "* NOT READY\n"
 
 		out += space + "++++\n"
-
 		return out
+
+	def __str__(self):
+		return self.text()
+
 
 
 class HeaderFile(BuildElement):
@@ -822,9 +830,6 @@ class BuildTarget(BuildElement):
 		self.name = tname
 		self.outname = relpath(tname) #TODO: respect suffix variables
 		self.inname = "" #self.outname
-
-	def set_crun(self, crun):
-		self.crun = crun
 
 	def run(self):
 		'''this method compiles a single target.'''
