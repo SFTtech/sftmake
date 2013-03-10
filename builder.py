@@ -1,4 +1,15 @@
 #!/usr/bin/python3
+#
+# This file is part of sftmake.
+#
+# License: GPLv3 or later, no warranty, etc
+#
+# Purpose of this file:
+# * convert sftmake variables to BuildOrders
+# * execute a BuildOrder (compile stuff)
+# * show cat pictures
+#
+#
 
 import threading
 import multiprocessing
@@ -92,6 +103,10 @@ print("var initialisation: \n" + str(variables) + "\n\n\n")
 
 #TODO: output queue, fixing thread interferences with msgs containing newlines
 
+#TODO: don't insert header files to the work queue as they aren't built anyway
+
+#TODO: unit test class
+
 def get_thread_count():
 	"""gets the number or hardware threads, or 1 if that can't be done"""
 
@@ -126,7 +141,6 @@ class BuildWorker:
 
 			if self.job.check_needs_build():
 				#TODO: same output colors for each worker
-				#print("[worker " + str(self.num) + "]:")
 				print("" + repr(self) + ": making -> " + repr(self.job))
 				self.job.run()
 			else:
