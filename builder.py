@@ -83,7 +83,7 @@ variables["depends"].addv("^/gschicht.c", ['^/asdf.h'])
 variables["depends"].addv("^/asdf.c", ['^/lol.h'])
 variables["depends"].addv("^/lolfolder/file.c", ['^/asdf.h','^/lol.h'])
 variables["depends"].addv("^/nahleut.c", [])
-variables["use"].addv("^/test", ['^/asdf.c', '^/gschicht.c', '^/nahleut.c'])
+variables["use"].addv("^/test", ['^/asdf.c', '^/gschicht.c', '^/nahleut.c', '^/lolfolder/file.c'])
 variables["use"].addv("^/liblol.so", ['^/lolfolder/file.c'])
 
 variables["autodepends"] = vartest("MD")
@@ -117,6 +117,11 @@ def get_thread_count():
 		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
 		return fallback;
 
+class enum:
+	pass
+
+HEADER = enum()
+SOURCE = enum()
 
 class BuildWorker:
 	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
@@ -136,15 +141,15 @@ class BuildWorker:
 				#so the worker can die!
 				break
 
-			print(repr(self) + ": fetched " + repr(self.job))
+			print(repr(self) + ": fetched job ->\t" + repr(self.job))
 			self.job.worker = self
 
 			if self.job.check_needs_build():
 				#TODO: same output colors for each worker
-				print("" + repr(self) + ": making -> " + repr(self.job))
+				print("" + repr(self) + ": making job ->\t" + repr(self.job))
 				self.job.run()
 			else:
-				print("" + repr(self) + ": skipped -> " + repr(self.job))
+				print("" + repr(self) + ": skipped job ->\t" + repr(self.job))
 
 			self.manager.finished(self.job)
 		print(repr(self) + ": dead")
@@ -343,15 +348,24 @@ class BuildOrder:
 		'''if not yet existing, this HeaderFile is created and returned'''
 		rname = relpath(fname)
 
-		print("self.filedict: " + str(self.filedict))
-
 		if rname in self.filedict:
 			print("reusing " + fname)
-			return self.filedict[rname]
+			return self.filedict[rname], True
 		else:
-			newheader = HeaderFile(fname)
-			self.filedict[rname] = newheader
-			return newheader
+			newfile = HeaderFile(fname)
+			self.filedict[rname] = newfile
+			return newfile, False
+
+	def find_reuse_source(self, sourcefile):
+		'''if not yet existng, a SourceFile is created and returned'''
+
+		if sourcefile.encname in self.filedict:
+			if sourcefile.equals(self.filedict[sourcefile.encname]):
+				print("reusing " + repr(sourcefile))
+				return self.filedict[sourcefile.encname], True
+
+		self.filedict[sourcefile.encname] = sourcefile
+		return sourcefile, False
 
 
 	def fill(self, conf):
@@ -365,34 +379,36 @@ class BuildOrder:
 			order_target = BuildTarget(target)
 
 			for source in conf["use"].get(target):
-				#TODO: reuse source files if it's identical
+
 				order_file = SourceFile(source)
+				rsource = relpath(source)
 
 				crun = conf["c"].get(source)		#compiler
 				crun += " " + conf["cflags"].get(source)	#compiler flags
-				crun += " -c " + relpath(source)		#sourcefile name
 
 				# encode the compiler flags etc
 				objdir = conf["objdir"].get(source)
 
-				#the encoded name 
-				
+				#the encoded name:
 				encname = generate_oname(crun)
-				order_file.encname = encname
-				encpathname = relpath(objdir) + "/" + relpath(source) + "-" + encname
 
-				o_name = encpathname + ".o"
-				order_file.set_outname(o_name)
-				crun += " -o " + o_name			#output object file name generation
+				#assemble compiler output file without extension
+				encpathname = relpath(objdir) + "/"
+				encpathname += rsource + "-"
+				oname = encpathname + ".o"
+
+				crun += " -c " + rsource
+				crun += " -o " + oname
 
 				# add known (by config) dependency files
 				file_depends = conf["depends"].get(source)
 				print("processing " + source + ": \n -----")
+
 				for dep in file_depends:
 					#TODO: a compilation/whatever can be dependent on e.g. a library.
-					d = self.build_element_factory(dep)
+					d, _  = self.build_element_factory(dep)
 					order_file.add_dependency(d)
-				
+
 				#add sourcefile path itself to depends
 				ad = conf["autodepends"].get(source)
 
@@ -417,6 +433,9 @@ class BuildOrder:
 					raise Exception(source + ": unknow autodetection mode: " + ad)
 
 				order_file.loglevel = conf["loglevel"].get(source)
+				order_file.set_crun(crun)
+				order_file.encname = encname
+				order_file.outname = oname
 
 				s_prb = conf["prebuild"].get(source)
 				if len(s_prb) > 0:
@@ -427,9 +446,14 @@ class BuildOrder:
 					order_file.postbuild = s_pub
 
 				# compiler invocation complete -> add it to the source file build order
-				order_file.set_crun(crun)
 
-				order_target.add_dependency(order_file)
+				final_order_file, reused = self.find_reuse_source(order_file)
+
+				#when reused, the parents of depends changed!
+				if reused:
+					final_order_file.move_parent(order_file, final_order_file)
+
+				order_target.add_dependency(final_order_file)
 
 			#=> continuation for each target
 
@@ -522,6 +546,27 @@ class BuildElement:
 	def run(self):
 		raise NotImplementedError("Implement this shit for a working compilation...")
 
+	def equals(self, other):
+		if not type(other) == type(self):
+			return False
+
+		if not self.encname == other.encname:
+			return False
+
+		if not self.prebuild == other.prebuild:
+			return False
+
+		if not self.postbuild == other.postbuild:
+			return False
+
+		if not len(self.depends) == len(other.depends):
+			return False
+
+		if not self.depends == other.depends:
+			return False
+
+		return True
+
 	def add_deps_to_manager(self, manager):
 		#TODO: respect graph model instead of tree
 		for f in self.depends:
@@ -571,6 +616,18 @@ class BuildElement:
 			print(repr(self) + " -> adding dependency " + repr(newone))
 			newone.add_parent(self)
 			self.depends.add(newone)
+
+	def move_parent(self, old, new):
+		'''renames (moves) a parent'''
+		if not isinstance(old, BuildElement) or not isinstance(new, BuildElement):
+			raise Exception("only BuildElements can be used to move parents")
+
+		for dependency in self.depends:
+			if old in dependency.parents:
+				dependency.parents.remove(old)
+				dependency.parents.add(new)
+
+
 
 	def check_needs_build(self): #can/should be overridden if appropriate (e.g. header file)
 		'''set self.needs_build to the correct value'''
@@ -742,9 +799,6 @@ class SourceFile(BuildElement):
 			self.exitstate = ret
 		else:
 			self.exitstate = 0
-
-	def set_outname(self, newo):
-		self.outname = newo
 
 	def __repr__(self):
 		return self.inname
