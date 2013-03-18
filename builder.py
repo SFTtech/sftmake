@@ -11,23 +11,30 @@
 #
 #
 
-import threading
+import base64
 import multiprocessing
 import os.path
-import re
-import base64
-import concurrent.futures
-import subprocess
-import shlex
-import time
+import pprint
 import random
+import re
+import shlex
+import subprocess
+import threading
+import time
 
 
 class vartest:
 	def __init__(self, arg):
 		self.l = arg
+
 	def get(self, a = ""):
 		return self.l
+
+	def __repr__(self):
+		if self.l == None:
+			return "None"
+		else:
+			return "vartest:\t" + pprint.pformat(self.l)
 
 class vartestadv:
 	def __init__(self):
@@ -41,6 +48,8 @@ class vartestadv:
 	def addv(self, key, val):
 		self.l[key] = val
 
+	def __repr__(self):
+		return "vartestadvanced:\t" + pprint.pformat(self.l, width=300)
 
 try:
 	smpath("/tmp/a")
@@ -73,26 +82,30 @@ except NameError:
 #test purpose only
 variables = {}
 variables["c"] = vartest("gcc")
-variables["build"] = vartest(["^/test", "^/liblol.so"])
-variables["cflags"] = vartest("-O8 -flto=4")
+variables["build"] = vartest(["^/lolbinary", "^/liblol.so"])
+variables["cflags"] = vartest("-O1 -march=native")
+variables["ldflags"] = vartest("-L. -llol")
 variables["objdir"] = vartest("^/.objdir")
 
 variables["use"] = vartestadv()
 variables["depends"] = vartestadv()
-variables["depends"].addv("^/gschicht.c", ['^/asdf.h'])
-variables["depends"].addv("^/asdf.c", ['^/lol.h'])
-variables["depends"].addv("^/lolfolder/file.c", ['^/asdf.h','^/lol.h'])
-variables["depends"].addv("^/nahleut.c", [])
-variables["use"].addv("^/test", ['^/asdf.c', '^/gschicht.c', '^/nahleut.c', '^/lolfolder/file.c'])
-variables["use"].addv("^/liblol.so", ['^/lolfolder/file.c'])
+variables["depends"].addv("^/main.c", [])
+variables["depends"].addv("^/both.c", [])
+variables["depends"].addv("^/library0.c", [])
+variables["depends"].addv("^/library1.c", [])
+variables["depends"].addv("^/lolbinary", ["^/liblol.so"])
+variables["depends"].addv("^/liblol.so", [])
+variables["use"].addv("^/lolbinary", ['^/both.c', '^/main.c'])
+variables["use"].addv("^/liblol.so", ['^/both.c', '^/library0.c', '^/library1.c'])
 
 variables["autodepends"] = vartest("MD")
-variables["prebuild"] = vartest("")
-variables["postbuild"] = vartest("")
+variables["prebuild"] = vartest("echo startin build")
+variables["postbuild"] = vartest("echo finished build")
 variables["loglevel"] = vartest("2")
-variables["ldflags"] = vartest("-lsft")
 
-print("var initialisation: \n" + str(variables) + "\n\n\n")
+print("var initialisation: \n")
+pprint.pprint(variables)
+print("\n\n\n")
 
 
 
@@ -103,9 +116,10 @@ print("var initialisation: \n" + str(variables) + "\n\n\n")
 
 #TODO: output queue, fixing thread interferences with msgs containing newlines
 
-#TODO: don't insert header files to the work queue as they aren't built anyway
-
 #TODO: unit test class
+
+
+#output_lock = threading.Condition()
 
 def get_thread_count():
 	"""gets the number or hardware threads, or 1 if that can't be done"""
@@ -117,11 +131,7 @@ def get_thread_count():
 		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
 		return fallback;
 
-class enum:
-	pass
 
-HEADER = enum()
-SOURCE = enum()
 
 class BuildWorker:
 	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
@@ -384,18 +394,21 @@ class BuildOrder:
 				order_file = SourceFile(source)
 				rsource = relpath(source)
 
+				#TODO: merge target and source configuration -> source-for-target
+				# and save it as variables[targetname + "-" + sourcename]
+				# for all file properties, use .get(target + "-" + source) to access properties
+
 				crun = conf["c"].get(source)		#compiler
 				crun += " " + conf["cflags"].get(source)	#compiler flags
 
 				# encode the compiler flags etc
 				objdir = conf["objdir"].get(source)
 
-				#the encoded name:
-				encname = generate_oname(crun)
+				#the encoded name: #TODO: maybe also encode the '/' in rsource
+				encname = rsource + "-" + generate_oname(crun)
 
 				#assemble compiler output file without extension
 				encpathname = relpath(objdir) + "/"
-				encpathname += rsource + "-"
 				encpathname += encname
 				oname = encpathname + ".o"
 
@@ -408,6 +421,7 @@ class BuildOrder:
 
 				for dep in file_depends:
 					#TODO: a compilation/whatever can be dependent on e.g. a library.
+					# -> build_element_factory has to be improved or we need a different config
 					d, _  = self.build_element_factory(dep)
 					order_file.add_dependency(d)
 
@@ -445,7 +459,7 @@ class BuildOrder:
 
 				s_pob = conf["postbuild"].get(source)
 				if len(s_pob) > 0:
-					order_file.postbuild = s_pub
+					order_file.postbuild = s_pob
 
 				# compiler invocation complete -> add it to the source file build order
 
@@ -461,6 +475,13 @@ class BuildOrder:
 
 			#=> continuation for each target
 
+			target_depends = conf["depends"].get(target)
+
+			#TODO: a compilation/whatever can be dependent on e.g. a library.
+			#for dep in target_depends:
+			#	d, _  = self.build_element_factory(dep)
+			#	order_target.add_dependency(d)
+
 			ctrun = conf["c"].get(target)		#compiler for TARGET
 			ctrun += " " + conf["cflags"].get(target)	#compiler flags
 			ctrun += " " + conf["ldflags"].get(target)	#link flags
@@ -470,14 +491,12 @@ class BuildOrder:
 			for ofile in order_target.depends:
 				ctrun += " " + ofile.outname
 
-			#TODO: a compilation/whatever can be dependent on e.g. a library.
-
 			t_prb = conf["prebuild"].get(target)
 			if len(s_prb) > 0:
 				order_target.prebuild = t_prb
 
-			s_pob = conf["postbuild"].get(target)
-			if len(s_pob) > 0:
+			t_pob = conf["postbuild"].get(target)
+			if len(t_pob) > 0:
 				order_target.postbuild = t_pob
 
 			order_target.crun = ctrun
@@ -574,11 +593,13 @@ class BuildElement:
 		if not self.depends == other.depends:
 			return False
 
-		print(repr(self) + '(' + str(id(self)) + ')' + " is equal to" + repr(other) + '(' + str(id(other)) + ')')
+		print(repr(self) + '(' + str(id(self)) + ')' + " is equal to " + repr(other) + '(' + str(id(other)) + ')')
 		return True
 
 	def add_deps_to_manager(self, manager):
-		#TODO: respect graph model instead of tree
+		'''adds all dependencies to a JobManager, recursively'''
+
+		#already submitted jobs are ignored
 		for f in self.depends:
 			f.add_deps_to_manager(manager)
 		manager.submit_single(self)
@@ -687,8 +708,11 @@ class BuildElement:
 		if self.outname:
 			out += space + "* Output filename: " + self.outname + "\n"
 
+		if self.encname:
+			out += space + "* Encoded name: " + self.encname + "\n"
+
 		if self.crun:
-			out += space + "* CFLAGS: " + self.crun + "\n"
+			out += space + "* c-run: " + self.crun + "\n"
 
 		out += space + "--- status: " + str(self.exitstate) + " ---\n"
 
@@ -789,8 +813,7 @@ class SourceFile(BuildElement):
 
 			print(repr(self.worker) + ": == done building -> " + repr(self))
 
-		#TODO: don't forget to remove...
-		ret = random.choice([0,0,0,0,1,8])
+		#ret = random.choice([0,0,0,0,1,8])
 
 		if ret != 0:
 			failat = "compiling"
@@ -812,14 +835,7 @@ class SourceFile(BuildElement):
 		return self.inname
 
 	def __str__(self):
-		out = "\n===========\nsource file: " + repr(self) + " -> \n"
-		n = 0
-		for d in self.depends:
-			out += "\tdep " + str(n) + ":\t" + repr(d) + "\n"
-			n += 1
-
-		out += "\tc-invokation: " + self.crun + "\n===========\n"
-		return out
+		return self.text()
 
 
 class BuildTarget(BuildElement):
@@ -853,8 +869,7 @@ class BuildTarget(BuildElement):
 
 			print(repr(self.worker) + ": == done linking -> " + repr(self))
 
-		#TODO: don't forget to remove...
-		ret = random.choice([0,0,1])
+		#ret = random.choice([0,0,1])
 
 		if ret != 0:
 			failat = "linking"
@@ -878,14 +893,7 @@ class BuildTarget(BuildElement):
 			self.exitstate = 0
 
 	def __str__(self):
-		out = "\n>>>>>>>>>>>>>>>>>>>>>>>>>\ntarget file: " + relpath(self.name)
-		out += " -> \n"
-		n = 0
-		for f in self.depends:
-			out += "\n-- file " + str(n) + ":" + str(f)
-			n += 1
-		out += "\t c-invokation: " + self.crun + "\n>>>>>>>>>>>>>>>>>>>>>>>>>\n"
-		return out
+		return self.text()
 
 	def __repr__(self):
 		return self.outname
@@ -930,11 +938,11 @@ def main():
 
 	print(order.text())
 
-	m.start()
-	m.join()
+#	m.start()
+#	m.join()
 
 	#show status after the build
-	print(order.text())
+#	print(order.text())
 
 	#after all targets:
 	if m.get_error() == 0:
