@@ -118,6 +118,12 @@ print("\n\n\n")
 
 #TODO: unit test class
 
+#TODO: pre/postrun must not be inherited, only if explicitly specified
+
+#TODO: add more shell commands, e.g. all dependencies ready
+
+#TODO: add testing features and bisect support
+
 
 #output_lock = threading.Condition()
 
@@ -386,17 +392,16 @@ class BuildOrder:
 		attention: black magic is involved here.
 		'''
 
+		#---------------------
+		#first step: find all wanted dependencies and create buildelements
+
+
 		for target in conf["build"].get():
 			order_target = BuildTarget(target)
 
 			for source in conf["use"].get(target):
-
+				#TODO: source may not be a source, but a ^/library.so.target
 				order_file = SourceFile(source)
-				rsource = relpath(source)
-
-				#TODO: merge target and source configuration -> source-for-target
-				# and save it as variables[targetname + "-" + sourcename]
-				# for all file properties, use .get(target + "-" + source) to access properties
 
 				crun = conf["c"].get(source)		#compiler
 				crun += " " + conf["cflags"].get(source)	#compiler flags
@@ -405,30 +410,24 @@ class BuildOrder:
 				objdir = conf["objdir"].get(source)
 
 				#the encoded name: #TODO: maybe also encode the '/' in rsource
-				encname = rsource + "-" + generate_oname(crun)
+				encname = order_file.inname + "-" + generate_oname(crun)
 
 				#assemble compiler output file without extension
 				encpathname = relpath(objdir) + "/"
 				encpathname += encname
 				oname = encpathname + ".o"
 
-				crun += " -c " + rsource
+				crun += " -c " + order_file.inname
 				crun += " -o " + oname
 
-				# add known (by config) dependency files
+				# add wanted (by config) dependency files (as smpath)
 				file_depends = conf["depends"].get(source)
-				print("processing " + source + ": \n -----")
-
-				for dep in file_depends:
-					#TODO: a compilation/whatever can be dependent on e.g. a library.
-					# -> build_element_factory has to be improved or we need a different config
-					d, _  = self.build_element_factory(dep)
-					order_file.add_dependency(d)
+				order_file.depends_wanted.union(file_depends)
 
 				#add sourcefile path itself to depends
 				ad = conf["autodepends"].get(source)
 
-				if ad == "MD":
+				if ad == "MD" or len(ad) == 0: # gcc MD enabled
 					mdfile = encpathname + ".d"
 
 					if os.path.isfile(mdfile):
@@ -436,13 +435,14 @@ class BuildOrder:
 						for dep in parse_dfile(mdfile):
 							order_file.add_dependency(self.find_create_header(dep))
 					else:
+						#if MD is enabled but not yet present, we NEED to rebuild.
+						order_file.needs_build = True
+
 						#TODO: notification of first time .d generation?
-						pass
 
 					crun += " -MD"  # (re)generate c headers dependency file
 
 				elif ad == "no":
-					#TODO: maybe a warning of the MD skipping
 					pass
 				else:
 					#let's not ignore an unknown autodetection mode bwahaha
@@ -461,35 +461,18 @@ class BuildOrder:
 				if len(s_pob) > 0:
 					order_file.postbuild = s_pob
 
-				# compiler invocation complete -> add it to the source file build order
+				#TODO: this might be false, innames are not unique
+				self.filedict[order_file.inname] = order_file
+				#if encname already exists, we just overwrite it, good:
+				self.filedict[oname] = order_file
+				order_target.depends_wanted.add(order_file.inname)
 
-				final_order_file, reused = self.find_reuse_source(order_file)
-
-				#when reused, the parents of depends changed and need to be merged!
-				if reused:
-					#TODO: merge parents of old and new parent!
-					final_order_file.move_parent(order_file, final_order_file)
-					print("reusing " + str(id(final_order_file)) + " instead of " + str(id(order_file)) + "!")
-
-				order_target.add_dependency(final_order_file)
-
-			#=> continuation for each target
-
-			target_depends = conf["depends"].get(target)
-
-			#TODO: a compilation/whatever can be dependent on e.g. a library.
-			#for dep in target_depends:
-			#	d, _  = self.build_element_factory(dep)
-			#	order_target.add_dependency(d)
-
+			# <- for each target level
+			order_target.loglevel = conf["loglevel"].get(target)
 			ctrun = conf["c"].get(target)		#compiler for TARGET
 			ctrun += " " + conf["cflags"].get(target)	#compiler flags
 			ctrun += " " + conf["ldflags"].get(target)	#link flags
 			ctrun += " -o " + relpath(target)		#target output name
-
-			#append all object files for linkage
-			for ofile in order_target.depends:
-				ctrun += " " + ofile.outname
 
 			t_prb = conf["prebuild"].get(target)
 			if len(s_prb) > 0:
@@ -499,10 +482,52 @@ class BuildOrder:
 			if len(t_pob) > 0:
 				order_target.postbuild = t_pob
 
+			target_depends = conf["depends"].get(target)
+			order_target.depends_wanted.union(target_depends)
+
+			#append all object files for linkage
+			#TODO: rewrite and relocate to somewhere else!
+			for ofile in order_target.depends_wanted:
+				ctrun += " " + relpath(ofile) #ofile.outname
+
 			order_target.crun = ctrun
 
 			#include current target to the build order
+			self.filedict[order_target.outname] = order_target
 			self.targets.add(order_target)
+
+		#----------------------
+		#second step: reuse wanted dependencies to add buildelements to the correct hierarchy etc
+
+		#TODO: merge target and source configuration -> source-for-target
+		# and save it as variables[targetname + "-" + sourcename]
+		# for all file properties, use .get(target + "-" + source) to access properties
+
+		#TODO: maybe minimalize graph by Edmonds' algorithm algorithm
+
+
+		for order_target in self.targets:
+			for target_dependency in order_target.depends_wanted:
+				#search the dependency and if exists, add it to 
+				break
+
+
+				final_dependency, reused = self.find_reuse_source(target_dependency)
+				#when reused, the parents of depends changed and need to be merged!
+				if reused:
+					#TODO: merge parents of old and new parent!
+					final_dependency.move_parent(target_dependency, final_dependency)
+					print("reusing " + str(id(final_dependency)) + " instead of " + str(id(target_dependency)) + "!")
+
+				order_target.add_dependency(final_dependency)
+
+
+			#TODO: a target can be dependent on e.g. a library.
+			#for dep in target_depends:
+			#	d, _  = self.build_element_factory(dep)
+			#	order_target.add_dependency(d)
+
+
 
 		#direct function level here
 
@@ -550,6 +575,7 @@ class BuildElement:
 
 	def __init__(self, name):
 		self.depends = set()
+		self.depends_wanted = set()	# wanted dependencies as smpaths
 		self.depends_finished = set()
 		self.name = smpath(name)
 		self.inname = relpath(name)
@@ -562,9 +588,10 @@ class BuildElement:
 		self.ready = False
 		self.parents = set()	# the parent BuildElement may be notified of stuff
 		self.worker = None
-		self.loglevel = 2 #TODO: get from variables
+		self.loglevel = 2	# standard value?
 		self.exitstate = 0
 		self.finished = False
+		#TODO: store file mtime
 
 	def run(self):
 		raise NotImplementedError("Implement this shit for a working compilation...")
@@ -635,18 +662,19 @@ class BuildElement:
 			for e in newone:
 				if not isinstance(newone, BuildElement):
 					raise Exception("only BuildElements can be added as a dependency for another BuildElement")
-
-				print(repr(self) + " -> adding dependency from list " + repr(newone))
-				e.add_parent(self)
-				self.depends.add(e)
+				self.add_single_dependency(e)
 
 		else:
 			if not isinstance(newone, BuildElement):
 				raise Exception("only BuildElements can be added as a dependency for another BuildElement")
+			self.add_single_dependency(newone)
 
-			print(repr(self) + " -> adding dependency " + repr(newone))
-			newone.add_parent(self)
-			self.depends.add(newone)
+	def add_single_dependency(self, newone):
+		'''this element will be dependent on this new dependeny'''
+		print(repr(self) + " -> adding dependency " + repr(newone))
+		newone.add_parent(self)
+		self.depends.add(newone)
+
 
 	def move_parent(self, old, new):
 		'''renames (moves) a parent'''
@@ -713,6 +741,9 @@ class BuildElement:
 
 		if self.crun:
 			out += space + "* c-run: " + self.crun + "\n"
+
+		#if len(self.depends_wanted) > 0:
+		out += space + "* wanted dependencies: " + str(self.depends_wanted) + "\n"
 
 		out += space + "--- status: " + str(self.exitstate) + " ---\n"
 
