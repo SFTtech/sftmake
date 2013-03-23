@@ -392,8 +392,16 @@ class BuildOrder:
 		attention: black magic is involved here.
 		'''
 
+
 		#---------------------
-		#first step: find all wanted dependencies and create buildelements
+		#0. step: create source-for-target configurations
+		#TODO: merge target and source configuration -> source-for-target
+		# and save it as variables[targetname + "-" + sourcename]
+		# for all file properties, use .get(target + "-" + source) to access properties
+		#TODO: respect prebuild/postbuild
+
+		#---------------------
+		#1. step: find all wanted dependencies and create buildelements
 
 
 		for target in conf["build"].get():
@@ -401,6 +409,7 @@ class BuildOrder:
 
 			for source in conf["use"].get(target):
 				#TODO: source may not be a source, but a ^/library.so.target
+				#this happens when a target depends on another target
 				order_file = SourceFile(source)
 
 				crun = conf["c"].get(source)		#compiler
@@ -422,6 +431,7 @@ class BuildOrder:
 
 				# add wanted (by config) dependency files (as smpath)
 				file_depends = conf["depends"].get(source)
+				#TODO: create object containers accordingly
 				order_file.depends_wanted.union(file_depends)
 
 				#add sourcefile path itself to depends
@@ -431,9 +441,13 @@ class BuildOrder:
 					mdfile = encpathname + ".d"
 
 					if os.path.isfile(mdfile):
-						#if .d file exists, parse its contents as dependencies
+						#if .d file exists, add its contents as wanted dependencies
 						for dep in parse_dfile(mdfile):
-							order_file.add_dependency(self.find_create_header(dep))
+							dependency_header = HeaderFile(dep)
+
+							out_tmp = dependency_header.outname
+							order_file.depends_wanted.add(out_tmp)
+							self.filedict[out_tmp] = dependency_header
 					else:
 						#if MD is enabled but not yet present, we NEED to rebuild.
 						order_file.needs_build = True
@@ -461,11 +475,10 @@ class BuildOrder:
 				if len(s_pob) > 0:
 					order_file.postbuild = s_pob
 
-				#TODO: this might be false, innames are not unique
-				self.filedict[order_file.inname] = order_file
+				#TODO: pre/postbuild is not respected by that!
 				#if encname already exists, we just overwrite it, good:
 				self.filedict[oname] = order_file
-				order_target.depends_wanted.add(order_file.inname)
+				order_target.depends_wanted.add(oname)
 
 			# <- for each target level
 			order_target.loglevel = conf["loglevel"].get(target)
@@ -497,27 +510,24 @@ class BuildOrder:
 			self.targets.add(order_target)
 
 		#----------------------
-		#second step: reuse wanted dependencies to add buildelements to the correct hierarchy etc
+		#2. step: reuse wanted dependencies to add buildelements to the correct hierarchy etc
 
-		#TODO: merge target and source configuration -> source-for-target
-		# and save it as variables[targetname + "-" + sourcename]
-		# for all file properties, use .get(target + "-" + source) to access properties
-
-		#TODO: maybe minimalize graph by Edmonds' algorithm algorithm
-
+		#TODO: this method does not respect all aspects of BuildElement.equals
+		#e.g. it wil be a giant pile of crap with different pre/postbuilds
 
 		for order_target in self.targets:
+
 			for target_dependency in order_target.depends_wanted:
 				#search the dependency and if exists, add it to 
-				break
 
+				try:
+					final_dependency = self.filedict[target_dependency]
+				except KeyError:
+					raise Exception("dependency " + target_dependency + " not found.")
+				for sd in final_dependency.depends_wanted:
+					sfinal_dep = self.filedict[sd]
+					final_dependency.add_dependency(sfinal_dep)
 
-				final_dependency, reused = self.find_reuse_source(target_dependency)
-				#when reused, the parents of depends changed and need to be merged!
-				if reused:
-					#TODO: merge parents of old and new parent!
-					final_dependency.move_parent(target_dependency, final_dependency)
-					print("reusing " + str(id(final_dependency)) + " instead of " + str(id(target_dependency)) + "!")
 
 				order_target.add_dependency(final_dependency)
 
@@ -529,7 +539,7 @@ class BuildOrder:
 
 
 
-		#direct function level here
+		#<- direct function level here
 
 	def __str__(self):
 		out = "\n\n%%%%%%%%%%%%%%%%%\n BUILD ORDER"
@@ -801,7 +811,7 @@ class HeaderFile(BuildElement):
 
 	def __init__(self, hname):
 		BuildElement.__init__(self, hname)
-		#no need to set self.outname, as we never need it
+		self.outname = self.inname
 
 	def check_needs_build(self):
 		self.needs_build = False
@@ -963,6 +973,9 @@ def main():
 	print("fak u dolan")
 	order = BuildOrder()
 	order.fill(variables)
+	print("\n")
+	pprint.pprint(order.filedict)
+	print("\n")
 
 	m = JobManager()
 	m.queue_order(order)
