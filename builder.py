@@ -37,8 +37,8 @@ class vartest:
 			return "vartest:\t" + pprint.pformat(self.l)
 
 class vartestadv:
-	def __init__(self):
-		self.l = dict()
+	def __init__(self, init=dict()):
+		self.l = init
 
 	def get(self, param):
 		ret = self.l[param]
@@ -47,6 +47,11 @@ class vartestadv:
 
 	def addv(self, key, val):
 		self.l[key] = val
+
+	def pushv(self, key, val):
+		if self.l[key] == None:
+			self.l[key] = []
+		self.l[key].append(val)
 
 	def __repr__(self):
 		return "vartestadvanced:\t" + pprint.pformat(self.l, width=300)
@@ -83,11 +88,13 @@ except NameError:
 variables = {}
 variables["c"] = vartest("gcc")
 variables["build"] = vartest(["^/lolbinary", "^/liblol.so"])
+variables["filelist"] = vartest(['^/main.c', '^/both.c', '^/library0.c', '^/library1.c'])
 variables["cflags"] = vartest("-O1 -march=native")
 variables["ldflags"] = vartest("-L. -llol")
 variables["objdir"] = vartest("^/.objdir")
 
 variables["use"] = vartestadv()
+variables["usedby"] = vartestadv()
 variables["depends"] = vartestadv()
 variables["depends"].addv("^/main.c", [])
 variables["depends"].addv("^/both.c", [])
@@ -97,6 +104,10 @@ variables["depends"].addv("^/lolbinary", ["^/liblol.so"])
 variables["depends"].addv("^/liblol.so", [])
 variables["use"].addv("^/lolbinary", ['^/both.c', '^/main.c'])
 variables["use"].addv("^/liblol.so", ['^/both.c', '^/library0.c', '^/library1.c'])
+variables["usedby"].addv("^/main.c", [])
+variables["usedby"].addv("^/both.c", [])
+variables["usedby"].addv("^/library0.c", [])
+variables["usedby"].addv("^/library1.c", [])
 
 variables["autodepends"] = vartest("MD")
 variables["prebuild"] = vartest("echo startin build")
@@ -400,6 +411,19 @@ class BuildOrder:
 		# for all file properties, use .get(target + "-" + source) to access properties
 		#TODO: respect prebuild/postbuild
 
+		for source in conf["filelist"].get():
+			for target in conf["usedby"].get(source):
+				#Add source filename to config(target).use
+				#Add libs to config(target).libs
+				pass
+
+		for target in conf["build"].get():
+			for source in conf["use"].get(target):
+				#clone target configuration to ^/foo/bar.target-^/foo/asdf.cpp
+				#apply changes from ^/foo/asdf.cpp to the new configuration
+				pass
+
+
 		#---------------------
 		#1. step: find all wanted dependencies and create buildelements
 
@@ -408,9 +432,15 @@ class BuildOrder:
 			order_target = BuildTarget(target)
 
 			for source in conf["use"].get(target):
+
 				#TODO: source may not be a source, but a ^/library.so.target
 				#this happens when a target depends on another target
-				order_file = SourceFile(source)
+				if source.endswith(".target"):
+					order_target.depends_wanted.add(source)
+					continue
+
+				else:
+					order_file = SourceFile(source)
 
 				crun = conf["c"].get(source)		#compiler
 				crun += " " + conf["cflags"].get(source)	#compiler flags
@@ -524,6 +554,7 @@ class BuildOrder:
 					final_dependency = self.filedict[target_dependency]
 				except KeyError:
 					raise Exception("dependency " + target_dependency + " not found.")
+
 				for sd in final_dependency.depends_wanted:
 					sfinal_dep = self.filedict[sd]
 					final_dependency.add_dependency(sfinal_dep)
@@ -536,8 +567,6 @@ class BuildOrder:
 			#for dep in target_depends:
 			#	d, _  = self.build_element_factory(dep)
 			#	order_target.add_dependency(d)
-
-
 
 		#<- direct function level here
 
