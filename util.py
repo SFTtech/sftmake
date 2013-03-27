@@ -3,10 +3,13 @@ import os
 import re
 import multiprocessing
 
+
+
+
 class EnumVal:
 	def __init__(self, representation):
 		self.representation = representation
-	
+
 	def __repr__(self):
 		return repr(self.representation)
 
@@ -32,20 +35,20 @@ class OrderedSet:
 	#delete an element
 	def delete(self, x):
 		self.storage.pop(x)
-	
+
 	#remove all elements
 	def clear(self):
 		self.storage.clear()
-	
+
 	#update the ordered set with an other ordered set
 	def update(self, x):
 		for v in x:
 			self.storage.pop(v)
 		self.storage.update(x.storage)
-	
+
 	def tolist(self):
 		return [x for x in self.storage]
-	
+
 	def newest(self):
 		return next(reversed(self.storage))
 
@@ -53,13 +56,20 @@ class OrderedSet:
 		return self.storage.__iter__()
 
 
+smroot = None #will be set once needed, see below
+
 #functions for path conversions
 
 #convert path to absolute POSIX path
 def abspath(path, relto = '^'):
+	global smroot
+
 	#if the path is empty, fak u
 	if(not path):
 		raise Exception('Path must not be empty')
+
+	if smroot == None:
+		smroot = find_smroot()
 
 	#if the path starts with '/', it's already absolute
 	if(path[0] == '/'):
@@ -74,16 +84,21 @@ def abspath(path, relto = '^'):
 		if(relto[0] != '^'):
 			raise Exception('relto must start with ^')
 		result = abspath(relto) + '/' + path
-	
+
 	return os.path.normpath(result)
 
 #convert path to relative POSIX path
 def relpath(path, relto = '^'):
+	global smroot
+
 	if(not path): #fak u
 		raise Exception("Path must not be empty")
-	
+
 	elif(path[0] == '/'):
 		return os.path.relpath(path, abspath(relto))
+
+	if smroot == None:
+		smroot = find_smroot()
 
 	if(path[0] == '^'):
 		return os.path.relpath(smroot + '/' + path[1:], abspath(relto))
@@ -94,6 +109,8 @@ def relpath(path, relto = '^'):
 
 #convert path to sftmake path
 def smpath(path, relto = '^'):
+	global smroot
+
 	#if the path is empty, fak u
 	if(not path):
 		raise Exception("Path must not be empty")
@@ -101,6 +118,9 @@ def smpath(path, relto = '^'):
 	#if the path starts with '^', it's already an sftmake path
 	if(path[0] == '^'):
 		return path
+
+	if smroot == None:
+		smroot = find_smroot()
 
 	#else, get relative path
 	if(path[0] != '/'):
@@ -157,3 +177,12 @@ def get_thread_count():
 		fallback = 1
 		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
 		return fallback;
+
+def find_smroot():
+	path = os.path.abspath('.')
+	while(not os.path.isfile(path + "/smfile")):
+		if(path == "/"):
+			raise Exception("No smfile found")
+		else:
+			path = os.path.abspath(path + '/..')
+	return path

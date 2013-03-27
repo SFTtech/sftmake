@@ -100,6 +100,20 @@ print("\n\n\n")
 
 
 confinfo = {}
+conf_base = conf.Config([], '^', conf.Config.BASE)
+conf_main = conf.Config([conf_base], '^', conf.Config.SRC)
+conf_lib0 = conf.Config([conf_base], '^', conf.Config.SRC)
+conf_lib1 = conf.Config([conf_base], '^', conf.Config.SRC)
+conf_both = conf.Config([conf_base], '^', conf.Config.SRC)
+conf_lib = conf.Config([conf_base], '^', conf.Config.SRC)
+conf_bin = conf.Config([conf_base], '^', conf.Config.SRC)
+confinfo["^/main.c"] = conf_main
+confinfo["^/library0.c"] = conf_lib0
+confinfo["^/library1.c"] = conf_lib1
+confinfo["^/both.c"] = conf_both
+confinfo["^/liblol.so"] = conf_lib
+confinfo["^/lolbinary"] = conf_bin
+
 
 """
 'default' is the absolute root configuration, and consists of the internal defaults

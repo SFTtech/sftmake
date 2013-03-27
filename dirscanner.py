@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import util
 
 """
 scan from current directory and find project root directory (by smfile)
@@ -12,7 +13,7 @@ per source:			^/foo/srcfile.cpp.smfile	/srcfile.cpp.src.sm	/srcfile.cpp.sm
 """
 
 def create_smtree():
-	smroot = find_smroot()
+	smroot = util.find_smroot()
 	smfilepaths = []
 	for (path, dirs, files) in os.walk(smroot):
 		# filter hidden directories
@@ -25,12 +26,4 @@ def create_smtree():
 	print(smfilepaths)
 
 
-def find_smroot():
-	path = os.path.abspath('.')
-	while(not os.path.isfile(path + "/smfile")):
-		if(path == "/"):
-			raise Exception("No smfile found")
-		else:
-			path = os.path.abspath(path + '/..')
-	return path
 
