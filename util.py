@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import os
 import re
+import multiprocessing
 
 class EnumVal:
 	def __init__(self, representation):

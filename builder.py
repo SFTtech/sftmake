@@ -61,16 +61,7 @@ class vartestadv:
 		return "vartestadvanced:\t" + pprint.pformat(self.l, width=300)
 
 if not "assembled" in globals():
-	from util import smpath,relpath
-
-try:
-	generate_oname("gschicht")
-except NameError:
-	from util import generate_oname
-#	print("redefining generate_oname() as stub")
-#	def generate_oname(name):
-#		encoded = base64.b64encode(bytearray(name, 'utf-8'))
-#		return encoded.decode('utf-8')
+	from util import smpath,relpath,generate_oname
 
 
 #test purpose only
@@ -149,16 +140,6 @@ variables["c"].addval([Val("g++", None, Val.MODE_APPEND)], "^/hitler/nsdap.cpp")
 
 
 
-def get_thread_count():
-	"""gets the number or hardware threads, or 1 if that can't be done"""
-
-	try:
-		return multiprocessing.cpu_count()
-	except NotImplementedError: # may happen under !POSIX
-		fallback = 1
-		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
-		return fallback;
-
 
 
 class BuildWorker:
@@ -205,7 +186,7 @@ class BuildWorker:
 class JobManager:
 	"""thread manager for invoking the compilers"""
 
-	def __init__(self, max_workers=get_thread_count()):
+	def __init__(self, max_workers=util.get_thread_count()):
 		self.workers = []
 
 		self.pending_jobs  = set()		# jobs that will be processed sometime
@@ -371,7 +352,7 @@ class BuildOrder:
 		self.targets = set()
 		self.filedict = dict()
 
-	def set_thread_count(self, n = get_thread_count()):
+	def set_thread_count(self, n = util.get_thread_count()):
 		self.max_jobs = n
 
 	def build_element_factory(self, filename):
@@ -414,46 +395,48 @@ class BuildOrder:
 			self.filedict[key] = [buildelement]
 
 
-	def fill(self, conf):
+	def fill(self, confinfo, variables):
 		'''
 		fill this BuildOrder with contents for later processing
 
 		attention: black magic is involved here.
 		'''
 
-
-		#---------------------
-		#0. step: create source-for-target configurations
-		#TODO: merge target and source configuration -> source-for-target
-		# and save it as variables[targetname + "-" + sourcename]
-		# for all file properties, use .get(target + "-" + source) to access properties
-		#TODO: respect prebuild/postbuild
-
-		for source in conf["filelist"].get():
-			for target in conf["usedby"].get(source):
+		#move the file 'usedby' target definitions
+		#into the target, so it 'uses' the source
+		for source in variables["filelist"].get():
+			for target in variables["usedby"].get(source):
+				#TODO: we should not modify variables...
 				#Add source filename to config(target).use:
-				target_use = conf["use"].get(target)
+				target_use = variables["use"].get(target)
 				target_use.add(source)
-				conf["use"].addv(target_use)
+				variables["use"].addv(target_use)
 
 				#TODO: Add libs to config(target).libs ?
 
-		#create source-for-target configurations
-		for target in conf["build"].get():
-			for source in conf["use"].get(target):
-				#clone target configuration to ^/foo/bar.target-^/foo/asdf.cpp
-				#apply changes from ^/foo/asdf.cpp to the new configuration
-				pass
 
+		#---------------------
+		#0. step: create source-for-target configurations
+		#TODO: create new Config object, with parents=[target,source]
+		# and save it as confinfo[targetname + "-" + sourcename] = Config(...)
+		# later, use .get(target + "-" + source) to access properties, the get method will do the hyperresolution
+
+		#create source-for-target configurations
+		for target in variables["build"].get():
+			for source in variables["use"].get(target):
+				targetconf = confinfo[target]
+				sourceconf = confinfo[source]
+				newconf = conf.Config(parents=[targetconf,sourceconf], directory=sourceconf.directory, kind=conf.Config.SRCFORTARGET)
+				confinfo[target + '-' + source] = newconf
 
 		#---------------------
 		#1. step: find all wanted dependencies and create buildelements
 
 
-		for target in conf["build"].get():
+		for target in variables["build"].get():
 			order_target = BuildTarget(target)
 
-			for source in conf["use"].get(target):
+			for source in variables["use"].get(target):
 
 				#TODO: source may not be a source, but a ^/library.so.target
 				#this happens when a target depends on another target
@@ -464,11 +447,11 @@ class BuildOrder:
 				else:
 					order_file = SourceFile(source)
 
-				crun = conf["c"].get(source)		#compiler
-				crun += " " + conf["cflags"].get(source)	#compiler flags
+				crun = variables["c"].get(source)		#compiler
+				crun += " " + variables["cflags"].get(source)	#compiler flags
 
 				# encode the compiler flags etc
-				objdir = conf["objdir"].get(source)
+				objdir = variables["objdir"].get(source)
 
 				#the encoded name: #TODO: maybe also encode the '/' in rsource
 				encname = order_file.inname + "-" + generate_oname(crun)
@@ -482,12 +465,12 @@ class BuildOrder:
 				crun += " -o " + oname
 
 				# add wanted (by config) dependency files (as smpath)
-				file_depends = conf["depends"].get(source)
+				file_depends = variables["depends"].get(source)
 				#TODO: create object containers accordingly
 				order_file.depends_wanted.union(file_depends)
 
 				#add sourcefile path itself to depends
-				ad = conf["autodepends"].get(source)
+				ad = variables["autodepends"].get(source)
 
 				if ad == "MD" or len(ad) == 0: # gcc MD enabled
 					mdfile = encpathname + ".d"
@@ -514,16 +497,16 @@ class BuildOrder:
 					#let's not ignore an unknown autodetection mode bwahaha
 					raise Exception(source + ": unknow autodetection mode: " + ad)
 
-				order_file.loglevel = conf["loglevel"].get(source)
+				order_file.loglevel = variables["loglevel"].get(source)
 				order_file.crun = crun
 				order_file.encname = encname
 				order_file.outname = oname
 
-				s_prb = conf["prebuild"].get(source)
+				s_prb = variables["prebuild"].get(source)
 				if len(s_prb) > 0:
 					order_file.prebuild = s_prb
 
-				s_pob = conf["postbuild"].get(source)
+				s_pob = variables["postbuild"].get(source)
 				if len(s_pob) > 0:
 					order_file.postbuild = s_pob
 
@@ -533,21 +516,21 @@ class BuildOrder:
 				order_target.depends_wanted.add(oname)
 
 			# <- for each target level
-			order_target.loglevel = conf["loglevel"].get(target)
-			ctrun = conf["c"].get(target)		#compiler for TARGET
-			ctrun += " " + conf["cflags"].get(target)	#compiler flags
-			ctrun += " " + conf["ldflags"].get(target)	#link flags
+			order_target.loglevel = variables["loglevel"].get(target)
+			ctrun = variables["c"].get(target)		#compiler for TARGET
+			ctrun += " " + variables["cflags"].get(target)	#compiler flags
+			ctrun += " " + variables["ldflags"].get(target)	#link flags
 			ctrun += " -o " + relpath(target)		#target output name
 
-			t_prb = conf["prebuild"].get(target)
+			t_prb = variables["prebuild"].get(target)
 			if len(s_prb) > 0:
 				order_target.prebuild = t_prb
 
-			t_pob = conf["postbuild"].get(target)
+			t_pob = variables["postbuild"].get(target)
 			if len(t_pob) > 0:
 				order_target.postbuild = t_pob
 
-			target_depends = conf["depends"].get(target)
+			target_depends = variables["depends"].get(target)
 			order_target.depends_wanted.union(target_depends)
 
 			#append all object files for linkage
@@ -1023,7 +1006,7 @@ def clean_dfile_line(line):
 def main():
 	print("fak u dolan")
 	order = BuildOrder()
-	order.fill(variables)
+	order.fill(confinfo, variables)
 	print("\n")
 	pprint.pprint(order.filedict)
 	print("\n")
