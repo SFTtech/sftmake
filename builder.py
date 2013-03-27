@@ -133,7 +133,7 @@ default                 ^
 
 confinfo[src] = Config(parents = [src-folder], directory = src-folder-stuff, kind = Config.SRC)
 #variable befuellen
-variables["c"].addval([Val("g++", None, Val.MODE_APPEND)], "^/hitler/nsdap.cpp")
+variables["c"].addval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 """
 
 
@@ -452,6 +452,8 @@ class BuildOrder:
 
 			for source in variables["use"].get(target):
 
+				st = target + "-" + source
+
 				#TODO: source may not be a source, but a ^/library.so.target
 				#this happens when a target depends on another target
 				if source.endswith(".target"):
@@ -461,11 +463,11 @@ class BuildOrder:
 				else:
 					order_file = SourceFile(source)
 
-				crun = variables["c"].get(source)		#compiler
-				crun += " " + variables["cflags"].get(source)	#compiler flags
+				crun = variables["c"].get(st)		#compiler
+				crun += " " + variables["cflags"].get(st)	#compiler flags
 
 				# encode the compiler flags etc
-				objdir = variables["objdir"].get(source)
+				objdir = variables["objdir"].get(st)
 
 				#the encoded name: #TODO: maybe also encode the '/' in rsource
 				encname = order_file.inname + "-" + generate_oname(crun)
@@ -479,12 +481,12 @@ class BuildOrder:
 				crun += " -o " + oname
 
 				# add wanted (by config) dependency files (as smpath)
-				file_depends = variables["depends"].get(source)
+				file_depends = variables["depends"].get(st)
 				#TODO: create object containers accordingly
 				order_file.depends_wanted.union(file_depends)
 
 				#add sourcefile path itself to depends
-				ad = variables["autodepends"].get(source)
+				ad = variables["autodepends"].get(st)
 
 				if ad == "MD" or len(ad) == 0: # gcc MD enabled
 					mdfile = encpathname + ".d"
@@ -511,16 +513,16 @@ class BuildOrder:
 					#let's not ignore an unknown autodetection mode bwahaha
 					raise Exception(source + ": unknow autodetection mode: " + ad)
 
-				order_file.loglevel = variables["loglevel"].get(source)
+				order_file.loglevel = variables["loglevel"].get(st)
 				order_file.crun = crun
 				order_file.encname = encname
 				order_file.outname = oname
 
-				s_prb = variables["prebuild"].get(source)
+				s_prb = variables["prebuild"].get(st)
 				if len(s_prb) > 0:
 					order_file.prebuild = s_prb
 
-				s_pob = variables["postbuild"].get(source)
+				s_pob = variables["postbuild"].get(st)
 				if len(s_pob) > 0:
 					order_file.postbuild = s_pob
 
@@ -561,7 +563,7 @@ class BuildOrder:
 		#----------------------
 		#2. step: reuse wanted dependencies to add buildelements to the correct hierarchy etc
 
-		#TODO: this method does not respect all aspects of BuildElement.equals
+		#TODO: this method does not respect all tests of BuildElement.equals
 		#e.g. it wil be a giant pile of crap with different pre/postbuilds
 
 		for order_target in self.targets:
@@ -1020,6 +1022,9 @@ def clean_dfile_line(line):
 def main():
 	print("fak u dolan")
 	order = BuildOrder()
+
+	#confinfo and variables are fucking global
+	#but now we catch those fuckers and never use them as global again..
 	order.fill(confinfo, variables)
 	print("\n")
 	pprint.pprint(order.filedict)
