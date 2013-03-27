@@ -30,7 +30,14 @@ class TokenizerEscapeEndOfLineException(TokenizerEscapeSequenceException):
 #TODO add testcases for all of these exceptions
 
 def tokenize_line(line):
+	#TODO use the new Enum stuff from util
+	
 	def tokenize_characters(line):
+		"""
+		tokenize (assign a type to) all characters of the input line
+		resolve all \-escapes
+		the returned type is a single char
+		"""
 		SPECIALCHARS = "!=<>()[]{}$'\"|&,;:~+-"
 		ESCAPE_ALLOWEDCHARS = SPECIALCHARS + "\\ "
 
@@ -77,50 +84,61 @@ def tokenize_line(line):
 				yield ('o', (c, i)) #o == OTHER
 			i += 1
 	
-	tokens = []
+	def condense_tokens(tokens):
+		"""
+		condense multiple chars of the same type to single tokens,
+		to simplify the grammar, and make it LR(1)-parsable
+		"""
 
-	current_name = ""
-	current_text = ""
-	current_pos = -1
+		current_name = ""
+		current_text = ""
+		current_pos = -1
 
-	#condense multiple chars of the same type to single tokens, to make the grammar simpler, and LR(1)-parsable
-	for (name, (char, pos)) in tokenize_characters(line):
-		if current_name == "WHITESPACE" and name == "w":
-			#we've read an other whitespace, append
-			current_text += char
-		elif current_name == "IDENTIFIER" and name in "ad":
-			#we've read an other alphanumeric character
-			current_text += char
-		elif current_name == "IDENTIFIER" and name == "o":
-			#degrade token to 'literal', since it contains non-alphanum characters
-			current_name = "LITERAL"
-			current_text += char
-		elif current_name == "LITERAL" and name in "ado":
-			#we've read an other literal character
-			current_text += char
-		else:
-			#we've read a non-matching follow-on token. write away the current token
-
-			#if we're at the (empty) start token, don't write it to the list
-			if current_name != "":
-				tokens.append((current_name, (current_text, current_pos)))
-
-			#initialize new current token
-			current_name = str(name)
-			current_text = str(char)
-			current_pos = pos
-
-			#literal characters get a special treatment
-			if current_name == "a":
-				current_name = "IDENTIFIER"
-			elif current_name == "w":
-				current_name = "WHITESPACE"
-			elif current_name in "do":
+		for (name, (char, pos)) in tokens:
+			if current_name == "WHITESPACE" and name == "w":
+				#we've read an other whitespace, append
+				current_text += char
+			elif current_name == "IDENTIFIER" and name in "ad":
+				#we've read an other alphanumeric character
+				current_text += char
+			elif current_name == "IDENTIFIER" and name == "o":
+				#degrade token to 'literal', since it contains non-alphanum characters
 				current_name = "LITERAL"
+				current_text += char
+			elif current_name == "LITERAL" and name in "ado":
+				#we've read an other literal character
+				current_text += char
+			else:
+				#we've read a non-matching follow-on token. write away the current token
 
-	if current_name != "":
-		tokens.append((current_name, (current_text, current_pos)))
-	
+				#if we're at the (empty) start token, don't write it to the list
+				if current_name != "":
+					yield current_name, current_text, current_pos
+
+				#initialize new current token
+				current_name = str(name)
+				current_text = str(char)
+				current_pos = pos
+
+				#literal characters get a special treatment
+				if current_name == "a":
+					current_name = "IDENTIFIER"
+				elif current_name == "w":
+					current_name = "WHITESPACE"
+				elif current_name in "do":
+					current_name = "LITERAL"
+		
+		if current_name != "":
+			yield current_name, current_text, current_pos
+
+	tokens = []
+	for name, text, pos in condense_tokens(tokenize_characters(line)):
+		if name == "IDENTIFIER" and text in ["single", "multi"]:
+			name = "VARQUANT"
+		if name == "IDENTIFIER" and text in ["string", "path", "int"]:
+			name = "VARTYPE"
+		tokens.append((name, (text, pos)))
+
 	return tokens
 
 class ConditionNode:

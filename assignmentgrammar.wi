@@ -1,6 +1,11 @@
-assignments: assignment (':' assignment)* EOF | EOF;
+statement: WHITESPACE? (declaration | assignment);
 
-assignment: WHITESPACE? (assignmentvarwithop ',' | assignmentvarwithoutop ',')* assignmentvarwithop valuelist;
+declaration: quantifier WHITESPACE type WHITESPACE identifier WHITESPACE? (',' WHITESPACE? identifier WHITESPACE?)*;
+
+quantifier: VARQUANT;
+type: VARTYPE;
+
+assignment: (assignmentvarwithop ',' | assignmentvarwithoutop ',')* assignmentvarwithop valuelist;
 assignmentvarwithop: identifier WHITESPACE? condition? assignmentop;
 assignmentvarwithoutop: identifier WHITESPACE? condition?;
 
@@ -25,7 +30,7 @@ value:            (literal |                                     funcall | varca
 doublequoted: '"' (literal | WHITESPACE | doublequoted_escaped | funcall | varcall)* '"';
 singlequoted: "'" (literal | WHITESPACE | singlequoted_escaped)* "'";
 
-literal: IDENTIFIER | LITERAL;
+literal: IDENTIFIER | LITERAL | VARTYPE | VARQUANT;
 funcall: '$' '(' WHITESPACE? value (WHITESPACE value)* WHITESPACE? ')';
 varcall: ('$' identifier) | ('$' '{' value '}');
 

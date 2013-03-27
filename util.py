@@ -1,7 +1,14 @@
 #!/usr/bin/python3
 import os
 
-class orderedset:
+class EnumVal:
+	def __init__(self, representation):
+		self.representation = representation
+	
+	def __repr__(self):
+		return repr(self.representation)
+
+class OrderedSet:
 	""" wrapper around OrderedDict because fak u python
 
 	we just need OrderedSet functionality, so we set val = None for all keys. dirty, nah?"""
@@ -43,16 +50,6 @@ class orderedset:
 	def __iter__(self):
 		return self.storage.__iter__()
 
-def findsmroot():
-	path = os.path.abspath('.')
-	while(not os.path.isfile(path + "/smfile")):
-		if(path == "/"):
-			raise Exception("No smfile found")
-		else:
-			path = os.path.abspath(path + '/..')
-	return path
-
-smroot = findsmroot()
 
 #functions for path conversions
 
@@ -114,6 +111,18 @@ def smpath(path, relto = '^'):
 		return '^'
 	else:
 		return '^/' + path
+
+#convert path to sftmke path if it is relative
+def smpathifrel(path, relto = '^'):
+	#if the path is empty, fak u
+	if not path:
+		raise Exception("Path must not be empty")
+
+	elif path[0] == '/':
+		return path
+
+	else:
+		return smpath(path, relto)
 
 #TODO Decide on an encoding. It can be made arbitrarily complicated.
 def generate_oname(obj_desc):
