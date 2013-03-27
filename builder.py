@@ -22,6 +22,9 @@ import subprocess
 import threading
 import time
 
+import util
+import conf
+
 
 class vartest:
 	def __init__(self, arg):
@@ -49,30 +52,16 @@ class vartestadv:
 		self.l[key] = val
 
 	def pushv(self, key, val):
-		if self.l[key] == None:
-			self.l[key] = []
-		self.l[key].append(val)
+		if key in self.l:
+			self.l[key].append(val)
+		else:
+			self.l[key] = [val]
 
 	def __repr__(self):
 		return "vartestadvanced:\t" + pprint.pformat(self.l, width=300)
 
-try:
-	smpath("/tmp/a")
-except NameError:
-	from util import smpath
-#	print("redefining smpath() as stub")
-#	def smpath(path):
-#		'''stub for testing'''
-#		return path
-
-try:
-	relpath("^/a")
-except NameError:
-	from util import relpath
-#	print("redefining relpath() as stub")
-#	def relpath(path):
-#		'''stub for testing'''
-#		return path
+if not "assembled" in globals():
+	from util import smpath,relpath
 
 try:
 	generate_oname("gschicht")
@@ -85,10 +74,10 @@ except NameError:
 
 
 #test purpose only
-variables = {}
+variables = dict()
 variables["c"] = vartest("gcc")
-variables["build"] = vartest(["^/lolbinary", "^/liblol.so"])
-variables["filelist"] = vartest(['^/main.c', '^/both.c', '^/library0.c', '^/library1.c'])
+variables["build"] = vartest({"^/lolbinary", "^/liblol.so"})
+variables["filelist"] = vartest({'^/main.c', '^/both.c', '^/library0.c', '^/library1.c'})
 variables["cflags"] = vartest("-O1 -march=native")
 variables["ldflags"] = vartest("-L. -llol")
 variables["objdir"] = vartest("^/.objdir")
@@ -96,18 +85,18 @@ variables["objdir"] = vartest("^/.objdir")
 variables["use"] = vartestadv()
 variables["usedby"] = vartestadv()
 variables["depends"] = vartestadv()
-variables["depends"].addv("^/main.c", [])
-variables["depends"].addv("^/both.c", [])
-variables["depends"].addv("^/library0.c", [])
-variables["depends"].addv("^/library1.c", [])
-variables["depends"].addv("^/lolbinary", ["^/liblol.so"])
-variables["depends"].addv("^/liblol.so", [])
-variables["use"].addv("^/lolbinary", ['^/both.c', '^/main.c'])
-variables["use"].addv("^/liblol.so", ['^/both.c', '^/library0.c', '^/library1.c'])
-variables["usedby"].addv("^/main.c", [])
-variables["usedby"].addv("^/both.c", [])
-variables["usedby"].addv("^/library0.c", [])
-variables["usedby"].addv("^/library1.c", [])
+variables["depends"].addv("^/main.c", set())
+variables["depends"].addv("^/both.c", set())
+variables["depends"].addv("^/library0.c", set())
+variables["depends"].addv("^/library1.c", set())
+variables["depends"].addv("^/lolbinary", {"^/liblol.so"})
+variables["depends"].addv("^/liblol.so", set())
+variables["use"].addv("^/lolbinary", {'^/both.c', '^/main.c'})
+variables["use"].addv("^/liblol.so", {'^/both.c', '^/library0.c', '^/library1.c'})
+variables["usedby"].addv("^/main.c", set())
+variables["usedby"].addv("^/both.c", set())
+variables["usedby"].addv("^/library0.c", set())
+variables["usedby"].addv("^/library1.c", set())
 
 variables["autodepends"] = vartest("MD")
 variables["prebuild"] = vartest("echo startin build")
@@ -118,6 +107,29 @@ print("var initialisation: \n")
 pprint.pprint(variables)
 print("\n\n\n")
 
+
+confinfo = {}
+
+"""
+'default' is the absolute root configuration, and consists of the internal defaults
+confinfo["default"] = Config(parents = [], directory = '^', kind = Config.BASE)
+
+#src-config erzeugen
+confinfo["^/folder/file.c"] = Config(parents = ["^/folder"], directory = "^/folder", kind = Config.SRC)
+#src-for-target-config erzeugen
+confinfo[src + "-" + target] = Config(parents = [src, target], directory = confinfo[src].directory, kind = Config.SRCFORTARGET)
+
+inheritance hierarchy of a src file:
+^/folder/file.c         ^/folder
+^/folder                ^/folder
+^                       ^
+args                    ^
+default                 ^
+
+confinfo[src] = Config(parents = [src-folder], directory = src-folder-stuff, kind = Config.SRC)
+#variable befuellen
+variables["c"].addval([Val("g++", None, Val.MODE_APPEND)], "^/hitler/nsdap.cpp")
+"""
 
 
 #TODO: when buildelements are used by multiple parents, detect that (e.g. header files) (respecting the differing variable values!)
@@ -136,7 +148,6 @@ print("\n\n\n")
 #TODO: add testing features and bisect support
 
 
-#output_lock = threading.Condition()
 
 def get_thread_count():
 	"""gets the number or hardware threads, or 1 if that can't be done"""
@@ -395,6 +406,13 @@ class BuildOrder:
 		self.filedict[sourcefile.encname] = sourcefile
 		return sourcefile, False
 
+	def filedict_add(self, buildelement):
+		key = buildelement.outname
+		if key in self.filedict:
+			self.filedict[key].append(buildelement)
+		else:
+			self.filedict[key] = [buildelement]
+
 
 	def fill(self, conf):
 		'''
@@ -413,10 +431,14 @@ class BuildOrder:
 
 		for source in conf["filelist"].get():
 			for target in conf["usedby"].get(source):
-				#Add source filename to config(target).use
-				#Add libs to config(target).libs
-				pass
+				#Add source filename to config(target).use:
+				target_use = conf["use"].get(target)
+				target_use.add(source)
+				conf["use"].addv(target_use)
 
+				#TODO: Add libs to config(target).libs ?
+
+		#create source-for-target configurations
 		for target in conf["build"].get():
 			for source in conf["use"].get(target):
 				#clone target configuration to ^/foo/bar.target-^/foo/asdf.cpp

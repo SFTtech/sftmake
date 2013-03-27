@@ -146,3 +146,13 @@ def generate_oname(obj_desc):
 	obj_desc = re.sub(r"/", "|", obj_desc)
 	# And_there_you_go::_A_weirdly:/interestingly-escaped_command.
 	return obj_desc
+
+def get_thread_count():
+	"""gets the number or hardware threads, or 1 if that can't be done"""
+
+	try:
+		return multiprocessing.cpu_count()
+	except NotImplementedError: # may happen under !POSIX
+		fallback = 1
+		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
+		return fallback;
