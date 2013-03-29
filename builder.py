@@ -11,7 +11,6 @@
 #
 #
 
-import base64
 import multiprocessing
 import os.path
 import pprint
@@ -44,8 +43,9 @@ class vartestadv:
 		self.l = init
 
 	def get(self, param):
+		print("getting [" + param + "]: ", end='')
 		ret = self.l[param]
-		print("getting [" + param + "]: " + str(ret))
+		print(str(ret))
 		return ret
 
 	def addv(self, key, val):
@@ -82,6 +82,13 @@ variables["depends"].addv("^/library0.c", set())
 variables["depends"].addv("^/library1.c", set())
 variables["depends"].addv("^/lolbinary", {"^/liblol.so"})
 variables["depends"].addv("^/liblol.so", set())
+
+variables["depends"].addv("^/liblol.so-^/both.c", set())
+variables["depends"].addv("^/liblol.so-^/library0.c", set())
+variables["depends"].addv("^/liblol.so-^/library1.c", set())
+variables["depends"].addv("^/lolbinary-^/main.c", set())
+variables["depends"].addv("^/lolbinary-^/both.c", set())
+
 variables["use"].addv("^/lolbinary", {'^/both.c', '^/main.c'})
 variables["use"].addv("^/liblol.so", {'^/both.c', '^/library0.c', '^/library1.c'})
 variables["usedby"].addv("^/main.c", set())
@@ -192,7 +199,7 @@ class BuildWorker:
 
 	def join(self):
 		self.thread.join()
-	
+
 	def __repr__(self):
 		return "[worker [" + str(self.num) + "]]"
 
@@ -285,7 +292,7 @@ class JobManager:
 
 			else: #we are out of jobs!
 				return None
-	
+
 	def nextjob_continue(self):
 		'''return true, if:
 		error occured
@@ -433,7 +440,8 @@ class BuildOrder:
 		#0. step: create source-for-target configurations
 		#TODO: create new Config object, with parents=[target,source]
 		# and save it as confinfo[targetname + "-" + sourcename] = Config(...)
-		# later, use .get(target + "-" + source) to access properties, the get method will do the hyperresolution
+		# later, use .get(target + "-" + source) to access properties,
+		# the get method will do the hyperresolution
 
 		#create source-for-target configurations
 		for target in variables["build"].get():
@@ -561,7 +569,8 @@ class BuildOrder:
 			self.targets.add(order_target)
 
 		#----------------------
-		#2. step: reuse wanted dependencies to add buildelements to the correct hierarchy etc
+		# 2. step: reuse wanted dependencies to add buildelements
+		# to the correct hierarchy etc
 
 		#TODO: this method does not respect all tests of BuildElement.equals
 		#e.g. it wil be a giant pile of crap with different pre/postbuilds
@@ -569,7 +578,7 @@ class BuildOrder:
 		for order_target in self.targets:
 
 			for target_dependency in order_target.depends_wanted:
-				#search the dependency and if exists, add it to 
+				#search the dependency and if exists, add it to the target file
 
 				try:
 					final_dependency = self.filedict[target_dependency]
