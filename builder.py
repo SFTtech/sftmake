@@ -396,19 +396,41 @@ class BuildOrder:
 			self.filedict[rname] = newfile
 			return newfile, False
 
-	def find_reuse_source(self, sourcefile):
-		'''if not yet existng, a SourceFile is created and returned'''
+	def find_reuse_element(self, element):
+		'''
+		search for element duplicates
+		return the duplicate, if found
+		return the the original parameter element, if not found
+		'''
+		#strategy: find a candidate, then check whether the candidate equals
+		#if matches: return the reused and True.
 
-		encname = sourcefile.encname
+		encname = element.encname
 		if encname in self.filedict:
-			if sourcefile.equals(self.filedict[encname]):
-				print("reusing " + repr(sourcefile))
-				return self.filedict[encname], True
+			if element.equals(self.filedict[encname]):
+				print("reusing " + repr(element))
+				return (self.filedict[encname], True)
 
-		self.filedict[sourcefile.encname] = sourcefile
-		return sourcefile, False
+		#a new candidate is only stored, if it wasn't reused
+		self.filedict[encname] = element
+		return (element, False)
 
-	def filedict_add(self, buildelement):
+	def find_merge_element(self, element):
+		'''
+		search for element duplicates,
+		return the ready-to-insert element eliminating dups
+		'''
+
+		elem_reused, reused = self.find_reuse_element(element)
+		if reused:
+			#maybe something needs to be merged..
+			return elem_reused
+
+		else:
+			#maybe create some intelligent diff and inheritance
+			return element
+
+	def filedict_append(self, buildelement):
 		key = buildelement.outname
 		if key in self.filedict:
 			self.filedict[key].append(buildelement)
@@ -423,8 +445,10 @@ class BuildOrder:
 		attention: black magic is involved here.
 		'''
 
-		#move the file 'usedby' target definitions
-		#into the target, so it 'uses' the source
+		#---------------------
+		#0. step: resolve usedby-requirements
+		# move the file 'usedby' target definitions
+		# into the target, so it 'uses' the source
 		for source in variables["filelist"].get():
 			for target in variables["usedby"].get(source):
 				#TODO: we should not modify variables...
@@ -437,35 +461,38 @@ class BuildOrder:
 
 
 		#---------------------
-		#0. step: create source-for-target configurations
-		#TODO: create new Config object, with parents=[target,source]
+		#1. step: create source-for-target configurations
+		# create new Config object, with parents=[target,source]
 		# and save it as confinfo[targetname + "-" + sourcename] = Config(...)
 		# later, use .get(target + "-" + source) to access properties,
 		# the get method will do the hyperresolution
 
-		#create source-for-target configurations
 		for target in variables["build"].get():
 			for source in variables["use"].get(target):
 				targetconf = confinfo[target]
 				sourceconf = confinfo[source]
-				newconf = conf.Config(parents=[targetconf,sourceconf], directory=sourceconf.directory, kind=conf.Config.SRCFORTARGET)
+				newconf = conf.Config(parents=[targetconf,sourceconf], \
+									  directory=sourceconf.directory, \
+									  kind=conf.Config.SRCFORTARGET)
 				confinfo[target + '-' + source] = newconf
 
 		#---------------------
-		#1. step: find all wanted dependencies and create buildelements
-
+		#2. step: iterate through all dependencies and fill them
+		#create BuildElements and fill them with information
+		#supplied by the variables configuration
 
 		for target in variables["build"].get():
 			order_target = BuildTarget(target)
 
-			for source in variables["use"].get(target):
+			for element in variables["use"].get(target):
 
-				st = target + "-" + source
+				st = target + "-" + element
 
-				#TODO: source may not be a source, but a ^/library.so.target
+				#TODO: element may not be a source, but a ^/library.so.target
 				#this happens when a target depends on another target
-				if source.endswith(".target"):
-					order_target.depends_wanted.add(source)
+				#TODO: naming convention for this
+				if element.endswith(".target"):
+					order_target.depends_wanted.add(BuildTarget(element))
 					continue
 
 				else:
@@ -500,7 +527,8 @@ class BuildOrder:
 					mdfile = encpathname + ".d"
 
 					if os.path.isfile(mdfile):
-						#if .d file exists, add its contents as wanted dependencies
+						#if .d file exists:
+						# add its contents as wanted dependencies
 						for dep in parse_dfile(mdfile):
 							dependency_header = HeaderFile(dep)
 
@@ -508,18 +536,19 @@ class BuildOrder:
 							order_file.depends_wanted.add(out_tmp)
 							self.filedict[out_tmp] = dependency_header
 					else:
-						#if MD is enabled but not yet present, we NEED to rebuild.
+						#if MD is enabled but not yet present:
+						# we NEED to rebuild it
 						order_file.needs_build = True
+						print(mdfile + "will be generated")
 
-						#TODO: notification of first time .d generation?
-
+						#see man 1 gcc (search for -MD)
 					crun += " -MD"  # (re)generate c headers dependency file
 
 				elif ad == "no":
 					pass
 				else:
 					#let's not ignore an unknown autodetection mode bwahaha
-					raise Exception(source + ": unknow autodetection mode: " + ad)
+					raise Exception(element + ": unknow autodetection mode: " + ad)
 
 				order_file.loglevel = variables["loglevel"].get(st)
 				order_file.crun = crun
@@ -534,12 +563,9 @@ class BuildOrder:
 				if len(s_pob) > 0:
 					order_file.postbuild = s_pob
 
-				#TODO: pre/postbuild is not respected by that!
-				#if encname already exists, we just overwrite it, good:
-				self.filedict[oname] = order_file
-				order_target.depends_wanted.add(oname)
+				order_target.depends_wanted.add(order_file)
 
-			# <- for each target level
+			# <- for each target loop
 			order_target.loglevel = variables["loglevel"].get(target)
 			ctrun = variables["c"].get(target)		#compiler for TARGET
 			ctrun += " " + variables["cflags"].get(target)	#compiler flags
@@ -560,16 +586,18 @@ class BuildOrder:
 			#append all object files for linkage
 			#TODO: rewrite and relocate to somewhere else!
 			for ofile in order_target.depends_wanted:
-				ctrun += " " + relpath(ofile) #ofile.outname
+				ctrun += " " + relpath(ofile.outname)
 
 			order_target.crun = ctrun
 
-			#include current target to the build order
+			#if another target depends on this one, we need that:
 			self.filedict[order_target.outname] = order_target
+
+			#include current target to the build order:
 			self.targets.add(order_target)
 
 		#----------------------
-		# 2. step: reuse wanted dependencies to add buildelements
+		# 3. step: reuse wanted dependencies to add buildelements
 		# to the correct hierarchy etc
 
 		#TODO: this method does not respect all tests of BuildElement.equals
@@ -580,17 +608,12 @@ class BuildOrder:
 			for target_dependency in order_target.depends_wanted:
 				#search the dependency and if exists, add it to the target file
 
-				try:
-					final_dependency = self.filedict[target_dependency]
-				except KeyError:
-					raise Exception("dependency " + target_dependency + " not found.")
-
-				for sd in final_dependency.depends_wanted:
-					sfinal_dep = self.filedict[sd]
-					final_dependency.add_dependency(sfinal_dep)
-
-
-				order_target.add_dependency(final_dependency)
+				if type(target_dependency) == BuildTarget:
+					final_t_dep = self.find_merge_element(target_dependency)
+					order_target
+				else: #sourcefile
+					final_dep = self.find_merge_element(target_dependency)
+					order_target.add_dependency(final_dep)
 
 
 			#TODO: a target can be dependent on e.g. a library.
@@ -644,7 +667,7 @@ class BuildElement:
 
 	def __init__(self, name):
 		self.depends = set()
-		self.depends_wanted = set()	# wanted dependencies as smpaths
+		self.depends_wanted = set()
 		self.depends_finished = set()
 		self.name = smpath(name)
 		self.inname = relpath(name)
@@ -653,13 +676,16 @@ class BuildElement:
 		self.crun = ""
 		self.prebuild = ""
 		self.postbuild = ""
-		self.needs_build = False	# does this file need to be rebuilt
+		# does this file need to be rebuilt:
+		self.needs_build = False
 		self.ready = False
-		self.parents = set()	# the parent BuildElement may be notified of stuff
+		# the parent BuildElements, which are blocked by this one:
+		self.blocks = set()
 		self.worker = None
 		self.loglevel = 2	# standard value?
 		self.exitstate = 0
 		self.finished = False
+		self.realfile = False
 		#TODO: store file mtime
 
 	def run(self):
@@ -703,14 +729,14 @@ class BuildElement:
 	def finish(self, manager=None):
 		'''
 		upon a successful run, set finished to True
-		notify parents that this dependency is ready
+		notify parents (blocks) that this dependency is ready
 		'''
 
 		self.finished = True
 
 		domgr = not (manager == None)
 
-		for parent in self.parents:
+		for parent in self.blocks:
 			parent.depends.remove(self)
 
 			#TODO: suppress this via config
@@ -722,11 +748,12 @@ class BuildElement:
 				manager.pending_jobs.remove(parent)
 				manager.ready_jobs.add(parent)
 
-	def add_parent(self, newp):
-		self.parents.add(newp)
-
 	def add_dependency(self, newone):
-		'''adds a dependency to this compilation job'''
+		'''
+		a dependency to this compilation job
+		detects whether newone is a list or a single BuildElement
+		'''
+
 		if type(newone) == list:
 			for e in newone:
 				if not isinstance(newone, BuildElement):
@@ -741,22 +768,25 @@ class BuildElement:
 	def add_single_dependency(self, newone):
 		'''this element will be dependent on this new dependeny'''
 		print(repr(self) + " -> adding dependency " + repr(newone))
-		newone.add_parent(self)
+		newone.blocks.add(self)
 		self.depends.add(newone)
 
-
-	def move_parent(self, old, new):
+	def move_blocked(self, old, new):
 		'''renames (moves) a parent'''
-		if not isinstance(old, BuildElement) or not isinstance(new, BuildElement):
-			raise Exception("only BuildElements can be used to move parents")
+		if not isinstance(old, BuildElement) \
+		or not isinstance(new, BuildElement):
+			raise Exception("only BuildElements can be used to move blocked parents")
 
 		for dependency in self.depends:
-			if old in dependency.parents:
-				dependency.parents.remove(old)
-				dependency.parents.add(new)
+			if old in dependency.blocks:
+				dependency.blocks.remove(old)
+				dependency.blocks.add(new)
 
-	def check_needs_build(self): #can/should be overridden if appropriate (e.g. header file)
-		'''set self.needs_build to the correct value'''
+	def check_needs_build(self):
+		'''
+		set self.needs_build to the correct value
+		should be overridden if appropriate (e.g. header file)
+		'''
 
 		if os.path.isfile(self.outname):
 			if os.path.getmtime(self.outname) < os.path.getmtime(self.inname):
@@ -795,7 +825,7 @@ class BuildElement:
 		return self.ready
 
 	def text(self, depth=0):
-		'''inname, outname, ready, encname, parents'''
+		'''inname, outname, ready, encname, blocks'''
 		space = ''.join(['\t' for i in range(depth)])
 		out = space + "++++ " + str(type(self)) + " " + str(id(self)) + "\n"
 
@@ -944,8 +974,9 @@ class BuildTarget(BuildElement):
 	def __init__(self, tname):
 		BuildElement.__init__(self, tname)
 		self.name = tname
-		self.outname = relpath(tname) #TODO: respect suffix variables
-		self.inname = "" #self.outname
+		self.outname = relpath(tname) #TODO: respect suffix variables (.target)
+		self.encname = generate_oname(self.outname)
+		self.inname = None #target's inname cannot be used
 
 	def run(self):
 		'''this method compiles a single target.'''
