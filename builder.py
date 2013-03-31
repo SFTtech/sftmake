@@ -56,7 +56,6 @@ class vartestadv:
 			self.l[key].append(val)
 		else:
 			self.l[key] = [val]
-
 	def __repr__(self):
 		return "vartestadvanced:\t" + pprint.pformat(self.l, width=300)
 
@@ -158,6 +157,8 @@ variables["c"].addval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 #TODO: add more shell commands, e.g. all dependencies ready
 
 #TODO: add testing features and bisect support
+
+#TODO: replace all prints with log functions and loglevel
 
 
 
@@ -407,12 +408,13 @@ class BuildOrder:
 
 		encname = element.encname
 		if encname in self.filedict:
-			if element.equals(self.filedict[encname]):
-				print("reusing " + repr(element))
-				return (self.filedict[encname], True)
+			for candidate in self.filedict[encname]:
+				if element.equals(candidate):
+					print("reusing " + repr(element))
+					return (candidate, True)
 
 		#a new candidate is only stored, if it wasn't reused
-		self.filedict[encname] = element
+		self.filedict_append(encname, element)
 		return (element, False)
 
 	def find_merge_element(self, element):
@@ -430,8 +432,11 @@ class BuildOrder:
 			#maybe create some intelligent diff and inheritance
 			return element
 
-	def filedict_append(self, buildelement):
-		key = buildelement.outname
+	def filedict_append(self, key, buildelement):
+		'''
+		"bucket-hashing" for reusable candidates
+		'''
+
 		if key in self.filedict:
 			self.filedict[key].append(buildelement)
 		else:
@@ -488,15 +493,8 @@ class BuildOrder:
 
 				st = target + "-" + element
 
-				#TODO: element may not be a source, but a ^/library.so.target
-				#this happens when a target depends on another target
-				#TODO: naming convention for this
-				if element.endswith(".target"):
-					order_target.depends_wanted.add(BuildTarget(element))
-					continue
-
-				else:
-					order_file = SourceFile(source)
+				#this object will now be filled with information
+				order_file = SourceFile(source)
 
 				crun = variables["c"].get(st)		#compiler
 				crun += " " + variables["cflags"].get(st)	#compiler flags
@@ -580,18 +578,26 @@ class BuildOrder:
 			if len(t_pob) > 0:
 				order_target.postbuild = t_pob
 
+			#a target can only depend on another target.
 			target_depends = variables["depends"].get(target)
-			order_target.depends_wanted.union(target_depends)
+			for d in target_depends:
+				d_obj = BuildTarget(d)
+				order_target.depends_wanted.add(d_obj)
 
 			#append all object files for linkage
 			#TODO: rewrite and relocate to somewhere else!
 			for ofile in order_target.depends_wanted:
-				ctrun += " " + relpath(ofile.outname)
+				#add all outnames of all dependency sourcefiles
+				#to the compiler cmd line
+				if type(ofile) == SourceFile:
+					ctrun += " " + relpath(ofile.outname)
+				else:
+					continue
 
 			order_target.crun = ctrun
 
 			#if another target depends on this one, we need that:
-			self.filedict[order_target.outname] = order_target
+			self.filedict_append(order_target.outname, order_target)
 
 			#include current target to the build order:
 			self.targets.add(order_target)
@@ -600,20 +606,10 @@ class BuildOrder:
 		# 3. step: reuse wanted dependencies to add buildelements
 		# to the correct hierarchy etc
 
-		#TODO: this method does not respect all tests of BuildElement.equals
-		#e.g. it wil be a giant pile of crap with different pre/postbuilds
-
-		for order_target in self.targets:
-
-			for target_dependency in order_target.depends_wanted:
-				#search the dependency and if exists, add it to the target file
-
-				if type(target_dependency) == BuildTarget:
-					final_t_dep = self.find_merge_element(target_dependency)
-					order_target
-				else: #sourcefile
-					final_dep = self.find_merge_element(target_dependency)
-					order_target.add_dependency(final_dep)
+		for target in self.targets:
+			for wanted_dependency in target.depends_wanted:
+				final_dep = self.find_merge_element(wanted_dependency)
+				target.add_dependency(final_dep)
 
 
 			#TODO: a target can be dependent on e.g. a library.
@@ -676,7 +672,6 @@ class BuildElement:
 		self.crun = ""
 		self.prebuild = ""
 		self.postbuild = ""
-		# does this file need to be rebuilt:
 		self.needs_build = False
 		self.ready = False
 		# the parent BuildElements, which are blocked by this one:
@@ -686,12 +681,13 @@ class BuildElement:
 		self.exitstate = 0
 		self.finished = False
 		self.realfile = False
-		#TODO: store file mtime
+		#TODO: store file mtime (really?)
 
 	def run(self):
 		raise NotImplementedError("Implement this shit for a working compilation...")
 
 	def equals(self, other):
+		#TODO: print, what test failed
 		print(repr(self) + " equal test")
 
 		if id(self) == id(other):
@@ -709,10 +705,7 @@ class BuildElement:
 		if not self.postbuild == other.postbuild:
 			return False
 
-		if not len(self.depends) == len(other.depends):
-			return False
-
-		if not self.depends == other.depends:
+		if not self.loglevel == other.loglevel:
 			return False
 
 		print(repr(self) + '(' + str(id(self)) + ')' + " is equal to " + repr(other) + '(' + str(id(other)) + ')')
@@ -974,9 +967,32 @@ class BuildTarget(BuildElement):
 	def __init__(self, tname):
 		BuildElement.__init__(self, tname)
 		self.name = tname
-		self.outname = relpath(tname) #TODO: respect suffix variables (.target)
+		self.outname = relpath(tname)
 		self.encname = generate_oname(self.outname)
-		self.inname = None #target's inname cannot be used
+		self.inname = None #target's inname must not be used
+
+	def equals(self, other):
+		if id(self) == id(other):
+			return True
+
+		if not type(self) == type(other):
+			return False
+
+		if not self.outname == other.outname:
+			return False
+
+		if not self.crun == other.crun:
+			return False
+
+		if not self.prebuild == other.prebuild:
+			return False
+
+		if not self.postbuild == other.postbuild:
+			return False
+
+		if not self.loglevel == other.loglevel:
+			return False
+
 
 	def run(self):
 		'''this method compiles a single target.'''
