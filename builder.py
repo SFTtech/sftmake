@@ -385,36 +385,29 @@ class BuildOrder:
 		else:
 			return SourceFile(filename)
 
-	def find_create_header(self, fname):
-		'''if not yet existing, this HeaderFile is created and returned'''
-		rname = relpath(fname)
-
-		if rname in self.filedict:
-			print("reusing " + fname)
-			return self.filedict[rname], True
-		else:
-			newfile = HeaderFile(fname)
-			self.filedict[rname] = newfile
-			return newfile, False
-
 	def find_reuse_element(self, element):
 		'''
 		search for element duplicates
 		return the duplicate, if found
 		return the the original parameter element, if not found
 		'''
-		#strategy: find a candidate, then check whether the candidate equals
+		#strategy: find a key and get it's candidates,
+		#then check whether one of these candidates .equals()
 		#if matches: return the reused and True.
 
-		encname = element.encname
-		if encname in self.filedict:
-			for candidate in self.filedict[encname]:
-				if element.equals(candidate):
+		#key to determine candidates, set it in filedict_append!!
+		key = element.outname
+		if key in self.filedict:
+			for candidate in self.filedict[key]:
+				if candidate.equals(element):
 					print("reusing " + repr(element))
 					return (candidate, True)
 
+		if type(element) == WantedDependency:
+			raise Exception("wanted dependency of (TODO) not found: " + repr(element))
+
 		#a new candidate is only stored, if it wasn't reused
-		self.filedict_append(encname, element)
+		self.filedict_append(element)
 		return (element, False)
 
 	def find_merge_element(self, element):
@@ -432,10 +425,13 @@ class BuildOrder:
 			#maybe create some intelligent diff and inheritance
 			return element
 
-	def filedict_append(self, key, buildelement):
+	def filedict_append(self, buildelement):
 		'''
 		"bucket-hashing" for reusable candidates
 		'''
+
+		#set this in find_reuse_element as well!!!
+		key = buildelement.outname
 
 		if key in self.filedict:
 			self.filedict[key].append(buildelement)
@@ -513,15 +509,17 @@ class BuildOrder:
 				crun += " -c " + order_file.inname
 				crun += " -o " + oname
 
-				# add wanted (by config) dependency files (as smpath)
+				# add wanted (by config) dependency files
 				file_depends = variables["depends"].get(st)
-				#TODO: create object containers accordingly
-				order_file.depends_wanted.union(file_depends)
+				for d in file_depends:
+					d_obj = WantedDependency(d)
+					order_file.depends_wanted.add(d_obj)
+					self.filedict_append(d_obj)
 
 				#add sourcefile path itself to depends
 				ad = variables["autodepends"].get(st)
 
-				if ad == "MD" or len(ad) == 0: # gcc MD enabled
+				if ad == "MD" or len(ad) == 0: # if gcc MD enabled
 					mdfile = encpathname + ".d"
 
 					if os.path.isfile(mdfile):
@@ -529,10 +527,9 @@ class BuildOrder:
 						# add its contents as wanted dependencies
 						for dep in parse_dfile(mdfile):
 							dependency_header = HeaderFile(dep)
+							order_file.depends_wanted.add(dependency_header)
+							self.filedict_append(dependency_header)
 
-							out_tmp = dependency_header.outname
-							order_file.depends_wanted.add(out_tmp)
-							self.filedict[out_tmp] = dependency_header
 					else:
 						#if MD is enabled but not yet present:
 						# we NEED to rebuild it
@@ -562,6 +559,7 @@ class BuildOrder:
 					order_file.postbuild = s_pob
 
 				order_target.depends_wanted.add(order_file)
+				self.filedict_append(order_file)
 
 			# <- for each target loop
 			order_target.loglevel = variables["loglevel"].get(target)
@@ -578,11 +576,12 @@ class BuildOrder:
 			if len(t_pob) > 0:
 				order_target.postbuild = t_pob
 
-			#a target can only depend on another target.
+			#create wanted dependencies for this target.
 			target_depends = variables["depends"].get(target)
 			for d in target_depends:
-				d_obj = BuildTarget(d)
+				d_obj = WantedDependency(d)
 				order_target.depends_wanted.add(d_obj)
+				self.filedict_append(d_obj)
 
 			#append all object files for linkage
 			#TODO: rewrite and relocate to somewhere else!
@@ -597,7 +596,7 @@ class BuildOrder:
 			order_target.crun = ctrun
 
 			#if another target depends on this one, we need that:
-			self.filedict_append(order_target.outname, order_target)
+			self.filedict_append(order_target)
 
 			#include current target to the build order:
 			self.targets.add(order_target)
@@ -606,16 +605,17 @@ class BuildOrder:
 		# 3. step: reuse wanted dependencies to add buildelements
 		# to the correct hierarchy etc
 
+		print("\ncurrent filedict:")
+		pprint.pprint(self.filedict)
+
+		print("\ninserting and reusing dependencies:")
 		for target in self.targets:
+			print("\t" + repr(target) + ":")
 			for wanted_dependency in target.depends_wanted:
+				print("\t\t" + repr(wanted_dependency) + " " + str(type(wanted_dependency)) + " wanted")
 				final_dep = self.find_merge_element(wanted_dependency)
+				print("\t\t\tusing " + str(id(final_dep)) + "(" + str(type(final_dep))  + ")")
 				target.add_dependency(final_dep)
-
-
-			#TODO: a target can be dependent on e.g. a library.
-			#for dep in target_depends:
-			#	d, _  = self.build_element_factory(dep)
-			#	order_target.add_dependency(d)
 
 		#<- direct function level here
 
@@ -688,15 +688,16 @@ class BuildElement:
 
 	def equals(self, other):
 		#TODO: print, what test failed
-		print(repr(self) + " equal test")
+		print(repr(self) + " equal test == " + repr(other))
 
 		if id(self) == id(other):
 			return True
 
 		if not type(other) == type(self):
+			print("type check failed")
 			return False
 
-		if not self.encname == other.encname:
+		if not self.outname == other.outname:
 			return False
 
 		if not self.prebuild == other.prebuild:
@@ -887,6 +888,28 @@ class BuildElement:
 		return self.text()
 
 
+class WantedDependency(BuildElement):
+	"""if a dependency is wanted, this type is used."""
+
+	def __init__(self, wname):
+		BuildElement.__init__(self, wname)
+		self.inname = None
+		self.outname = relpath(wname)
+
+	def equals(self, other):
+		'''used to use "other" as the wanted dependency'''
+
+		if not self.outname == other.outname:
+			return False
+
+		return True
+
+	def run(self):
+		raise Exception("WTF why is this placeholder even executed???")
+
+	def __repr__(self):
+		return self.outname
+
 
 class HeaderFile(BuildElement):
 	"""headerfile for a source file, never needs to be built"""
@@ -898,6 +921,18 @@ class HeaderFile(BuildElement):
 	def check_needs_build(self):
 		self.needs_build = False
 		return False
+
+	def equals(self, other):
+		if id(self) == id(other):
+			return True
+
+		if not type(self) == type(other):
+			return False
+
+		if not self.outname == other.outname:
+			return False
+
+		return True
 
 	def run(self):
 		return Exception("HeaderFiles should never be run. skip them.")
@@ -992,6 +1027,8 @@ class BuildTarget(BuildElement):
 
 		if not self.loglevel == other.loglevel:
 			return False
+
+		return True
 
 
 	def run(self):
