@@ -490,7 +490,7 @@ class BuildOrder:
 				st = target + "-" + element
 
 				#this object will now be filled with information
-				order_file = SourceFile(source)
+				order_file = SourceFile(element)
 
 				crun = variables["c"].get(st)		#compiler
 				crun += " " + variables["cflags"].get(st)	#compiler flags
@@ -908,7 +908,7 @@ class WantedDependency(BuildElement):
 		raise Exception("WTF why is this placeholder even executed???")
 
 	def __repr__(self):
-		return self.outname
+		return "W{" + self.outname + "}"
 
 
 class HeaderFile(BuildElement):
