@@ -112,7 +112,7 @@ variables["usedby"].setv("^/both.c", set())
 variables["usedby"].setv("^/library0.c", set())
 variables["usedby"].setv("^/library1.c", set())
 
-variables["autodepends"] = vartest("no") #vartest("MD")
+variables["autodepends"] = vartest("MD") #vartest("no")
 variables["prebuild"] = vartest("echo startin build")
 variables["postbuild"] = vartest("echo finished build")
 variables["loglevel"] = vartest("2")
@@ -176,6 +176,7 @@ variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 
 #TODO: maybe cache file mtimes
 
+#TODO: implement clean functionality (create order (without MD?), delete all outnames)
 
 
 class BuildWorker:
@@ -581,13 +582,13 @@ class BuildOrder:
 						#if .d file exists:
 						# add its contents as wanted dependencies
 						for dep in parse_dfile(mdfile):
-							dependency_header = HeaderFile(dep)
-							order_file.depends_wanted.add(dependency_header)
-							self.filedict_append(dependency_header)
+							dep_header = HeaderFile(dep)
+							final_header = self.find_merge_element(dep_header)
+							order_file.add_dependency(final_header)
 
 					else:
 						#if MD is enabled but not yet present:
-						# we NEED to rebuild it
+						# we NEED to rebuild this source
 						order_file.needs_build = True
 						print(mdfile + " will be generated")
 
@@ -846,15 +847,10 @@ class BuildElement:
 					if om < im:
 						self.needs_build = True
 						return True
-					else:
-						self.needs_build = False
+
 				else:
 					#inname does not exist
 					raise Exception("requested " + repr(self) + ".inname does not exist")
-					self.needs_build = False
-			else:
-				#inname == None
-				self.needs_build = False
 
 		else: # outname does not exist
 			self.needs_build = True
