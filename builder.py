@@ -193,7 +193,7 @@ class BuildWorker:
 	def run(self):
 		print("" + repr(self) + ": started")
 		while True:
-			self.job = self.manager.get_next()
+			self.job = self.manager.get_next(self)
 			if self.job == None:
 				#no more jobs available
 				#so the worker can die!
@@ -272,6 +272,7 @@ class JobManager:
 	def finished(self, job):
 		'''must be called when a job is done executing'''
 		with self.job_lock:
+			print("finished job " + repr(job))
 			if job.exitstate == 0:
 				self.running_jobs.remove(job)
 				self.finished_jobs.add(job)
@@ -282,10 +283,12 @@ class JobManager:
 				self.error = job.exitstate
 			self.job_lock.notify()
 
-	def get_next(self):
+	def get_next(self, worker):
 		try:
 			with self.job_lock:
+				print(repr(worker) + " getnext r"+str(len(self.running_jobs))+" k"+str(len(self.ready_jobs))+" p"+str(len(self.pending_jobs)))
 				if len(self.ready_jobs) > 0:
+					#jobs are ready to process
 
 					if self.error != 0:
 						return None
@@ -294,34 +297,55 @@ class JobManager:
 					self.running_jobs.add(newjob)
 					return newjob
 
-				#TODO: could cause errors, investigate pls
 				elif len(self.running_jobs) > 0 and len(self.pending_jobs) > 0:
 					#if no jobs are ready, then remaining(pending) jobs are unlocked by currently running jobs
-					#so the current worker has to wait here, until a job is ready, errors occur, or all jobs died.
+					#so the current worker has to wait here, until a job is ready, an errors occur, or all jobs died.
 
-					self._find_ready_jobs()
-					self.job_lock.wait_for(self.nextjob_continue())
+					#self._find_ready_jobs()
+					#print(repr(worker) + " next_beforewait r"+str(len(self.running_jobs))+" k"+str(len(self.ready_jobs))+" p"+str(len(self.pending_jobs)))
+
+					while not self.nextjob_continue(worker):
+						self.job_lock.wait()
+					#self.job_lock.wait_for(self.nextjob_continue)
+
+					#print(repr(worker) + " next_afterwait r"+str(len(self.running_jobs))+" k"+str(len(self.ready_jobs))+" p"+str(len(self.pending_jobs)))
 
 					if self.error != 0 or len(self.ready_jobs) == 0:
+						#the running jobs failed
+						#or did not unlock a pending job
+						self.job_lock.notify()
 						return None
 
 					newjob = self.ready_jobs.pop()
 					self.running_jobs.add(newjob)
 					return newjob
 
-				else: #we are out of jobs!
+				else:
+					#we are out of jobs!
+					self.job_lock.notify()
 					return None
 		except KeyboardInterrupt:
 			self.dump_jobtable()
 
-	def nextjob_continue(self):
-		'''return true, if:
+	def nextjob_continue(self, worker):
+		'''
+		can a waiting worker continue to fetch work or die?
+
+		return true, if:
 		error occured
 		out of jobs
 		no more jobs running
 		new job is ready
 		'''
-		return (self.error != 0 or self.running_jobs == 0 or len(self.ready_jobs) > 0 or len(self.pending_jobs) == 0)
+
+
+		result = False
+		result |= self.error != 0
+		result |= len(self.running_jobs) == 0
+		result |= len(self.ready_jobs) > 0
+		result |= len(self.pending_jobs) == 0
+		#print(repr(worker) + " check_continue r"+str(len(self.running_jobs))+" k"+str(len(self.ready_jobs))+" p"+str(len(self.pending_jobs))+ " -> " + str(result))
+		return result
 
 	def _find_ready_jobs(self):
 		'''find new jobs that are ready cause all their dependencies have been resolved'''
@@ -366,6 +390,11 @@ class JobManager:
 		if len(self.failed_jobs) > 0:
 			print("==========\nFAILED jobs:")
 			for job in self.failed_jobs:
+				print(repr(job))
+
+		if len(self.running_jobs) > 0:
+			print("++++++++++\njobs currently running:")
+			for job in self.running_jobs:
 				print(repr(job))
 
 		if len(self.ready_jobs) > 0:
@@ -1165,7 +1194,7 @@ def main():
 	pprint.pprint(order.filedict)
 	print("\n")
 
-	m = JobManager()
+	m = JobManager(4)
 	m.queue_order(order)
 
 	print(order.text())
