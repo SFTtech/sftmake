@@ -39,8 +39,8 @@ class vartest:
 			return "vartest:\t" + pprint.pformat(self.l)
 
 class vartestadv:
-	def __init__(self, name="", init=dict()):
-		self.l = init
+	def __init__(self, name=""):
+		self.l = dict()
 		self.n = name
 
 	def get(self, param):
@@ -49,8 +49,8 @@ class vartestadv:
 		print(str(ret))
 		return ret
 
-	def addv(self, key, val):
-		print("adding [" + key + "] @" + self.n + " = " + str(val))
+	def setv(self, key, val):
+		print("setting [" + key + "] @" + self.n + " = " + str(val))
 		self.l[key] = val
 
 	def pushv(self, key, val):
@@ -78,26 +78,26 @@ variables["objdir"] = vartest("^/.objdir")
 variables["use"] = vartestadv(name="use")
 variables["usedby"] = vartestadv(name="usedby")
 variables["depends"] = vartestadv(name="depends")
-print(str(id(variables["use"])) + " " + str(id(variables["usedby"])) + " " + str(id(variables["depends"])))
-variables["depends"].addv("^/main.c", {"^/both.c"})#set())
-variables["depends"].addv("^/both.c", set())
-variables["depends"].addv("^/library0.c", set())
-variables["depends"].addv("^/library1.c", set())
-variables["depends"].addv("^/lolbinary", {"^/liblol.so"})
-variables["depends"].addv("^/liblol.so", set())
 
-variables["depends"].addv("^/liblol.so-^/both.c", set())
-variables["depends"].addv("^/liblol.so-^/library0.c", set())
-variables["depends"].addv("^/liblol.so-^/library1.c", set())
-variables["depends"].addv("^/lolbinary-^/main.c", set())
-variables["depends"].addv("^/lolbinary-^/both.c", set())
+variables["depends"].setv("^/main.c", {"^/both.c"})#set())
+variables["depends"].setv("^/both.c", set())
+variables["depends"].setv("^/library0.c", set())
+variables["depends"].setv("^/library1.c", set())
+variables["depends"].setv("^/lolbinary", {"^/liblol.so"})
+variables["depends"].setv("^/liblol.so", set())
 
-variables["use"].addv("^/lolbinary", {'^/both.c', '^/main.c'})
-variables["use"].addv("^/liblol.so", {'^/both.c', '^/library0.c', '^/library1.c'})
-variables["usedby"].addv("^/main.c", set())
-variables["usedby"].addv("^/both.c", set())
-variables["usedby"].addv("^/library0.c", set())
-variables["usedby"].addv("^/library1.c", set())
+variables["depends"].setv("^/liblol.so-^/both.c", set())
+variables["depends"].setv("^/liblol.so-^/library0.c", set())
+variables["depends"].setv("^/liblol.so-^/library1.c", set())
+variables["depends"].setv("^/lolbinary-^/main.c", set())
+variables["depends"].setv("^/lolbinary-^/both.c", set())
+
+variables["use"].setv("^/lolbinary", {'^/both.c', '^/main.c'})
+variables["use"].setv("^/liblol.so", {'^/both.c', '^/library0.c', '^/library1.c'})
+variables["usedby"].setv("^/main.c", set())
+variables["usedby"].setv("^/both.c", set())
+variables["usedby"].setv("^/library0.c", set())
+variables["usedby"].setv("^/library1.c", set())
 
 variables["autodepends"] = vartest("MD")
 variables["prebuild"] = vartest("echo startin build")
@@ -143,7 +143,7 @@ default                 ^
 
 confinfo[src] = Config(parents = [src-folder], directory = src-folder-stuff, kind = Config.SRC)
 #variable befuellen
-variables["c"].addval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
+variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 """
 
 
@@ -460,7 +460,7 @@ class BuildOrder:
 #				#Add source filename to config(target).use:
 #				target_use = variables["use"].get(target)
 #				target_use.add(source)
-#				variables["use"].addv(target_use)
+#				variables["use"].setv(target_use)
 
 				#TODO: Add libs to config(target).libs ?
 
