@@ -197,6 +197,8 @@ class BuildWorker:
 			if self.job == None:
 				#no more jobs available
 				#so the worker can die!
+				with self.manager.job_lock:
+					self.manager.job_lock.notify()
 				break
 
 			print(repr(self) + ": fetched job ->\t" + repr(self.job))
@@ -313,7 +315,6 @@ class JobManager:
 					if self.error != 0 or len(self.ready_jobs) == 0:
 						#the running jobs failed
 						#or did not unlock a pending job
-						self.job_lock.notify()
 						return None
 
 					newjob = self.ready_jobs.pop()
@@ -322,7 +323,6 @@ class JobManager:
 
 				else:
 					#we are out of jobs!
-					self.job_lock.notify()
 					return None
 		except KeyboardInterrupt:
 			self.dump_jobtable()
