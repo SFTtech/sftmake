@@ -99,7 +99,7 @@ variables["usedby"].setv("^/both.c", set())
 variables["usedby"].setv("^/library0.c", set())
 variables["usedby"].setv("^/library1.c", set())
 
-variables["autodepends"] = vartest("MD")
+variables["autodepends"] = vartest("no") #vartest("MD")
 variables["prebuild"] = vartest("echo startin build")
 variables["postbuild"] = vartest("echo finished build")
 variables["loglevel"] = vartest("2")
@@ -544,7 +544,7 @@ class BuildOrder:
 						#if MD is enabled but not yet present:
 						# we NEED to rebuild it
 						order_file.needs_build = True
-						print(mdfile + "will be generated")
+						print(mdfile + " will be generated")
 
 						#see man 1 gcc (search for -MD)
 					crun += " -MD"  # (re)generate c headers dependency file
@@ -553,7 +553,7 @@ class BuildOrder:
 					pass
 				else:
 					#let's not ignore an unknown autodetection mode bwahaha
-					raise Exception(element + ": unknow autodetection mode: " + ad)
+					raise Exception(repr(element) + ": unknow autodetection mode: '" + ad + "'")
 
 				order_file.loglevel = variables["loglevel"].get(st)
 				order_file.crun = crun
@@ -947,7 +947,6 @@ class HeaderFile(BuildElement):
 
 	def run(self):
 		return Exception("HeaderFiles should never be run. skip them.")
-		#print("[" + self.worker.num + "]: " + repr(self))
 
 	def __repr__(self):
 		return self.inname
@@ -964,10 +963,17 @@ class SourceFile(BuildElement):
 
 		ret = 0
 
+		dirname = os.path.dirname(self.outname)
+		if not os.path.exists(dirname):
+			print("creating directory '" + dirname + "'")
+			os.mkdir(dirname)
+
+		#TODO: check if dir is writable
+
 		if self.prebuild:
 			print(repr(self.worker) + ": prebuild for " + repr(self) + " '" + self.prebuild + "'")
 			#TODO: redirect the output if we get a global logger
-			#ret = os.system(self.prebuild)
+			ret = os.system(self.prebuild)
 
 		if ret != 0:
 			failat = "prebuilding"
@@ -975,10 +981,9 @@ class SourceFile(BuildElement):
 			print(repr(self.worker) + ": == building -> " + repr(self))
 
 			## compiler is launched here
-			#TODO: correct invocation
 			print(repr(self.worker) + ": EXEC:: " + self.crun)
-			#ret = subprocess.call(shlex.split(self.crun), shell=False)
-			time.sleep(1)
+			#TODO: redirect output
+			ret = subprocess.call(shlex.split(self.crun), shell=False)
 
 			print(repr(self.worker) + ": == done building -> " + repr(self))
 
@@ -989,8 +994,8 @@ class SourceFile(BuildElement):
 		else:
 			if self.postbuild:
 				print(repr(self.worker) + ": postbuild for " + repr(self) + " '" + self.postbuild + "'")
-				#TODO: also redirecto output stream
-				#ret = os.system(self.postbuild)
+				#TODO: also redirect output stream
+				ret = os.system(self.postbuild)
 			if ret != 0:
 				failat = "postbuilding"
 
@@ -1049,7 +1054,7 @@ class BuildTarget(BuildElement):
 
 		if self.prebuild:
 			print("prebuild for " + repr(self) + " '" + self.prebuild + "'")
-			#ret = os.system(self.prebuild)
+			ret = os.system(self.prebuild)
 
 		if ret != 0:
 			failat = "prebuilding"
@@ -1057,10 +1062,8 @@ class BuildTarget(BuildElement):
 			print(repr(self.worker) + ": == linking -> " + repr(self))
 
 			## compiler is launched here
-			#TODO: correct invocation
 			print(repr(self.worker) + ": EXEC:: " + self.crun)
-			#ret = subprocess.call(shlex.split(self.crun), shell=False)
-			time.sleep(1)
+			ret = subprocess.call(shlex.split(self.crun), shell=False)
 
 			print(repr(self.worker) + ": == done linking -> " + repr(self))
 
@@ -1071,7 +1074,7 @@ class BuildTarget(BuildElement):
 		else:
 			if self.postbuild:
 				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
-				#ret = os.system(self.postbuild)
+				ret = os.system(self.postbuild)
 
 			if ret != 0:
 				failat = "postbuilding"
@@ -1139,11 +1142,11 @@ def main():
 
 	print(order.text())
 
-#	m.start()
-#	m.join()
+	m.start()
+	m.join()
 
 	#show status after the build
-#	print(order.text())
+	print(order.text())
 
 	#after all targets:
 	if m.get_error() == 0:
