@@ -39,25 +39,28 @@ class vartest:
 			return "vartest:\t" + pprint.pformat(self.l)
 
 class vartestadv:
-	def __init__(self, init=dict()):
+	def __init__(self, name="", init=dict()):
 		self.l = init
+		self.n = name
 
 	def get(self, param):
-		print("getting [" + param + "]: ", end='')
+		print("getting [" + param + "] @" + self.n + " = ", end='')
 		ret = self.l[param]
 		print(str(ret))
 		return ret
 
 	def addv(self, key, val):
+		print("adding [" + key + "] @" + self.n + " = " + str(val))
 		self.l[key] = val
 
 	def pushv(self, key, val):
+		print("pushing [" + key + "] @" + self.n + " = " + str(val))
 		if key in self.l:
 			self.l[key].append(val)
 		else:
 			self.l[key] = [val]
 	def __repr__(self):
-		return "vartestadvanced:\t" + pprint.pformat(self.l, width=300)
+		return "vartestadvanced (" + str(id(self)) + ") :\t" + pprint.pformat(self.l, width=300)
 
 if not "assembled" in globals():
 	from util import smpath,relpath,generate_oname
@@ -72,10 +75,11 @@ variables["cflags"] = vartest("-O1 -march=native")
 variables["ldflags"] = vartest("-L. -llol")
 variables["objdir"] = vartest("^/.objdir")
 
-variables["use"] = vartestadv()
-variables["usedby"] = vartestadv()
-variables["depends"] = vartestadv()
-variables["depends"].addv("^/main.c", set())
+variables["use"] = vartestadv(name="use")
+variables["usedby"] = vartestadv(name="usedby")
+variables["depends"] = vartestadv(name="depends")
+print(str(id(variables["use"])) + " " + str(id(variables["usedby"])) + " " + str(id(variables["depends"])))
+variables["depends"].addv("^/main.c", {"^/both.c"})#set())
 variables["depends"].addv("^/both.c", set())
 variables["depends"].addv("^/library0.c", set())
 variables["depends"].addv("^/library1.c", set())
@@ -400,7 +404,7 @@ class BuildOrder:
 		if key in self.filedict:
 			for candidate in self.filedict[key]:
 				if candidate.equals(element):
-					print("reusing " + repr(element))
+					print("reusing " + repr(candidate) + " (" + str(type(candidate))+ ")")
 					return (candidate, True)
 
 		if type(element) == WantedDependency:
@@ -450,13 +454,13 @@ class BuildOrder:
 		#0. step: resolve usedby-requirements
 		# move the file 'usedby' target definitions
 		# into the target, so it 'uses' the source
-		for source in variables["filelist"].get():
-			for target in variables["usedby"].get(source):
-				#TODO: we should not modify variables...
-				#Add source filename to config(target).use:
-				target_use = variables["use"].get(target)
-				target_use.add(source)
-				variables["use"].addv(target_use)
+#		for source in variables["filelist"].get():
+#			for target in variables["usedby"].get(source):
+#				#TODO: we should not modify variables...
+#				#Add source filename to config(target).use:
+#				target_use = variables["use"].get(target)
+#				target_use.add(source)
+#				variables["use"].addv(target_use)
 
 				#TODO: Add libs to config(target).libs ?
 
@@ -576,8 +580,9 @@ class BuildOrder:
 			if len(t_pob) > 0:
 				order_target.postbuild = t_pob
 
-			#create wanted dependencies for this target.
+			#create wanted dependencies (by config) for this target.
 			target_depends = variables["depends"].get(target)
+			pprint.pprint(target_depends)
 			for d in target_depends:
 				d_obj = WantedDependency(d)
 				order_target.depends_wanted.add(d_obj)
@@ -612,7 +617,7 @@ class BuildOrder:
 		for target in self.targets:
 			print("\t" + repr(target) + ":")
 			for wanted_dependency in target.depends_wanted:
-				print("\t\t" + repr(wanted_dependency) + " " + str(type(wanted_dependency)) + " wanted")
+				print("\t\t" + repr(wanted_dependency) + " " + str(type(wanted_dependency)) + " wanted for " + repr(target))
 				final_dep = self.find_merge_element(wanted_dependency)
 				print("\t\t\tusing " + str(id(final_dep)) + "(" + str(type(final_dep))  + ")")
 				target.add_dependency(final_dep)
@@ -688,7 +693,7 @@ class BuildElement:
 
 	def equals(self, other):
 		#TODO: print, what test failed
-		print(repr(self) + " equal test == " + repr(other))
+		#print(repr(self) + " equal test == " + repr(other))
 
 		if id(self) == id(other):
 			return True
@@ -709,7 +714,7 @@ class BuildElement:
 		if not self.loglevel == other.loglevel:
 			return False
 
-		print(repr(self) + '(' + str(id(self)) + ')' + " is equal to " + repr(other) + '(' + str(id(other)) + ')')
+		#print(repr(self) + '(' + str(id(self)) + ')' + " is equal to " + repr(other) + '(' + str(id(other)) + ')')
 		return True
 
 	def add_deps_to_manager(self, manager):
