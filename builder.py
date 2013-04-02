@@ -71,13 +71,26 @@ variables = dict()
 variables["c"] = vartest("gcc")
 variables["build"] = vartest({"^/lolbinary", "^/liblol.so"})
 variables["filelist"] = vartest({'^/main.c', '^/both.c', '^/library0.c', '^/library1.c'})
-variables["cflags"] = vartest("-O1 -march=native")
-variables["ldflags"] = vartest("-L. -llol")
+
 variables["objdir"] = vartest("^/.objdir")
 
 variables["use"] = vartestadv(name="use")
 variables["usedby"] = vartestadv(name="usedby")
 variables["depends"] = vartestadv(name="depends")
+variables["ldflags"] = vartestadv("ldflags")
+variables["cflags"] = vartestadv("cflags")
+
+variables["cflags"].setv("^/lolbinary", "-O1 -march=native")
+variables["cflags"].setv("^/lolbinary-^/main.c", "-O1 -march=native")
+variables["cflags"].setv("^/lolbinary-^/both.c", "-O1 -march=native")
+variables["cflags"].setv("^/liblol.so", "-O1 -march=native -fPIC")
+variables["cflags"].setv("^/liblol.so-^/library0.c", "-O1 -march=native -fPIC")
+variables["cflags"].setv("^/liblol.so-^/library1.c", "-O1 -march=native -fPIC")
+variables["cflags"].setv("^/liblol.so-^/both.c", "-O1 -march=native -fPIC")
+
+
+variables["ldflags"].setv("^/liblol.so", "-shared -Wl,-soname,liblol.so")
+variables["ldflags"].setv("^/lolbinary", "-L. -llol")
 
 variables["depends"].setv("^/main.c", {"^/both.c"})#set())
 variables["depends"].setv("^/both.c", set())
@@ -792,10 +805,19 @@ class BuildElement:
 		'''
 
 		if os.path.isfile(self.outname):
-			if os.path.getmtime(self.outname) < os.path.getmtime(self.inname):
-				self.needs_build = True
-				return True
+			if self.inname:
+				if os.path.isfile(self.inname):
+					if os.path.getmtime(self.outname) < os.path.getmtime(self.inname):
+						self.needs_build = True
+						return True
+					else:
+						self.needs_build = False
+				else:
+					#inname does not exist
+					raise Exception("requested " + repr(self) + ".inname does not exist")
+					self.needs_build = False
 			else:
+				#inname == None
 				self.needs_build = False
 
 		else: # outname does not exist
