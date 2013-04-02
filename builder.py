@@ -842,7 +842,11 @@ class BuildElement:
 		if os.path.isfile(self.outname):
 			if self.inname:
 				if os.path.isfile(self.inname):
-					if os.path.getmtime(self.outname) < os.path.getmtime(self.inname):
+					om = os.path.getmtime(self.outname)
+					im = os.path.getmtime(self.inname)
+					#print("checking mtime of " + self.inname + " in:" + str(im) + " out:" + str(om))
+
+					if om < im:
 						self.needs_build = True
 						return True
 					else:
@@ -860,20 +864,24 @@ class BuildElement:
 			return True
 
 		#only check dependencies, if we don't need a build (we'd have returned then)
-		for d in self.depends:
+		for d in (self.depends | self.depends_finished):
 			try:
+
+				if d.check_needs_build():
+					self.needs_build = True
+
 				# check for modification times
 				print("checking mtime of -> " + repr(d))
-				#TODO: use dict of mtimes
-				if os.path.getmtime(fl) > os.path.getmtime(self.outname):
-					self.needs_build = True
-					print("==> Build needed: " + repr(d) + " is newer than " + self.outname)
-					break
+
+				if os.path.isfile(d.outname):
+					if os.path.getmtime(d.outname) > os.path.getmtime(self.outname):
+						print("==> Build needed: dependency " + repr(d) + " is newer than " + self.outname)
+						self.needs_build = True
+						return True
 
 			except OSError as e:
-				print(str(e) + " -> Ignoring for now.")
+				raise e
 
-		self.finished = not self.needs_build
 		return self.needs_build
 
 	def ready_to_build(self):
