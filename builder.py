@@ -454,13 +454,13 @@ class BuildOrder:
 		#0. step: resolve usedby-requirements
 		# move the file 'usedby' target definitions
 		# into the target, so it 'uses' the source
-#		for source in variables["filelist"].get():
-#			for target in variables["usedby"].get(source):
-#				#TODO: we should not modify variables...
-#				#Add source filename to config(target).use:
-#				target_use = variables["use"].get(target)
-#				target_use.add(source)
-#				variables["use"].setv(target_use)
+		for source in variables["filelist"].get():
+			for target in variables["usedby"].get(source):
+				#TODO: we should not modify variables...
+				#Add source filename to config(target).use:
+				target_use = variables["use"].get(target)
+				target_use.add(source)
+				variables["use"].setv(target_use)
 
 				#TODO: Add libs to config(target).libs ?
 
