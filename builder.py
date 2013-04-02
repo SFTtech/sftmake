@@ -283,33 +283,36 @@ class JobManager:
 			self.job_lock.notify()
 
 	def get_next(self):
-		with self.job_lock:
-			if len(self.ready_jobs) > 0:
+		try:
+			with self.job_lock:
+				if len(self.ready_jobs) > 0:
 
-				if self.error != 0:
+					if self.error != 0:
+						return None
+
+					newjob = self.ready_jobs.pop()
+					self.running_jobs.add(newjob)
+					return newjob
+
+				#TODO: could cause errors, investigate pls
+				elif len(self.running_jobs) > 0 and len(self.pending_jobs) > 0:
+					#if no jobs are ready, then remaining(pending) jobs are unlocked by currently running jobs
+					#so the current worker has to wait here, until a job is ready, errors occur, or all jobs died.
+
+					self._find_ready_jobs()
+					self.job_lock.wait_for(self.nextjob_continue())
+
+					if self.error != 0 or len(self.ready_jobs) == 0:
+						return None
+
+					newjob = self.ready_jobs.pop()
+					self.running_jobs.add(newjob)
+					return newjob
+
+				else: #we are out of jobs!
 					return None
-
-				newjob = self.ready_jobs.pop()
-				self.running_jobs.add(newjob)
-				return newjob
-
-			#TODO: could cause errors, investigate pls
-			elif len(self.running_jobs) > 0 and len(self.pending_jobs) > 0:
-				#if no jobs are ready, then remaining(pending) jobs are unlocked by currently running jobs
-				#so the current worker has to wait here, until a job is ready, errors occur, or all jobs died.
-
-				self._find_ready_jobs()
-				self.job_lock.wait_for(self.nextjob_continue)
-
-				if self.error != 0 or len(self.ready_jobs) == 0:
-					return None
-
-				newjob = self.ready_jobs.pop()
-				self.running_jobs.add(newjob)
-				return newjob
-
-			else: #we are out of jobs!
-				return None
+		except KeyboardInterrupt:
+			self.dump_jobtable()
 
 	def nextjob_continue(self):
 		'''return true, if:
@@ -357,6 +360,9 @@ class JobManager:
 			worker.join()
 			print(repr(worker) + ": joined")
 
+		self.dump_jobtable()
+
+	def dump_jobtable(self):
 		if len(self.failed_jobs) > 0:
 			print("==========\nFAILED jobs:")
 			for job in self.failed_jobs:
