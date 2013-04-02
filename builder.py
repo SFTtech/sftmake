@@ -160,16 +160,11 @@ variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 """
 
 
-#TODO: when buildelements are used by multiple parents, detect that (e.g. header files) (respecting the differing variable values!)
-#This means: extend the current tree model of dependencies to a graph model.
-
 #TODO: colored output
 
 #TODO: output queue, fixing thread interferences with msgs containing newlines
 
 #TODO: unit test class
-
-#TODO: pre/postrun must not be inherited, only if explicitly specified
 
 #TODO: add more shell commands, e.g. all dependencies ready
 
@@ -177,7 +172,9 @@ variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 
 #TODO: replace all prints with log functions and loglevel
 
+#TODO: gnu make compatibility
 
+#TODO: maybe cache file mtimes
 
 
 
