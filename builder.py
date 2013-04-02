@@ -399,13 +399,20 @@ class BuildOrder:
 		#then check whether one of these candidates .equals()
 		#if matches: return the reused and True.
 
+		print("finding reusage for " + repr(element) + " (" + str(type(element))+ ")")
+
 		#key to determine candidates, set it in filedict_append!!
 		key = element.outname
 		if key in self.filedict:
 			for candidate in self.filedict[key]:
-				if candidate.equals(element):
-					print("reusing " + repr(candidate) + " (" + str(type(candidate))+ ")")
+				print("for " + repr(element) + " try candidate " + repr(candidate))
+
+				#this order is important, element may have a custom .equals implementation
+				if element.equals(candidate):
+					print("reusing " + repr(candidate) + " (" + str(type(candidate))+ ") for " + repr(element) )
 					return (candidate, True)
+		else:
+			print("file outname [" + key + "] not found in filedict")
 
 		if type(element) == WantedDependency:
 			raise Exception("wanted dependency of (TODO) not found: " + repr(element))
@@ -518,7 +525,6 @@ class BuildOrder:
 				for d in file_depends:
 					d_obj = WantedDependency(d)
 					order_file.depends_wanted.add(d_obj)
-					self.filedict_append(d_obj)
 
 				#add sourcefile path itself to depends
 				ad = variables["autodepends"].get(st)
@@ -586,7 +592,6 @@ class BuildOrder:
 			for d in target_depends:
 				d_obj = WantedDependency(d)
 				order_target.depends_wanted.add(d_obj)
-				self.filedict_append(d_obj)
 
 			#append all object files for linkage
 			#TODO: rewrite and relocate to somewhere else!
@@ -615,11 +620,10 @@ class BuildOrder:
 
 		print("\ninserting and reusing dependencies:")
 		for target in self.targets:
-			print("\t" + repr(target) + ":")
 			for wanted_dependency in target.depends_wanted:
-				print("\t\t" + repr(wanted_dependency) + " " + str(type(wanted_dependency)) + " wanted for " + repr(target))
+				print("-" + repr(wanted_dependency) + " " + str(type(wanted_dependency)) + " wanted for " + repr(target))
 				final_dep = self.find_merge_element(wanted_dependency)
-				print("\t\t\tusing " + str(id(final_dep)) + "(" + str(type(final_dep))  + ")")
+				print("-using " + str(id(final_dep)) + "(" + str(type(final_dep))  + ")")
 				target.add_dependency(final_dep)
 
 		#<- direct function level here
@@ -903,6 +907,8 @@ class WantedDependency(BuildElement):
 
 	def equals(self, other):
 		'''used to use "other" as the wanted dependency'''
+
+		print(repr(self) + " testing with " + repr(other))
 
 		if not self.outname == other.outname:
 			return False
