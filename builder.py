@@ -178,6 +178,10 @@ variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 
 #TODO: implement clean functionality (create order (without MD?), delete all outnames)
 
+#TODO: graphviz output
+
+#TODO: makefile output
+
 
 class BuildWorker:
 	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
@@ -735,8 +739,10 @@ class BuildElement:
 		self.loglevel = 2	# standard value?
 		self.exitstate = 0
 		self.finished = False
-		self.realfile = False
-		#TODO: store file mtime (really?)
+		self._inmtime = 0
+		self._outmtime = 0
+		self._inname_exists = (False, False) #first: was checked, second: exists
+		self._outname_exists = (False, False)
 
 	def run(self):
 		raise NotImplementedError("Implement this shit for a working compilation...")
@@ -831,17 +837,51 @@ class BuildElement:
 				dependency.blocks.remove(old)
 				dependency.blocks.add(new)
 
+	def inmtime(self):
+		if self._inmtime == 0:
+			if self.inname_exists():
+				self._inmtime = os.path.getmtime(self.inname)
+			else:
+				raise Exception(repr(self) + ".inname doesn't exist, so no mtime")
+		return self._inmtime
+
+	def outmtime(self):
+		if self._outmtime == 0:
+			if self.outname_exists():
+				self._outmtime = os.path.getmtime(self.outname)
+			else:
+				raise Exception(repr(self) + ".outname doesn't exist, so no mtime")
+		return self._outmtime
+
+	def outname_exists(self):
+		ch, res = self._outname_exists
+		if ch:
+			return res
+		else:
+			exists = os.path.isfile(self.outname)
+			self._outname_exists = (True, exists)
+			return exists
+
+	def inname_exists(self):
+		ch, res = self._inname_exists
+		if ch:
+			return res
+		else:
+			exists = os.path.isfile(self.inname)
+			self._inname_exists = (True, exists)
+			return exists
+
 	def check_needs_build(self):
 		'''
 		set self.needs_build to the correct value
 		should be overridden if appropriate (e.g. header file)
 		'''
 
-		if os.path.isfile(self.outname):
+		if self.outname_exists():
 			if self.inname:
-				if os.path.isfile(self.inname):
-					om = os.path.getmtime(self.outname)
-					im = os.path.getmtime(self.inname)
+				if self.inname_exists():
+					im = self.inmtime()
+					om = self.outmtime()
 					#print("checking mtime of " + self.inname + " in:" + str(im) + " out:" + str(om))
 
 					if om < im:
@@ -864,10 +904,11 @@ class BuildElement:
 					self.needs_build = True
 
 				# check for modification times
-				print("checking mtime of -> " + repr(d))
+				if self.outname_exists() and d.outname_exists():
+					dm = d.outmtime()
+					om = self.outmtime()
 
-				if os.path.isfile(d.outname):
-					if os.path.getmtime(d.outname) > os.path.getmtime(self.outname):
+					if dm > om:
 						print("==> Build needed: dependency " + repr(d) + " is newer than " + self.outname)
 						self.needs_build = True
 						return True
