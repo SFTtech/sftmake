@@ -191,7 +191,6 @@ class BuildWorker:
 		self.manager = manager
 		self.num = num
 		self.job = None		#The BuildElement currently being processed by this worker
-
 	def run(self):
 		print("" + repr(self) + ": started")
 		while True:
@@ -242,6 +241,7 @@ class JobManager:
 		self.error = 0
 
 		self.job_lock = threading.Condition()
+		self.filesys_lock = threading.Condition()
 
 	def queue_order(self, order):
 		if not isinstance(order, BuildOrder):
@@ -1062,12 +1062,13 @@ class SourceFile(BuildElement):
 
 		ret = 0
 
-		dirname = os.path.dirname(self.outname)
-		if not os.path.exists(dirname):
-			print("creating directory '" + dirname + "'")
-			os.mkdir(dirname)
+		with self.worker.manager.filesys_lock:
+			dirname = os.path.dirname(self.outname)
+			if not os.path.exists(dirname):
+				print("creating directory '" + dirname + "'")
+				os.mkdir(dirname)
 
-		#TODO: check if dir is writable
+			#TODO: check if dir is writable
 
 		if self.prebuild:
 			print(repr(self.worker) + ": prebuild for " + repr(self) + " '" + self.prebuild + "'")
