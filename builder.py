@@ -293,7 +293,7 @@ class JobManager:
 	def get_next(self, worker):
 		try:
 			with self.job_lock:
-				print(repr(worker) + " getnext r"+str(len(self.running_jobs))+" k"+str(len(self.ready_jobs))+" p"+str(len(self.pending_jobs)))
+				#print(repr(worker) + " get_next running:"+str(len(self.running_jobs))+" ready:"+str(len(self.ready_jobs))+" pending:"+str(len(self.pending_jobs)))
 				if len(self.ready_jobs) > 0:
 					#jobs are ready to process
 
@@ -305,17 +305,16 @@ class JobManager:
 					return newjob
 
 				elif len(self.running_jobs) > 0 and len(self.pending_jobs) > 0:
-					#if no jobs are ready, then remaining(pending) jobs are unlocked by currently running jobs
-					#so the current worker has to wait here, until a job is ready, an errors occur, or all jobs died.
+					#if no jobs are ready:
+					# then remaining(pending) jobs are unlocked
+					# by currently running jobs
 
-					#self._find_ready_jobs()
-					#print(repr(worker) + " next_beforewait r"+str(len(self.running_jobs))+" k"+str(len(self.ready_jobs))+" p"+str(len(self.pending_jobs)))
+					#so the worker that wants to get a new job
+					#has to wait here, until a new job is ready,
+					#an errors occur, all jobs died, or no more jobs
+					#are pending.
 
-					while not self.nextjob_continue(worker):
-						self.job_lock.wait()
-					#self.job_lock.wait_for(self.nextjob_continue)
-
-					#print(repr(worker) + " next_afterwait r"+str(len(self.running_jobs))+" k"+str(len(self.ready_jobs))+" p"+str(len(self.pending_jobs)))
+					self.job_lock.wait_for(self.nextjob_continue)
 
 					if self.error != 0 or len(self.ready_jobs) == 0:
 						#the running jobs failed
@@ -329,10 +328,11 @@ class JobManager:
 				else:
 					#we are out of jobs!
 					return None
+
 		except KeyboardInterrupt:
 			self.dump_jobtable()
 
-	def nextjob_continue(self, worker):
+	def nextjob_continue(self):
 		'''
 		can a waiting worker continue to fetch work or die?
 
@@ -343,13 +343,12 @@ class JobManager:
 		new job is ready
 		'''
 
-
 		result = False
 		result |= self.error != 0
 		result |= len(self.running_jobs) == 0
 		result |= len(self.ready_jobs) > 0
 		result |= len(self.pending_jobs) == 0
-		#print(repr(worker) + " check_continue r"+str(len(self.running_jobs))+" k"+str(len(self.ready_jobs))+" p"+str(len(self.pending_jobs))+ " -> " + str(result))
+
 		return result
 
 	def _find_ready_jobs(self):
@@ -381,7 +380,6 @@ class JobManager:
 
 	def start(self):
 		self.run()
-#		threading.Thread(target=self.start).start()
 
 	def join(self):
 		"""wait here for all jobs to finish and generate a work summary"""
@@ -433,14 +431,6 @@ class BuildOrder:
 
 	def set_thread_count(self, n = util.get_thread_count()):
 		self.max_jobs = n
-
-	def build_element_factory(self, filename):
-		#TODO: actually this is a hacky dirt.
-		if re.match(".*\\.(h|hpp)", filename):
-			#print(filename + " generated HeaderFile")
-			return self.find_create_header(filename)
-		else:
-			return SourceFile(filename)
 
 	def find_reuse_element(self, element):
 		'''
