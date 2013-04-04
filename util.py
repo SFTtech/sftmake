@@ -176,3 +176,29 @@ def find_smroot():
 		else:
 			path = os.path.abspath(path + '/..')
 	return path
+
+
+def in_smdir(path, relto = "^"):
+	'''
+	return true, if the path lies within the smroot dir or a subfolder
+	return false, if the path is e.g. a system path in /usr/lib
+
+	use this function to test if e.g. a header is a system header
+	or belongs to the project itself.
+	'''
+	global smroot
+
+	if smroot == None:
+		smroot = find_smroot()
+
+	filepath = abspath(path)
+
+	#prefix of smroot and filepath must be smroot
+	#then the file lies within the sm project directory
+
+	if os.path.commonprefix([smroot, filepath]).startswith(smroot):
+		return True
+	else:
+		return False
+
+	pass
