@@ -182,6 +182,8 @@ variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 
 #TODO: makefile output
 
+#TODD: option for MD to only check for file in ^/ (exclude system headers)
+
 
 class BuildWorker:
 	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
@@ -1043,6 +1045,10 @@ class HeaderFile(BuildElement):
 			return False
 
 		return True
+
+	def text(self, depth=0):
+		space = ''.join(['\t' for i in range(depth)])
+		return space + self.inname + "\n"
 
 	def run(self):
 		return Exception("HeaderFiles should never be run. skip them.")
