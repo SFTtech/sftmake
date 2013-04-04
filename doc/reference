@@ -188,20 +188,22 @@ TODO					this way, it's impossible to 'split' a variable in a clean way, since f
 	config(^/foo) is cloned to config(^/foo/bar.cpp),
 	and the assignments are applied to the new configuration.
 
-2.6	Merging of source file and target configurations
+2.6	Prepare datastructure for final processing
+2.6.1 Resolve 'usedby' by adding the info to the specific target
 	For each source file configuration
 		For each target in 'usedby'
 			Add source filename to config(target).use
 			Add libs to config(target).libs
-	
+
+2.6.1	Creating source-for-target configurations
 	For each target configuration ^/foo/bar
 		For each sourcefile in config(^/foo/bar).use ^/foo/asdf.cpp
-			clone target configuration to ^/foo/bar^/foo/asdf.cpp
-			apply changes from ^/foo/asdf.cpp to the new configuration
+			create a new Config(parents=[target, sourcefile])
+			store it to config[target + "-" + source]
 			this is now the source-for-target configuration, which is used for compiling the sourcefile for later linking to this target
 
 3	Config variables
-	
+
 	name			possible values	[default]	description
 
 3.0	globally relevant variables
