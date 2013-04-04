@@ -184,6 +184,8 @@ variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 
 #TODD: option for MD to only check for file in ^/ (exclude system headers)
 
+#TODO: use inotify to detect file changes, and recompile them
+
 
 class BuildWorker:
 	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
@@ -193,6 +195,7 @@ class BuildWorker:
 		self.manager = manager
 		self.num = num
 		self.job = None		#The BuildElement currently being processed by this worker
+
 	def run(self):
 		print("" + repr(self) + ": started")
 		while True:
@@ -254,8 +257,6 @@ class JobManager:
 
 		#TODO: respect verbosity and use repr/str/none/text()/whatevvur
 		#print("\n\n Submitted: " + order.text())
-
-
 
 	def submit(self, job):
 		"""insert a job and it's dependencies in the execution queue"""
