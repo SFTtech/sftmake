@@ -428,6 +428,7 @@ class BuildOrder:
 	def __init__(self):
 		self.targets = set()
 		self.filedict = dict()
+		self.usedelements = set()
 
 	def set_thread_count(self, n = util.get_thread_count()):
 		self.max_jobs = n
@@ -672,11 +673,7 @@ class BuildOrder:
 		#<- direct function level here
 
 	def __str__(self):
-		out = "\n\n%%%%%%%%%%%%%%%%%\n BUILD ORDER"
-		for t in self.targets:
-			out += str(t)
-		out += "\n%%%%%%%%%%%%%%%%%\n"
-		return out
+		return self.text()
 
 	def text(self):
 		out = "===== BuildOrder " + str(id(self)) + " has " + str(len(self.targets)) + " targets.\n"
@@ -695,17 +692,94 @@ class BuildOrder:
 
 	def graphviz(self):
 		'''neat graph representation of the dependencies'''
-		#TODO http://linux.die.net/man/1/graph-easy
-		pass
+
+		#header:
+		out = "digraph \"sftmake dependencies for $projectname(TODO)\" {\n"
+		out += "overlap=scale\n"
+		out += "splines=true\n"
+		out += "sep=.1\n"
+		out += "node [style=filled]\n"
+
+		edges = dict()
+		visited = set()
+
+		'''nested function for recursively reaching all used dependent elements'''
+		def recursenodes(element):
+			elid = id(element)
+			visited.add(elid)
+
+			#append lines to node list:
+
+			#colors in float [0;1]
+			if type(element) == BuildTarget:
+				color = "red"
+				#cr = "0.8"
+				#cg = "0.1"
+				#cb = "0.1"
+			elif type(element) == SourceFile:
+				color = "green"
+				#cr = "0.2"
+				#cg = "0.7"
+				#cb = "0.0"
+			elif type(element) == HeaderFile:
+				color = "lightblue"
+				#cr = "0.6"
+				#cg = "0.6"
+				#cb = "0.8"
+
+			# maybe set color by rgb values:
+			#color = cr + ',' + cg + ',' + cb
+			nout = '// ' + repr(element) + '\n'
+			nout += '"' + str( id(element) )  + '" '
+			nout += '[fillcolor="' + color + '",'
+			nout += 'label="' + repr(element) + '"]\n'
+
+			#edge list:
+			for dep in element.depends:
+				#element is dependent on dep, so add dep -> elem
+				#as one element has multiple dependencies,
+				#multiple -> must be drawn from multiple dependencies
+				#=> edges[element] = list of its dependencies
+
+				depid = id(dep)
+
+				if elid in edges:
+					edges[ elid ].add( depid )
+				else:
+					edges[ elid ] = { depid }
+
+				if not depid in visited:
+					nout += recursenodes(dep)
+
+			return nout
+
+		for element in self.targets:
+			#recursively create nodes for all the used elements
+			out += recursenodes(element)
+
+		out += "\n// edge list: \n"
+		for elemk in edges.keys():
+			elem = edges[elemk]
+			out += '{ '
+			for dep in elem:
+				#for each dependency (id) that elem has
+				out += '"' + str(dep) + '" '
+
+			out += '} -> "' + str(elemk) + '"\n'
+
+
+		out += "}"
+		return out
 
 	def ascii(self):
+		#http://linux.die.net/man/1/graph-easy
 		#TODO: maybe even something text-only -> awesome build overview.
 		pass
 
 	def __repr__(self):
 		ret = "BuildOrder: [ "
-		for t in order.targets:
-			ret += t.name + " "
+		for t in self.targets:
+			ret += repr(t) + " "
 		ret += "]"
 		return ret
 
@@ -1222,7 +1296,6 @@ def clean_dfile_line(line):
 #	return [ part for part in parts if hmatch.match(part) ]
 
 
-
 def main():
 	print("fak u dolan")
 	order = BuildOrder()
@@ -1236,6 +1309,9 @@ def main():
 
 	m = JobManager(4)
 	m.queue_order(order)
+
+	fd = open("/tmp/sftmake.dot", "w")
+	fd.write(order.graphviz())
 
 	print(order.text())
 
