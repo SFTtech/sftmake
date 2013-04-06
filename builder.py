@@ -172,13 +172,11 @@ variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 
 #TODO: replace all prints with log functions and loglevel
 
-#TODO: gnu make compatibility
+#TODO: gnu make compatibility (configure, make, make install) (incl. options)
 
 #TODO: maybe cache file mtimes
 
 #TODO: implement clean functionality (create order (without MD?), delete all outnames)
-
-#TODO: graphviz output
 
 #TODO: makefile output
 
@@ -686,7 +684,11 @@ class BuildOrder:
 		return out
 
 	def makefile(self):
-		'''generate a GNU Makefile for this BuildOrder, then has the same functionality as Builder.build(order)'''
+		'''
+		generate a GNU Makefile for this BuildOrder, which
+		then has the same functionality as Builder.build(order)
+		means: represent dependencies as real Makefile
+		'''
 		#TODO
 		pass
 
