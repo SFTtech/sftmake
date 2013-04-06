@@ -21,8 +21,10 @@ import subprocess
 import threading
 import time
 
-import util
-import conf
+if not "assembled" in globals():
+	import util
+	from util import abspath,smpath,relpath,generate_oname
+	import conf
 
 
 class vartest:
@@ -61,9 +63,6 @@ class vartestadv:
 			self.l[key] = [val]
 	def __repr__(self):
 		return "vartestadvanced (" + str(id(self)) + ") :\t" + pprint.pformat(self.l, width=300)
-
-if not "assembled" in globals():
-	from util import smpath,relpath,generate_oname
 
 
 #test purpose only
@@ -1093,9 +1092,17 @@ class WantedDependency(BuildElement):
 class HeaderFile(BuildElement):
 	"""headerfile for a source file, never needs to be built"""
 
+	externalheader = 18387
+	projectheader = 52838
+
 	def __init__(self, hname):
 		BuildElement.__init__(self, hname)
 		self.outname = self.inname
+
+		if util.in_smdir(self.inname):
+			self.headertype = HeaderFile.projectheader
+		else:
+			self.headertype = HeaderFile.externalheader
 
 	def check_needs_build(self):
 		self.needs_build = False
@@ -1115,13 +1122,19 @@ class HeaderFile(BuildElement):
 
 	def text(self, depth=0):
 		space = ''.join(['\t' for i in range(depth)])
-		return space + self.inname + "\n"
+		if self.headertype == HeaderFile.projectheader:
+			return space + self.inname + "\n"
+		else:
+			return space + abspath(self.inname) + "\n"
 
 	def run(self):
 		return Exception("HeaderFiles should never be run. skip them.")
 
 	def __repr__(self):
-		return self.inname
+		if self.headertype == HeaderFile.projectheader:
+			return self.inname
+		else:
+			return abspath(self.inname)
 
 
 class SourceFile(BuildElement):
