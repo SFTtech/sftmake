@@ -711,22 +711,22 @@ class BuildOrder:
 
 			#append lines to node list:
 
-			#colors in float [0;1]
 			if type(element) == BuildTarget:
 				color = "red"
-				#cr = "0.8"
-				#cg = "0.1"
-				#cb = "0.1"
+
 			elif type(element) == SourceFile:
 				color = "green"
-				#cr = "0.2"
-				#cg = "0.7"
-				#cb = "0.0"
+
 			elif type(element) == HeaderFile:
-				color = "lightblue"
-				#cr = "0.6"
-				#cg = "0.6"
-				#cb = "0.8"
+				if element.headertype == HeaderFile.projectheader:
+					color = "lightblue"
+				else:
+					color = "lightyellow"
+
+					#TODO: filter out system headers if wanted
+					filtersysheaders = False
+					if filtersysheaders:
+						return ""
 
 			# maybe set color by rgb values:
 			#color = cr + ',' + cg + ',' + cb
