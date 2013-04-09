@@ -692,30 +692,17 @@ class BuildOrder:
 		out =  "# Makefile representation of BuildOrder\n"
 		out += "# [SFT]make version $version\n\n"
 
-		lines = dict()  #key=elemid, value=element
-		visited = set() #store which elements we already visited
+		lines = set()  #all rules for the makefile
 		nonblocking = set() #elements that don't block others
 
-		def recursenodes(element):
-			elid = id(element)
-			visited.add(elid)
+		all_files = self.as_set()
 
+		for element in all_files:
 			if len(element.blocks) == 0:
 				nonblocking.add(element)
 
-			#if not len(element.depends) == 0:
-			lines[elid] = element
-
-			for dep in (element.depends | element.depends_finished):
-				depid = id(dep)
-
-				if not depid in visited:
-					if not isinstance(dep, HeaderFile):
-						recursenodes(dep)
-
-
-		for element in self.targets:
-			recursenodes(element)
+			if not isinstance(element, HeaderFile):
+				lines.add(element)
 
 		out += "all:"
 		for nb in nonblocking:
@@ -727,8 +714,7 @@ class BuildOrder:
 		out += "\n\t#delete all objects and target files:"
 
 		out += "\n\trm -f"
-		for k in lines.keys():
-			element = lines[k]
+		for element in lines:
 			if isinstance(element, SourceFile):
 				if element.objdir:
 					objdirs.add(element.objdir)
@@ -745,8 +731,7 @@ class BuildOrder:
 		out += "\n\n"
 
 
-		for k in lines.keys():
-			element = lines[k]
+		for element in lines:
 
 			out += "# " + element.name + " (" + str(type(element)) + ")\n"
 			out += element.outname + ":"
@@ -884,7 +869,7 @@ class BuildOrder:
 		returns (filenames cleanable, directories cleanable)
 		'''
 		allfiles = self.as_set()
-		todelete = set(filter(lambda elem: not isinstance(elem, HeaderFile), allfiles))
+		todelete = filter(lambda elem: not isinstance(elem, HeaderFile), allfiles)
 
 		del_filenames = set()
 		del_directories = set()
