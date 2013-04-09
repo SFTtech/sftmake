@@ -580,8 +580,13 @@ class BuildOrder:
 						# add its contents as wanted dependencies
 						for dep in parse_dfile(mdfile):
 							dep_header = HeaderFile(dep)
-							final_header = self.find_merge_element(dep_header)
-							order_file.add_dependency(final_header)
+
+							#TODO: ignore system headers variable
+							if False and dep_header.headertype == HeaderFile.systemheader:
+								pass
+							else:
+								final_header = self.find_merge_element(dep_header)
+								order_file.add_dependency(final_header)
 
 					else:
 						#if MD is enabled but not yet present:
@@ -709,7 +714,8 @@ class BuildOrder:
 				depid = id(dep)
 
 				if not depid in visited:
-					recursenodes(dep)
+					if not isinstance(dep, HeaderFile):
+						recursenodes(dep)
 
 
 		for element in self.targets:
@@ -1175,17 +1181,19 @@ class WantedDependency(BuildElement):
 class HeaderFile(BuildElement):
 	"""headerfile for a source file, never needs to be built"""
 
+	#random numbers for enum behavior
 	externalheader = 18387
 	projectheader = 52838
 
 	def __init__(self, hname):
 		BuildElement.__init__(self, hname)
-		self.outname = self.inname
 
 		if util.in_smdir(self.inname):
 			self.headertype = HeaderFile.projectheader
+			self.outname = self.inname
 		else:
 			self.headertype = HeaderFile.externalheader
+			self.outname = abspath(self.inname)
 
 	def check_needs_build(self):
 		self.needs_build = False
@@ -1205,19 +1213,13 @@ class HeaderFile(BuildElement):
 
 	def text(self, depth=0):
 		space = ''.join(['\t' for i in range(depth)])
-		if self.headertype == HeaderFile.projectheader:
-			return space + self.inname + "\n"
-		else:
-			return space + abspath(self.inname) + "\n"
+		return space + self.outname + "\n"
 
 	def run(self):
 		return Exception("HeaderFiles should never be run. skip them.")
 
 	def __repr__(self):
-		if self.headertype == HeaderFile.projectheader:
-			return self.inname
-		else:
-			return abspath(self.inname)
+		return self.outname
 
 
 class SourceFile(BuildElement):
