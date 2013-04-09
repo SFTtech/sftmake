@@ -701,7 +701,7 @@ class BuildOrder:
 			if len(element.blocks) == 0:
 				nonblocking.add(element)
 
-			if not isinstance(element, HeaderFile):
+			if not len(element.depends) == 0:
 				lines.add(element)
 
 		out += "all:"
@@ -761,6 +761,7 @@ class BuildOrder:
 		return out
 
 
+	#TODO: implement option for filtering out system headers
 	def graphviz(self):
 		'''neat graph representation of the dependencies'''
 
@@ -775,9 +776,11 @@ class BuildOrder:
 		visited = set()
 
 		'''nested function for recursively reaching all used dependent elements'''
-		def recursenodes(element):
+
+		all_files = self.as_set()
+
+		for element in all_files:
 			elid = id(element)
-			visited.add(elid)
 
 			#append lines to node list:
 
@@ -796,7 +799,7 @@ class BuildOrder:
 					#TODO: filter out system headers if wanted
 					filtersysheaders = False
 					if filtersysheaders:
-						return ""
+						continue
 
 			# maybe set color by rgb values:
 			#color = cr + ',' + cg + ',' + cb
@@ -819,14 +822,7 @@ class BuildOrder:
 				else:
 					edges[ elid ] = { depid }
 
-				if not depid in visited:
-					nout += recursenodes(dep)
-
-			return nout
-
-		for element in self.targets:
-			#recursively create nodes for all the used elements
-			out += recursenodes(element)
+			out += nout
 
 		out += "\n// edge list: \n"
 		for elemk in edges.keys():
