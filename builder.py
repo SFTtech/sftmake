@@ -173,10 +173,6 @@ variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 
 #TODO: gnu make compatibility (configure, make, make install) (incl. options)
 
-#TODO: maybe cache file mtimes
-
-#TODO: implement clean functionality (create order (without MD?), delete all outnames)
-
 #TODO: makefile output
 
 #TODD: option for MD to only check for file in ^/ (exclude system headers)
@@ -710,7 +706,7 @@ class BuildOrder:
 			#if not len(element.depends) == 0:
 			lines[elid] = element
 
-			for dep in element.depends:
+			for dep in (element.depends | element.depends_finished):
 				depid = id(dep)
 
 				if not depid in visited:
@@ -754,7 +750,7 @@ class BuildOrder:
 
 			out += "# " + element.name + " (" + str(type(element)) + ")\n"
 			out += element.outname + ":"
-			for d in element.depends:
+			for d in (element.depends | element.depends_finished):
 				out += " " + d.outname
 
 			#ensure creation of element's objdir
@@ -825,7 +821,7 @@ class BuildOrder:
 			nout += 'label="' + repr(element) + '"]\n'
 
 			#edge list:
-			for dep in element.depends:
+			for dep in (element.depends | element.depends_finished):
 				#element is dependent on dep, so add dep -> elem
 				#as one element has multiple dependencies,
 				#multiple -> must be drawn from multiple dependencies
@@ -865,6 +861,64 @@ class BuildOrder:
 		#http://linux.die.net/man/1/graph-easy
 		#TODO: maybe even something text-only -> awesome build overview.
 		pass
+
+	def as_set(self):
+		'''
+		return all buildelements of this order as a set.
+		'''
+
+		visited = set()
+		def recursenodes(element):
+			visited.add(element)
+			for dep in (element.depends | element.depends_finished):
+				if not dep in visited:
+					recursenodes(dep)
+
+		for target in self.targets:
+			recursenodes(target)
+
+		return visited
+
+	def cleanup_file_list(self):
+		'''
+		returns (filenames cleanable, directories cleanable)
+		'''
+		allfiles = self.as_set()
+		todelete = set(filter(lambda elem: not isinstance(elem, HeaderFile), allfiles))
+
+		del_filenames = set()
+		del_directories = set()
+		for el in todelete:
+			del_filenames.add(el.outname)
+			if isinstance(el, SourceFile):
+				if el.objdir:
+					del_directories.add(el.objdir)
+				if el.mdfile:
+					del_filenames.add(el.mdfile)
+
+		return (del_filenames, del_directories)
+
+	def cleanup_outfiles(self):
+		'''
+		delete all files produced by build
+		this should be the make clean functionality
+		'''
+
+		del_filenames, del_directories = self.cleanup_file_list()
+
+		for f in del_filenames:
+			if os.path.isfile(f):
+				print("cleanup: deleting file " + f)
+				os.remove(f)
+			else:
+				print("cleanup: file not existing, skipping: " + f)
+
+		for d in del_directories:
+			if os.path.isdir(d):
+				print("cleanup: deleting directory " + d)
+				os.rmdir(d)
+			else:
+				print("cleanup: directory not existing, skipping: " + d)
 
 	def __repr__(self):
 		ret = "BuildOrder: [ "
