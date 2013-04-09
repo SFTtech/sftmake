@@ -570,8 +570,10 @@ class BuildOrder:
 				#add sourcefile path itself to depends
 				ad = variables["autodepends"].get(st)
 
-				if ad == "MD" or len(ad) == 0: # if gcc MD enabled
+				if md_enabled(ad): # if gcc MD enabled
 					mdfile = encpathname + ".d"
+
+					order_file.mdfile = mdfile
 
 					if os.path.isfile(mdfile):
 						#if .d file exists:
@@ -590,11 +592,6 @@ class BuildOrder:
 						#see man 1 gcc (search for -MD)
 					crun += " -MD"  # (re)generate c headers dependency file
 
-				elif ad == "no":
-					pass
-				else:
-					#let's not ignore an unknown autodetection mode bwahaha
-					raise Exception(repr(element) + ": unknow autodetection mode: '" + ad + "'")
 
 				order_file.loglevel = variables["loglevel"].get(st)
 				order_file.crun = crun
@@ -722,6 +719,27 @@ class BuildOrder:
 		for nb in nonblocking:
 			out += " " + nb.outname
 
+		objdirs = set()
+		out += "\n\n"
+		out += "clean:"
+		out += "\n\t#delete all objects and target files:"
+
+		out += "\n\trm -f"
+		for k in lines.keys():
+			element = lines[k]
+			if isinstance(element, SourceFile):
+				if element.objdir:
+					objdirs.add(element.objdir)
+				if element.mdfile:
+					out += " " + element.mdfile
+
+			out += " " + element.outname
+
+		out += "\n\t#delete all object directories as well:"
+
+		for objdir in objdirs:
+			out += "\n\tif [ -d " + objdir + " ]; then rmdir -p " + objdir + "; fi"
+
 		out += "\n\n"
 
 
@@ -734,7 +752,7 @@ class BuildOrder:
 				out += " " + d.outname
 
 			#ensure creation of element's objdir
-			if element.objdir:
+			if isinstance(element, SourceFile) and element.objdir:
 				out += "\n\t@mkdir -p " + element.objdir
 
 			#execute prebuild
@@ -749,6 +767,9 @@ class BuildOrder:
 				out += "\n\t" + element.postbuild
 
 			out += "\n\n"
+
+		out += ".PHONY: all clean"
+		out += "\n\n"
 
 		return out
 
@@ -858,7 +879,6 @@ class BuildElement:
 		self.inname = relpath(name)
 		self.outname = ""
 		self.encname = ""
-		self.objdir = ""
 		self.crun = ""
 		self.prebuild = ""
 		self.postbuild = ""
@@ -1205,6 +1225,9 @@ class SourceFile(BuildElement):
 
 	def __init__(self, filename):
 		BuildElement.__init__(self, filename)
+		self.objdir = ""
+		self.mdfile = ""
+
 
 	def run(self):
 		'''this method compiles a the file into a single object.'''
@@ -1372,6 +1395,16 @@ def clean_dfile_line(line):
 	#return all matching header files as list
 	return filter(lambda part: hmatch.match(part), parts)
 #	return [ part for part in parts if hmatch.match(part) ]
+
+def md_enabled(ad):
+	'''option interpreter, is gcc -MD enabled?'''
+
+	if ad == "MD" or len(ad) == 0:
+		return True
+	elif ad == "no" or ad == "disable" or ad == "nope":
+		return False
+	else:
+		raise Exception(repr(element) + ": unknow autodetection mode: '" + ad + "'")
 
 
 def main():
