@@ -548,13 +548,13 @@ class BuildOrder:
 				crun += " " + variables["cflags"].get(st)	#compiler flags
 
 				# encode the compiler flags etc
-				objdir = variables["objdir"].get(st)
+				objdir = relpath(variables["objdir"].get(st))
 
 				#the encoded name: #TODO: maybe also encode the '/' in rsource
 				encname = order_file.inname + "-" + generate_oname(crun)
 
 				#assemble compiler output file without extension
-				encpathname = relpath(objdir) + "/"
+				encpathname = objdir + "/"
 				encpathname += encname
 				oname = encpathname + ".o"
 
@@ -600,6 +600,7 @@ class BuildOrder:
 				order_file.crun = crun
 				order_file.encname = encname
 				order_file.outname = oname
+				order_file.objdir = objdir
 
 				s_prb = variables["prebuild"].get(st)
 				if len(s_prb) > 0:
@@ -688,8 +689,69 @@ class BuildOrder:
 		then has the same functionality as Builder.build(order)
 		means: represent dependencies as real Makefile
 		'''
-		#TODO
-		pass
+		#TODO: make clean etc
+
+		out =  "# Makefile representation of BuildOrder\n"
+		out += "# [SFT]make version $version\n\n"
+
+		lines = dict()  #key=elemid, value=element
+		visited = set() #store which elements we already visited
+		nonblocking = set() #elements that don't block others
+
+		def recursenodes(element):
+			elid = id(element)
+			visited.add(elid)
+
+			if len(element.blocks) == 0:
+				nonblocking.add(element)
+
+			#if not len(element.depends) == 0:
+			lines[elid] = element
+
+			for dep in element.depends:
+				depid = id(dep)
+
+				if not depid in visited:
+					recursenodes(dep)
+
+
+		for element in self.targets:
+			recursenodes(element)
+
+		out += "all:"
+		for nb in nonblocking:
+			out += " " + nb.outname
+
+		out += "\n\n"
+
+
+		for k in lines.keys():
+			element = lines[k]
+
+			out += "# " + element.name + " (" + str(type(element)) + ")\n"
+			out += element.outname + ":"
+			for d in element.depends:
+				out += " " + d.outname
+
+			#ensure creation of element's objdir
+			if element.objdir:
+				out += "\n\t@mkdir -p " + element.objdir
+
+			#execute prebuild
+			if element.prebuild:
+				out += "\n\t" + element.prebuild
+
+			#the main compiler invokation for this file
+			out += "\n\t" + element.crun
+
+			#execute postbuild
+			if element.postbuild:
+				out += "\n\t" + element.postbuild
+
+			out += "\n\n"
+
+		return out
+
 
 	def graphviz(self):
 		'''neat graph representation of the dependencies'''
@@ -796,6 +858,7 @@ class BuildElement:
 		self.inname = relpath(name)
 		self.outname = ""
 		self.encname = ""
+		self.objdir = ""
 		self.crun = ""
 		self.prebuild = ""
 		self.postbuild = ""
@@ -1325,8 +1388,11 @@ def main():
 	m = JobManager(4)
 	m.queue_order(order)
 
-	fd = open("/tmp/sftmake.dot", "w")
-	fd.write(order.graphviz())
+	dotfile = open("/tmp/sftmake.dot", "w")
+	dotfile.write(order.graphviz())
+
+	makefile = open("/tmp/sftmake.makefile", "w")
+	makefile.write(order.makefile())
 
 	print(order.text())
 
