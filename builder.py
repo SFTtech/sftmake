@@ -939,6 +939,50 @@ class BuildElement:
 	def run(self):
 		raise NotImplementedError("Implement this shit for a working compilation...")
 
+	def _run(self, elem_type):
+		'''generic run method for sourcefiles and targets'''
+
+		ret = 0		#return value storage
+
+		if elem_type == 0: #target
+			action = "linking"
+		elif elem_type == 1: #sourcefile
+			action = "compiling"
+			with self.worker.manager.filesys_lock:
+				dirname = os.path.dirname(self.outname)
+				if not os.path.exists(dirname):
+					print("creating output directory '" + dirname + "'")
+					os.mkdir(dirname)
+			#TODO: check if dir is writable
+
+		if self.prebuild:
+			failat = "prebuilding"
+			print("prebuild for " + repr(self) + " '" + self.prebuild + "'")
+			ret = os.system(self.prebuild)
+
+		if ret == 0:
+			failat = action
+			print(repr(self.worker) + ": == "+action+" -> " + repr(self))
+			print(repr(self.worker) + ": EXEC:: " + self.crun)
+
+			## compiler is launched here:
+			ret = subprocess.call(shlex.split(self.crun), shell=False)
+			## tada, that was it.
+
+			print(repr(self.worker) + ": == done "+action+" -> " + repr(self))
+
+		if ret == 0:
+			if self.postbuild:
+				failat = "postbuilding"
+				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
+				ret = os.system(self.postbuild)
+
+		if ret > 0:
+			print(repr(self.worker) + ": " + repr(self) + " Error " + str(ret) + " " + failat  + " ===============")
+			self.exitstate = ret
+		else:
+			self.exitstate = 0
+
 	def equals(self, other):
 		#TODO: print, what test failed
 		#print(repr(self) + " equal test == " + repr(other))
@@ -1268,51 +1312,7 @@ class SourceFile(BuildElement):
 
 	def run(self):
 		'''this method compiles a the file into a single object.'''
-
-		ret = 0
-
-		with self.worker.manager.filesys_lock:
-			dirname = os.path.dirname(self.outname)
-			if not os.path.exists(dirname):
-				print("creating directory '" + dirname + "'")
-				os.mkdir(dirname)
-
-			#TODO: check if dir is writable
-
-		if self.prebuild:
-			print(repr(self.worker) + ": prebuild for " + repr(self) + " '" + self.prebuild + "'")
-			#TODO: redirect the output if we get a global logger
-			ret = os.system(self.prebuild)
-
-		if ret != 0:
-			failat = "prebuilding"
-		else:
-			print(repr(self.worker) + ": == building -> " + repr(self))
-
-			## compiler is launched here
-			print(repr(self.worker) + ": EXEC:: " + self.crun)
-			#TODO: redirect output
-			ret = subprocess.call(shlex.split(self.crun), shell=False)
-
-			print(repr(self.worker) + ": == done building -> " + repr(self))
-
-		#ret = random.choice([0,0,0,0,1,8])
-
-		if ret != 0:
-			failat = "compiling"
-		else:
-			if self.postbuild:
-				print(repr(self.worker) + ": postbuild for " + repr(self) + " '" + self.postbuild + "'")
-				#TODO: also redirect output stream
-				ret = os.system(self.postbuild)
-			if ret != 0:
-				failat = "postbuilding"
-
-		if ret > 0:
-			print(repr(self.worker) + ": " + repr(self) + " Error " + str(ret) + " " + failat  + " ===============")
-			self.exitstate = ret
-		else:
-			self.exitstate = 0
+		self._run(1)
 
 	def __repr__(self):
 		return self.inname
@@ -1357,47 +1357,7 @@ class BuildTarget(BuildElement):
 
 
 	def run(self):
-		'''this method compiles a single target.'''
-
-		ret = 0		#return value storage
-
-		if self.prebuild:
-			print("prebuild for " + repr(self) + " '" + self.prebuild + "'")
-			ret = os.system(self.prebuild)
-
-		if ret != 0:
-			failat = "prebuilding"
-		else:
-			print(repr(self.worker) + ": == linking -> " + repr(self))
-
-			## compiler is launched here
-			print(repr(self.worker) + ": EXEC:: " + self.crun)
-			ret = subprocess.call(shlex.split(self.crun), shell=False)
-
-			print(repr(self.worker) + ": == done linking -> " + repr(self))
-
-		#ret = random.choice([0,0,1])
-
-		if ret != 0:
-			failat = "linking"
-		else:
-			if self.postbuild:
-				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
-				ret = os.system(self.postbuild)
-
-			if ret != 0:
-				failat = "postbuilding"
-
-		if ret > 0:
-			fail = True
-		else:
-			fail = False
-
-		if fail:
-			print(repr(self.worker) + ": " + repr(self) + " Error " + str(ret) + " " + failat  + " ===============")
-			self.exitstate = ret
-		else:
-			self.exitstate = 0
+		self._run(0)
 
 	def __str__(self):
 		return self.text()
