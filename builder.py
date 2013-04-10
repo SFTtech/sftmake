@@ -272,7 +272,6 @@ class JobManager:
 	def finished(self, job):
 		'''must be called when a job is done executing'''
 		with self.job_lock:
-			print("finished job " + repr(job))
 			if job.exitstate == 0:
 				self.running_jobs.remove(job)
 				self.finished_jobs.add(job)
@@ -701,7 +700,8 @@ class BuildOrder:
 			if len(element.blocks) == 0:
 				nonblocking.add(element)
 
-			if not len(element.depends) == 0:
+			#don't create a rule for a makefile with no dependencies
+			if not isinstance(element, HeaderFile) or len(element.depends) > 0:
 				lines.add(element)
 
 		out += "all:"
@@ -951,13 +951,13 @@ class BuildElement:
 			with self.worker.manager.filesys_lock:
 				dirname = os.path.dirname(self.outname)
 				if not os.path.exists(dirname):
-					print("creating output directory '" + dirname + "'")
+					print(repr(self.worker) + ": creating output directory '" + dirname + "'")
 					os.mkdir(dirname)
 			#TODO: check if dir is writable
 
 		if self.prebuild:
 			failat = "prebuilding"
-			print("prebuild for " + repr(self) + " '" + self.prebuild + "'")
+			print(repr(self.worker) + ": prebuild for " + repr(self) + " '" + self.prebuild + "'")
 			ret = os.system(self.prebuild)
 
 		if ret == 0:
@@ -974,7 +974,7 @@ class BuildElement:
 		if ret == 0:
 			if self.postbuild:
 				failat = "postbuilding"
-				print("postbuild for " + repr(self) + " '" + self.postbuild + "'")
+				print(repr(self.worker) + ": postbuild for " + repr(self) + " '" + self.postbuild + "'")
 				ret = os.system(self.postbuild)
 
 		if ret > 0:
