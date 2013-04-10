@@ -200,24 +200,27 @@ class BuildWorker:
 					self.manager.job_lock.notify()
 				break
 
-			print(repr(self) + ": fetched job ->\t" + repr(self.job))
+			self.wprint("fetched job ->\t" + repr(self.job))
 			self.job.worker = self
 
 			if self.job.check_needs_build():
 				#TODO: same output colors for each worker
-				print("" + repr(self) + ": making job ->\t" + repr(self.job))
+				self.wprint("making job ->\t" + repr(self.job))
 				self.job.run()
 			else:
-				print("" + repr(self) + ": skipped job ->\t" + repr(self.job))
+				self.wprint("skipped job ->\t" + repr(self.job))
 
 			self.manager.finished(self.job)
-		print(repr(self) + ": dead")
+		self.wprint("dead")
 
 	def start(self):
 		self.thread.start()
 
 	def join(self):
 		self.thread.join()
+
+	def wprint(self, msg):
+		print(repr(self) + ": " + msg)
 
 	def __repr__(self):
 		return "[worker [" + str(self.num) + "]]"
@@ -322,7 +325,8 @@ class JobManager:
 					return None
 
 		except KeyboardInterrupt:
-			self.dump_jobtable()
+			#maybe catch useful exceptions here
+			pass
 
 	def nextjob_continue(self):
 		'''
@@ -686,7 +690,6 @@ class BuildOrder:
 		then has the same functionality as Builder.build(order)
 		means: represent dependencies as real Makefile
 		'''
-		#TODO: make clean etc
 
 		out =  "# Makefile representation of BuildOrder\n"
 		out += "# [SFT]make version $version\n\n"
@@ -730,9 +733,7 @@ class BuildOrder:
 
 		out += "\n\n"
 
-
 		for element in lines:
-
 			out += "# " + element.name + " (" + str(type(element)) + ")\n"
 			out += element.outname + ":"
 			for d in (element.depends | element.depends_finished):
@@ -951,34 +952,34 @@ class BuildElement:
 			with self.worker.manager.filesys_lock:
 				dirname = os.path.dirname(self.outname)
 				if not os.path.exists(dirname):
-					print(repr(self.worker) + ": creating output directory '" + dirname + "'")
+					self.worker.wprint("creating output directory '" + dirname + "'")
 					os.mkdir(dirname)
 			#TODO: check if dir is writable
 
 		if self.prebuild:
 			failat = "prebuilding"
-			print(repr(self.worker) + ": prebuild for " + repr(self) + " '" + self.prebuild + "'")
-			ret = os.system(self.prebuild)
+			self.worker.wprint("prebuild for " + repr(self) + ": \"" + self.prebuild + "\"")
+			ret = subprocess.call(self.prebuild, shell=True)
 
 		if ret == 0:
 			failat = action
-			print(repr(self.worker) + ": == "+action+" -> " + repr(self))
-			print(repr(self.worker) + ": EXEC:: " + self.crun)
+			self.worker.wprint(" == "+action+" -> " + repr(self))
+			self.worker.wprint(" EXEC:: " + self.crun)
 
 			## compiler is launched here:
 			ret = subprocess.call(shlex.split(self.crun), shell=False)
 			## tada, that was it.
 
-			print(repr(self.worker) + ": == done "+action+" -> " + repr(self))
+			self.worker.wprint("== done "+action+" -> " + repr(self))
 
 		if ret == 0:
 			if self.postbuild:
 				failat = "postbuilding"
-				print(repr(self.worker) + ": postbuild for " + repr(self) + " '" + self.postbuild + "'")
-				ret = os.system(self.postbuild)
+				self.worker.wprint("postbuild for " + repr(self) + ": \"" + self.postbuild + "\"")
+				ret = subprocess.call(self.postbuild, shell=True)
 
 		if ret > 0:
-			print(repr(self.worker) + ": " + repr(self) + " Error " + str(ret) + " " + failat  + " ===============")
+			self.worker.wprint(repr(self) + " Error " + str(ret) + " " + failat  + " ===============")
 			self.exitstate = ret
 		else:
 			self.exitstate = 0
