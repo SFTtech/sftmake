@@ -967,7 +967,12 @@ class BuildElement:
 			self.worker.wprint(" EXEC:: " + self.crun)
 
 			## compiler is launched here:
-			ret = subprocess.call(shlex.split(self.crun), shell=False)
+			cexec = subprocess.Popen(shlex.split(self.crun), shell=False, close_fds=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT) #, universal_newlines=True)
+
+			for line in cexec.stdout:
+				self.worker.wprint(str(line, "UTF-8"))
+
+			ret = cexec.wait()
 			## tada, that was it.
 
 			self.worker.wprint("== done "+action+" -> " + repr(self))
@@ -1425,13 +1430,13 @@ def main():
 	makefile = open("/tmp/sftmake.makefile", "w")
 	makefile.write(order.makefile())
 
-	print(order.text())
+	#print(order.text())
 
 	m.start()
 	m.join()
 
 	#show status after the build
-	print(order.text())
+	#print(order.text())
 
 	#after all targets:
 	if m.get_error() == 0:
