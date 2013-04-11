@@ -165,6 +165,7 @@ def generate_oname(obj_desc):
 	# then God - er - Gnu help you.
 	obj_desc = re.sub(r" ", "_", obj_desc)
 	obj_desc = re.sub(r"/", "|", obj_desc)
+	obj_desc = re.sub(r"=", "-", obj_desc)
 	# And_there_you_go::_A_weirdly:/interestingly-escaped_command.
 	return obj_desc
 
