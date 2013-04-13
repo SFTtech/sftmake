@@ -173,8 +173,6 @@ variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 
 #TODO: gnu make compatibility (configure, make, make install) (incl. options)
 
-#TODO: makefile output
-
 #TODD: option for MD to only check for file in ^/ (exclude system headers)
 
 #TODO: use inotify to detect file changes, and recompile them
@@ -187,7 +185,7 @@ class BuildWorker:
 		self.thread = threading.Thread(target=self.run)
 		self.manager = manager
 		self.num = num
-		self.job = None		#The BuildElement currently being processed by this worker
+		self.job = None   #The BuildElement currently being processed by this worker
 
 	def run(self):
 		print("" + repr(self) + ": started")
@@ -331,6 +329,7 @@ class JobManager:
 	def nextjob_continue(self):
 		'''
 		can a waiting worker continue to fetch work or die?
+		if not, then it will wait another round until waked up again.
 
 		return true, if:
 		error occured
@@ -356,7 +355,6 @@ class JobManager:
 
 	def _create_workers(self):
 		'''creates all BuildWorkers'''
-
 		#delete the old workers from list, as they cannot be rerun.
 		self.workers = []
 
@@ -452,12 +450,13 @@ class BuildOrder:
 					print("reusing " + repr(candidate) + " (" + str(type(candidate))+ ") for " + repr(element) )
 					return (candidate, True)
 		else:
-			print("file outname [" + key + "] not found in filedict")
+			print("no reusage candidate found for outname [" + key + "] in filedict")
 
 		if type(element) == WantedDependency:
 			raise Exception("wanted dependency of (TODO) not found: " + repr(element))
 
 		#a new candidate is only stored, if it wasn't reused
+		#so the equal element (which was reused) is dropped
 		self.filedict_append(element)
 		return (element, False)
 
@@ -479,6 +478,7 @@ class BuildOrder:
 	def filedict_append(self, buildelement):
 		'''
 		"bucket-hashing" for reusable candidates
+		the "hash" is the element.outname
 		'''
 
 		#set this in find_reuse_element as well!!!
@@ -493,6 +493,10 @@ class BuildOrder:
 	def fill(self, confinfo, variables):
 		'''
 		fill this BuildOrder with contents for later processing
+
+		configuration inheritance and configuration variable dict
+		are used to create all the buildelements with their configuration
+		specified by the user in the variables array
 
 		attention: black magic is involved here.
 		'''
@@ -694,11 +698,13 @@ class BuildOrder:
 		out =  "# Makefile representation of BuildOrder\n"
 		out += "# [SFT]make version $version\n\n"
 
-		lines = set()  #all rules for the makefile
+		lines = set()  #all rule lines for the makefile
 		nonblocking = set() #elements that don't block others
 
+		#these are all files to be built in this order:
 		all_files = self.as_set()
 
+		#filter all_files for nonblocking ones and headers
 		for element in all_files:
 			if len(element.blocks) == 0:
 				nonblocking.add(element)
@@ -707,12 +713,16 @@ class BuildOrder:
 			if not isinstance(element, HeaderFile) or len(element.depends) > 0:
 				lines.add(element)
 
+		#create make rule 'all' that will be the default when running 'make'
+		#all nonblocking elements (-> targets) are added.
 		out += "all:"
 		for nb in nonblocking:
 			out += " " + nb.outname
 
 		objdirs = set()
 		out += "\n\n"
+
+		#make clean rule, just all outnames
 		out += "clean:"
 		out += "\n\t#delete all objects and target files:"
 
@@ -726,6 +736,7 @@ class BuildOrder:
 
 			out += " " + element.outname
 
+		#for make clean, also remove the objdir if it exists (and is empty)
 		out += "\n\t#delete all object directories as well:"
 
 		for objdir in objdirs:
@@ -733,29 +744,35 @@ class BuildOrder:
 
 		out += "\n\n"
 
+		#create make rules for all the elements, rulename is their outname
 		for element in lines:
 			out += "# " + element.name + " (" + str(type(element)) + ")\n"
+
+			#set rule name:
 			out += element.outname + ":"
+
+			#add dependencies of this rule:
 			for d in (element.depends | element.depends_finished):
 				out += " " + d.outname
 
-			#ensure creation of element's objdir
+			#ensure creation of element's objdir:
 			if isinstance(element, SourceFile) and element.objdir:
 				out += "\n\t@mkdir -p " + element.objdir
 
-			#execute prebuild
+			#execute prebuild:
 			if element.prebuild:
 				out += "\n\t" + element.prebuild
 
-			#the main compiler invokation for this file
+			#the main compiler invokation for this file:
 			out += "\n\t" + element.crun
 
-			#execute postbuild
+			#execute postbuild:
 			if element.postbuild:
 				out += "\n\t" + element.postbuild
 
 			out += "\n\n"
 
+		#add phony target (-> execute always) for rule 'all' and 'clean'
 		out += ".PHONY: all clean"
 		out += "\n\n"
 
@@ -1247,12 +1264,16 @@ class WantedDependency(BuildElement):
 		self.outname = relpath(wname)
 
 	def equals(self, other):
-		'''used to use "other" as the wanted dependency'''
+		'''used to check if "other" is the wanted dependency'''
 
 		print(repr(self) + " testing with " + repr(other))
 
+		#we only know the output name
 		if not self.outname == other.outname:
 			return False
+
+		#TODO: maybe come up with ids or other properties that identify
+		#which dependency is wanted.
 
 		return True
 
@@ -1308,7 +1329,7 @@ class HeaderFile(BuildElement):
 
 
 class SourceFile(BuildElement):
-	"""a source file that is compiled to an object file"""
+	"""a source file like lolmysource.c"""
 
 	def __init__(self, filename):
 		BuildElement.__init__(self, filename)
@@ -1317,7 +1338,7 @@ class SourceFile(BuildElement):
 
 
 	def run(self):
-		'''this method compiles a the file into a single object.'''
+		'''this method is called to compile the object file from the source.'''
 		self._run(1)
 
 	def __repr__(self):
@@ -1328,7 +1349,7 @@ class SourceFile(BuildElement):
 
 
 class BuildTarget(BuildElement):
-	'''A build target has a list of all files that will be linked in the target'''
+	'''A build target is a library or a executable binary'''
 
 	def __init__(self, tname):
 		BuildElement.__init__(self, tname)
@@ -1361,7 +1382,7 @@ class BuildTarget(BuildElement):
 
 		return True
 
-
+	'''called when the target shall be linked'''
 	def run(self):
 		self._run(0)
 
@@ -1373,25 +1394,23 @@ class BuildTarget(BuildElement):
 
 
 def parse_dfile(filename):
-	'''parse a gcc .d file and return a list of dependency header filenames'''
+	'''parse a gcc -MD .d file and return a list of dependency header filenames'''
 	try:
 		with open(filename, 'r') as f:
 			content = f.readlines() #list of line, including a trailing \\n (sic)
 			content = [ list(clean_dfile_line(l)) for l in content ]
 			dependencies = []
-			for part in content: # concat all lists
+			#concat all lists
+			for part in content:
 				dependencies += part
 
 			return dependencies
 	except IOError as e:
-		print(str(e) + " -> parsing dependency header failed")
+		raise Exception(str(e) + " -> parsing dependency header failed")
 
-		#TODO: really ignore?
-		return [];
 
 def clean_dfile_line(line):
 	'''converts a .dfile line to a list of header dependencies'''
-	#TODO: will need testing
 	hmatch = re.compile(r"[-\w/\.]+\.(h|hpp)") #matches a single header file
 	parts = re.split(r"\s+", line)
 
