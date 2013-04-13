@@ -1398,11 +1398,9 @@ def parse_dfile(filename):
 	try:
 		with open(filename, 'r') as f:
 			content = f.readlines() #list of line, including a trailing \\n (sic)
-			content = [ list(clean_dfile_line(l)) for l in content ]
-			dependencies = []
-			#concat all lists
-			for part in content:
-				dependencies += part
+			dependencies = list()
+			for l in content:
+				dependencies += clean_dfile_line(l)
 
 			return dependencies
 	except IOError as e:
