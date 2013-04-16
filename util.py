@@ -188,6 +188,12 @@ def find_smroot():
 			path = os.path.abspath(path + '/..')
 	return path
 
+def get_smroot():
+	global smroot
+
+	if smroot == None:
+		smroot = find_smroot()
+	return smroot
 
 def in_smdir(path, relto = "^"):
 	'''

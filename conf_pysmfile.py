@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-#
+
 # this file is, again, part of [sft]make
 #
 # licensed GPLv3 or later, no warranty, gschichten.
@@ -11,4 +11,17 @@
 # (c) 2013 [sft]technologies
 
 
+'''
+class for working with a smfile
+containing configuration written in python
+'''
+class pysmfile:
 
+	def __init__(self, filepath):
+		self.filepath = filepath
+		with open(self.filepath) as f:
+			self.content = f.read()
+
+
+	def dump_content(self):
+		print(str(self.content))
