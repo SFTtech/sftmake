@@ -23,5 +23,5 @@ class pysmfile:
 			self.content = f.read()
 
 
-	def dump_content(self):
-		print(str(self.content))
+	def get_content(self):
+		return self.content

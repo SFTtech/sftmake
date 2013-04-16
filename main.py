@@ -11,6 +11,7 @@
 
 import sys
 import util
+import parser
 
 import conf_pysmfile
 
@@ -31,8 +32,17 @@ def main():
 
 
 	smfile = conf_pysmfile.pysmfile(root_smfile)
-	smfile_content = smfile.dump_content()
+	smfile_content = smfile.get_content()
 
+	print("################ content of smfile:")
+	print(smfile_content)
+
+	print("################ end of smfile content\n\n")
+
+	smfile_st = parser.suite(smfile_content)
+	smfile_code = parser.compilest(smfile_st, 'smfile.py')
+
+	exec(smfile_code, globals(), locals())
 
 if __name__ == "__main__":
 	main()
