@@ -8,9 +8,9 @@
 # in it's development, this is an attempt to configure sftmake
 # via the regular python language
 #
-# (c) 2013 [sft]technologies
+# (c) 2013 [sft]technologies, jonas jelten
 
-import parser
+import parser #python-internal python parser
 
 '''
 class for working with a smfile

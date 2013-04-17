@@ -11,11 +11,33 @@
 
 import sys
 import util
-import parser
+import re
 
 import conf_pysmfile
 
 #import argparse
+
+
+def open_smfile(filepath):
+
+	with open(filepath) as f:
+		firstline = f.readline()
+
+	#if the first line of the smfile contains "python",
+	#it is written in python.
+	if re.match(r"#.*python.*", firstline):
+		#python conf file
+		smfile = conf_pysmfile.pysmfile(filepath)
+		pass
+
+	#elif: #TODO: smlang smfile
+
+	else:
+		raise Exception("unknown config file header")
+		#smlang conf file
+		#smfile = conf_smfile.smfile(filepath)
+
+		pass
 
 def main():
 	print("gschichten ausm paulanergarten")
@@ -31,6 +53,7 @@ def main():
 	root_smfile = smroot + "/smfile"
 
 
+	smfile = open_smfile(root_smfile)
 	smfile = conf_pysmfile.pysmfile(root_smfile)
 	smfile_content = smfile.get_content()
 
