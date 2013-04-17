@@ -10,6 +10,7 @@
 #
 # (c) 2013 [sft]technologies
 
+import parser
 
 '''
 class for working with a smfile
@@ -25,3 +26,9 @@ class pysmfile:
 
 	def get_content(self):
 		return self.content
+
+	def run(self):
+		smfile_st = parser.suite(self.content)
+		smfile_code = parser.compilest(smfile_st, 'smfile.py')
+
+		exec(smfile_code, globals(), locals())

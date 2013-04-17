@@ -39,10 +39,7 @@ def main():
 
 	print("################ end of smfile content\n\n")
 
-	smfile_st = parser.suite(smfile_content)
-	smfile_code = parser.compilest(smfile_st, 'smfile.py')
-
-	exec(smfile_code, globals(), locals())
+	smfile.run()
 
 if __name__ == "__main__":
 	main()
