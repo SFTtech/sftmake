@@ -10,21 +10,22 @@
 #
 # (c) 2013 [sft]technologies, jonas jelten
 
-import parser #python-internal python parser
-
-from conf_smfile import smfile
 
 '''
-class for working with a smfile
-containing configuration written in python
+class for working with an smfile
+must be superclass for any config language class
+
+(e.g. the python pysmfile inherits from smfile)
 '''
-class pysmfile(smfile):
+class smfile:
 
 	def __init__(self, filename):
-		smfile.__init__(self, filename)
+		self.filename = filename
+		with open(self.filename) as f:
+			self.content = f.read()
+
+	def get_content(self):
+		return self.content
 
 	def run(self):
-		smfile_st = parser.suite(self.content)
-		smfile_code = parser.compilest(smfile_st, 'smfile.py')
-
-		exec(smfile_code, globals(), locals())
+		raise NotImplementedError("run method must be implemented")
