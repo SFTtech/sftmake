@@ -27,7 +27,12 @@ class pysmfile(smfile):
 		smfile_st = parser.suite(self.content)
 		smfile_code = parser.compilest(smfile_st, 'smfile-py')
 
-		exec(smfile_code, globals(), locals())
+		self.smglobals = globals()
+		self.smlocals = {}
+
+		exec(smfile_code, self.smglobals, self.smlocals)
+
+		print("\n\nvariables in smfile:\n" + str(self.smlocals.keys()))
 
 	def __repr__(self):
 		return "[smfile] " + util.smpath(self.filename)
