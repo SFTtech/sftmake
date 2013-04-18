@@ -25,6 +25,9 @@ class pysmfile(smfile):
 
 	def run(self):
 		smfile_st = parser.suite(self.content)
-		smfile_code = parser.compilest(smfile_st, 'smfile.py')
+		smfile_code = parser.compilest(smfile_st, 'smfile-py')
 
 		exec(smfile_code, globals(), locals())
+
+	def __repr__(self):
+		return "[smfile] " + util.smpath(self.filename)
