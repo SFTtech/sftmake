@@ -9,6 +9,15 @@
 #
 # (c) 2013 [sft]technologies, jonas jelten
 
+
+
+#TODO: gnu make compatibility (configure, make, make install) (incl. options)
+
+#TODO: add testing features and bisect support
+
+
+
+
 import sys
 import util
 import re
