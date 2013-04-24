@@ -158,25 +158,13 @@ confinfo[src] = Config(parents = [src-folder], directory = src-folder-stuff, kin
 variables["c"].setval([Val("g++", None, Val.MODE_APPEND)], "^/folder/file.c")
 """
 
-
-#TODO: colored output
-
 #TODO: output queue, fixing thread interferences with msgs containing newlines
 
 #TODO: unit test class
 
 #TODO: add more shell commands, e.g. all dependencies ready
 
-#TODO: add testing features and bisect support
-
-#TODO: replace all prints with log functions and loglevel
-
-#TODO: gnu make compatibility (configure, make, make install) (incl. options)
-
 #TODD: option for MD to only check for file in ^/ (exclude system headers)
-
-#TODO: use inotify to detect file changes, and recompile them
-
 
 class BuildWorker:
 	"""A worker thread that works and behaves like a slave. Be careful, it bites."""
