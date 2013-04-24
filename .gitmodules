@@ -1,0 +1,3 @@
+[submodule "sftmake-testproject"]
+	path = sftmake-testproject
+	url = git@git.sft.mx:sftmake-test
