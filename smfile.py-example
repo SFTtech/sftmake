@@ -1,0 +1,6 @@
+# sftmake:pythonconfig
+#
+#this is an example of configuring sftmake with python code.
+#
+
+print("lol")
