@@ -769,27 +769,33 @@ class BuildOrder:
 
 	#TODO: implement option for filtering out system headers
 	def graphviz(self):
-		'''neat graph representation of the dependencies'''
+		'''
+		neat graph representation of the dependencies
 
-		#header:
+		this function generates a dot file for graphviz
+		render a png, pdf or whatever using dot (or other graphwiz tools
+		'''
+
+		#dot file header:
 		out = "digraph \"sftmake dependencies for $projectname(TODO)\" {\n"
 		out += "overlap=scale\n"
 		out += "splines=true\n"
 		out += "sep=.1\n"
 		out += "node [style=filled]\n"
 
+		#for graph drawing, store all edges:
+		#key = originating node id
+		#value = [list of it's dependencies ids]
 		edges = dict()
-		visited = set()
-
-		'''nested function for recursively reaching all used dependent elements'''
 
 		all_files = self.as_set()
 
+		#iterate over all single elements of the dependency tree
 		for element in all_files:
 			elid = id(element)
 
-			#append lines to node list:
 
+			#determine the color of the current node
 			if type(element) == BuildTarget:
 				color = "red"
 
@@ -807,19 +813,23 @@ class BuildOrder:
 					if filtersysheaders:
 						continue
 
-			# maybe set color by rgb values:
+			#maybe set color by rgb values in the future:
 			#color = cr + ',' + cg + ',' + cb
+
 			nout = '// ' + repr(element) + '\n'
 			nout += '"' + str( id(element) )  + '" '
 			nout += '[fillcolor="' + color + '",'
 			nout += 'label="' + repr(element) + '"]\n'
 
-			#edge list:
+			#add the new node to the output file
+			out += nout
+
+			#add dependency arrows to the edge list:
 			for dep in (element.depends | element.depends_finished):
-				#element is dependent on dep, so add dep -> elem
+				#element is dependent on dep, so add dep --> elem
 				#as one element has multiple dependencies,
-				#multiple -> must be drawn from multiple dependencies
-				#=> edges[element] = list of its dependencies
+				#multiple --> must be drawn from multiple dependencies
+				#=> edges[element] = [list of its dependencies]
 
 				depid = id(dep)
 
@@ -828,20 +838,25 @@ class BuildOrder:
 				else:
 					edges[ elid ] = { depid }
 
-			out += nout
 
+		#as all nodes have been created, add the directed edges now:
 		out += "\n// edge list: \n"
+
+		#iterate over all nodes and add arrows originating from them
 		for elemk in edges.keys():
 			elem = edges[elemk]
 			out += '{ '
+
+			#for each dependency (id) that elem the current has:
 			for dep in elem:
-				#for each dependency (id) that elem has
 				out += '"' + str(dep) + '" '
 
 			out += '} -> "' + str(elemk) + '"\n'
 
 
 		out += "}"
+
+		#that's it, return the dot text:
 		return out
 
 	def ascii(self):
