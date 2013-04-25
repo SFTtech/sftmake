@@ -19,8 +19,10 @@
 
 
 import sys
+import os.path
 import util
 import re
+import pprint
 
 import conf_smfile
 
@@ -36,21 +38,34 @@ def main():
 	print("number of args:" + str(len(args)))
 	print(str(args))
 
+
+	#default sftmake config
+	sftmake_path = os.path.dirname(os.path.realpath(__file__))
+	defaultconf = conf_smfile.smfile_factory(sftmake_path +"/conf_default.py")
+	defaultconf.run()
+	print("default configuration:")
+	print(defaultconf.data)
+
+	#search for the project root directory
 	smroot = util.get_smroot()
+	root_smfile = smroot + "/smfile" #TODO: may have other names
 
-	#TODO: may have other names
-	root_smfile = smroot + "/smfile"
-
-
+	#create a smfile handle, may be python or smlang
 	smfile = conf_smfile.smfile_factory(root_smfile)
 	smfile_content = smfile.get_content()
 
-	print("################ content of smfile:")
+	print("################ content of main "+ repr(smfile) +":")
 	print(smfile_content)
-
 	print("################ end of smfile content\n\n")
 
+	#read the root smfile
 	smfile.run()
+
+	mainfileconf = smfile.data
+	print("project main configuration:")
+	print(mainfileconf)
+
+	#if enabled, search for other smfiles in the whole dirtree
 
 if __name__ == "__main__":
 	main()

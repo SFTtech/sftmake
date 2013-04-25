@@ -12,8 +12,37 @@
 #
 # (c) 2013 [sft]technologies, jonas jelten
 
+import pprint
 
-class sm:
+class smconfig:
+
+	def __init__(self):
+		self.data = dict()
 
 	def lol(self):
-		print("test successful")
+		print("smconfig call test successful")
+
+	def set(self, key, val):
+		self.data[key] = val
+
+	def add(self, key, val):
+		if key in self.data:
+			if type(self.data[key]) == list:
+				self.data[key].append(val)
+			else:
+				raise Exception("can't append value '" + val + "' to key [" + str(key) + "] as it is not a list.")
+
+		else:
+			self.data[key] = [val]
+
+	def remove(self, key):
+		del self.data[key]
+
+	def get(self, key):
+		return self.data[key]
+
+	def __repr__(self):
+		return "[smconfig]"
+
+	def __str__(self):
+		return pprint.pformat(self.data)

@@ -10,7 +10,8 @@
 #
 # (c) 2013 [sft]technologies, jonas jelten
 
-import parser #python-internal python parser
+import parser #python-internal python parser (contains lots of python)
+import util
 
 from conf_smfile import smfile
 
@@ -32,7 +33,13 @@ class pysmfile(smfile):
 
 		exec(smfile_code, self.smglobals, self.smlocals)
 
-		print("\n\nvariables in smfile:\n" + str(self.smlocals.keys()))
+		confvarname = "sftmake"
+
+		if confvarname in self.smlocals.keys():
+			self.data = self.smlocals[confvarname]
+
+		else:
+			raise Exception("variable "+ confvarname +" not defined in '"+ repr(self) +"'")
 
 	def __repr__(self):
-		return "[smfile] " + util.smpath(self.filename)
+		return "[smfile "+ util.smpath(self.filename) +"]"
