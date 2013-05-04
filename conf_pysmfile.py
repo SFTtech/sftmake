@@ -25,8 +25,29 @@ class pysmfile(smfile):
 		smfile.__init__(self, filename)
 
 	def run(self):
-		smfile_st = parser.suite(self.content)
-		smfile_code = parser.compilest(smfile_st, 'smfile-py')
+		try:
+			smfile_st = parser.suite(self.content)
+
+		except SyntaxError as e:
+			print(str(dir(e)))
+
+			#flines = self.content.split('\n')
+			#eline = '"'+ str(flines[e.lineno-1]) +'"'
+
+			msg = "Error parsing python smfile:\n"
+			msg += "- Cause: " + e.msg + "\n"
+			msg += "- IE: " + str(e.print_file_and_line) + "\n"
+			msg += "- File: " + repr(self) + "\n"
+			msg += "- Line: " + str(e.lineno) + ", "
+			msg += "Char: " + str(e.offset) + "\n"
+			msg += "Expression: \n" + e.text
+			msg += ''.join([' ' for i in range(e.offset-1)]) + "^ there..."
+			raise Exception(msg)
+
+		try:
+			smfile_code = parser.compilest(smfile_st, 'smfile-py')
+		except Exception as e:
+			raise e
 
 		self.smglobals = globals()
 		self.smlocals = {}
@@ -42,4 +63,4 @@ class pysmfile(smfile):
 			raise Exception("variable "+ confvarname +" not defined in '"+ repr(self) +"'")
 
 	def __repr__(self):
-		return "[smfile "+ util.smpath(self.filename) +"]"
+		return ""+ util.smpath(self.filename) +""
