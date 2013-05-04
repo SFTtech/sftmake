@@ -21,5 +21,5 @@ sftmake.lol()
 
 #TODO use environment variables!
 
-sftmake.set('c', 'clang')
-sftmake.set('cflags', '-g -O3')
+sftmake.set('c', 'gcc')
+sftmake.set('cflags', '-march=native')
