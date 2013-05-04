@@ -21,6 +21,10 @@ containing configuration written in python
 '''
 class pysmfile(smfile):
 
+	#the name of the config variable
+	#this has to be set in the smfile
+	confvarname = "sftmake"
+
 	def __init__(self, filename):
 		smfile.__init__(self, filename)
 
@@ -28,7 +32,7 @@ class pysmfile(smfile):
 		try:
 			smfile_st = parser.suite(self.content)
 
-		except SyntaxError as e:
+		except (SyntaxError) as e:
 			print(str(dir(e)))
 
 			#flines = self.content.split('\n')
@@ -44,23 +48,21 @@ class pysmfile(smfile):
 			msg += ''.join([' ' for i in range(e.offset-1)]) + "^ there..."
 			raise Exception(msg)
 
-		try:
-			smfile_code = parser.compilest(smfile_st, 'smfile-py')
-		except Exception as e:
-			raise e
+		#compile the python smfile:
+		smfile_code = parser.compilest(smfile_st, "smfile: " + repr(self))
 
+		#preserve global variables, reset local (e.g. smfile_code) variables
 		self.smglobals = globals()
 		self.smlocals = {}
 
+		#execute the python smfile:
 		exec(smfile_code, self.smglobals, self.smlocals)
 
-		confvarname = "sftmake"
-
-		if confvarname in self.smlocals.keys():
-			self.data = self.smlocals[confvarname]
+		if self.confvarname in self.smlocals.keys():
+			self.data = self.smlocals[self.confvarname]
 
 		else:
-			raise Exception("variable "+ confvarname +" not defined in '"+ repr(self) +"'")
+			raise Exception("variable "+ self.confvarname +" not defined in '"+ repr(self) +"'")
 
 	def __repr__(self):
 		return ""+ util.smpath(self.filename) +""

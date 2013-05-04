@@ -50,6 +50,7 @@ def smfile_factory(filepath):
 
 	#if the first line of the smfile contains "python",
 	#it is written in python.
+	#TODO: better and more flexible header syntax
 	if re.match(r"#.*python.*", headerlines):
 		#python conf file
 
