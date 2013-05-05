@@ -195,8 +195,14 @@ class srcsmfile(smfile):
 			if not os.path.isfile(realfilename):
 				raise Exception("source smconfig found for nonexistant file \n\t" + realfilename)
 
+			self.realfilename = realfilename
+
 		else:
 			raise Exception("wtf internal fail, it should always match...")
+
+	def __str__(self):
+		txt = smfile.__repr__(self) + " for " + self.realfilename + "\n"
+		return txt
 
 class inlinesmfile(smfile):
 	def __init__(self, path, filename):
