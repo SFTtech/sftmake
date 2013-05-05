@@ -31,7 +31,7 @@ class TokenizerEscapeEndOfLineException(TokenizerEscapeSequenceException):
 
 def tokenize_line(line):
 	#TODO use the new Enum stuff from util
-	
+
 	def tokenize_characters(line):
 		"""
 		tokenize (assign a type to) all characters of the input line

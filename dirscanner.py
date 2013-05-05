@@ -3,12 +3,15 @@
 import os
 
 """
-scan from current directory and find project root directory (by smfile)
+scan from current directory and find project root directory (by file 'sftmake')
 
-project root:		^/smfile
-dir + subdir:		^/foo/bar/dir.smfile		/dir.sm
-link target:		^/foo/lolbinary.target.smfile	/lolbinary.target.sm
-per source:			^/foo/srcfile.cpp.smfile	/srcfile.cpp.src.sm	/srcfile.cpp.sm
+project root:    ^/sftmake
+
+config files:
+
+per dir:         ^/foo/bar/smfile
+per target:      ^/foo/libsftcall.target.smtarget
+per source:      ^/foo/main.cpp.smsrc
 """
 
 def create_smtree():
