@@ -8,7 +8,7 @@ class EnumVal:
 	"""
 	def __init__(self, representation):
 		self.representation = representation
-	
+
 	def __repr__(self):
 		return repr(self.representation)
 
@@ -36,20 +36,20 @@ class OrderedSet:
 	#delete an element
 	def delete(self, x):
 		self.storage.pop(x)
-	
+
 	#remove all elements
 	def clear(self):
 		self.storage.clear()
-	
+
 	#update the ordered set with an other ordered set
 	def update(self, x):
 		for v in x:
 			self.storage.pop(v)
 		self.storage.update(x.storage)
-	
+
 	def tolist(self):
 		return [x for x in self.storage]
-	
+
 	def newest(self):
 		return next(reversed(self.storage))
 
@@ -82,7 +82,7 @@ def abspath(path, relto = '^'):
 		if(relto[0] != '^'):
 			raise Exception('relto must start with ^')
 		result = abspath(relto) + '/' + path
-	
+
 	return os.path.normpath(result)
 
 def relpath(path, relto = '^'):
@@ -93,7 +93,7 @@ def relpath(path, relto = '^'):
 	"""
 	if(not path): #fak u
 		raise Exception("Path must not be empty")
-	
+
 	elif(path[0] == '/'):
 		return os.path.relpath(path, abspath(relto))
 
@@ -167,3 +167,8 @@ def generate_oname(obj_desc):
 	obj_desc = re.sub(r"/", "|", obj_desc)
 	# And_there_you_go::_A_weirdly:/interestingly-escaped_command.
 	return obj_desc
+
+def concat(lists):
+	for l in lists:
+		for val in l:
+			yield val
