@@ -17,13 +17,11 @@ import util
 """
 scan from project root directory and cascade into all subfolders
 
-project root:  ^/smfile
-dir + subdir:  ^/foo/bar/dir.smfile           /dir.sm
-link target:   ^/foo/lolbinary.target.smfile  /lolbinary.target.sm
-per source:    ^/foo/srcfile.cpp.smfile       /srcfile.cpp.src.sm   /srcfile.cpp.sm
+project root:   ^/smfile
+dir + subdir:   ^/foo/bar/dir.smfile           /dir.sm
+link target:    ^/foo/lolbinary.target.smfile  /lolbinary.target.sm  /lolbinary.smtarget
+per source:     ^/foo/srcfile.cpp.smfile       /srcfile.cpp.src.sm   /srcfile.cpp.sm  /srcfile.cpp.smsrc
 """
-
-
 
 
 class smtree:

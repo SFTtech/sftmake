@@ -1,233 +1,565 @@
 #!/usr/bin/python3
+import itertools
 
 if not "assembled" in globals():
 	from util import *
 
 class Config:
 	"""
-	Holds metadata for a config:
-	Its parent config, its associated directory, and its kind
-	See __init__ documentation.
-	Note that none of these parameters need to be unique, nor do they in
+	other than the name might suggest, this class holds no actual config data.
+	it merely manages metadata for configurations such as their name, and their parent configurations.
+	actual config data is stored by the Var objects
+
+	name
+		example conf names:
+
+		base:default
+		base:args
+		dir:^
+		target:^/libsft
+		src:^/main.cpp
+		srcfortarget:^/libsft:^/main.cpp
+
+	parents
+		list of pointers to direct parent configurations
+
+		example parent lists:
+
+		base:default
+			[]
+		dir:^
+			[base:args]
+		srcfortarget:^/libsft:^/main.cpp
+			[target:^/libsft, src:^/main.cpp]
+
+	directory
+		the directory relative to which relative paths sould be interpreted
+
+		example directories:
+
+		base:default
+			^
+		dir:^
+			^
+		dir:^/tests
+			^/tests
+		src:^/tests/main.cpp
+			^/tests
+		srcfortarget:^/tester:^/tests/main.cpp
+			^/tests
 	"""
 
-	BASE = EnumVal("Base configuration")
-	DIR = EnumVal("Directory configuration")
-	TARGET = EnumVal("Target configuration")
-	SRC = EnumVal("Sourcefile configuration")
-	SRCFORTARGET = EnumVal("Sourcefile- for- target configuration")
-
-	def __init__(self, parents, directory, kind):
-		"""
-		parents:
-			list of names of direct parent configurations
-			for the absolute base config the list is empty,
-			usually it has one element,
-			for SRCFORTARGET configs it has two elements (the SRC and the TARGET config).
-		directory: 
-			the directory that this configuration is associated with
-		rank:
-			the rank of the configuration (BASE, DIR, TARGET, SRC, SRCFORTARGET)
-		"""
+	def __init__(self, name, parents, directory):
+		self.name = name
 		self.parents = parents
 		self.directory = directory
-		self.kind = kind
+		configs[name] = self
 
-"""
-Global dict that holds all variables
-Key: Varname (String)
-Val: Variable (Var object). Variables store values for all configs.
-"""
-variables = {}
+	def parenthyperres(self):
+		"""
+		Returns whole inheritance list for the conf,
+		starting with the most base conf 'default', and ending with self.
+		"""
+		result = OrderedSet()
+		for parent in self.parents:
+			result.update(parent.parenthyperres())
+		result.append(self)
+		return result
 
-"""
-Global dict that holds metadata for all configs
-Key: Confname (String, usually a path such as '^/libfoo.so')
-Val: Metadata (Config object)
-"""
-confinfo = {}
-""" 'default' is the absolute root configuration, and consists of the internal defaults """
-confinfo["default"] = Config(parents = [], directory = '^', kind = Config.BASE)
+class CondTreeNode:
+	"""
+	represents one condition tree node.
+	assignment conditions consist of a list of condition tree nodes, which may in return have more
+	condition tree nodes as children.
+	consider the example: cflags[$mode==dbg] += -g
+		the condition is one CondTreeNode which checks whether $mode equals dbg.
+	consider the example: cflags[$mode==dbg || $mode==dbgo] += -g
+		the condition is one CondTreeNode of type 'or', which has two children.
+		one child checks whether $mode equals dbg, and the other one checks wheter $mode equals dbgo
+	"""
 
-#TODO this whole class
-class Cond:
-	"""	represents one condition """
-	def create(condstr):
-		""" abstract condition proxy factory singleton bean (not quite) """
+	def eval(self, evalconf, depends):
+		"""
+		evaluates whether the condition is met.
 
-		#read constr until operator sign
-		#from that operator, decide which class to produce
-		#give varname and condstr to the constructor of that class
-		#return that class
-		pass
-
-	#abstract, must be implemented
-	def check(self, conf, depends = OrderedSet()):
+		evalconf
+			the conf for which we are evaluating
+		depends
+			for detecting circular variable dependencies (and thus infinite loops)
+		"""
+		#not implemented in abstract base class
 		raise NotImplementedError()
 
-class Cond_Equals(Cond):
-	def __init__(self, varname, val):
+class CondTreeNode_Not(CondTreeNode):
+	"""
+	logic 'not' of one condition
+	"""
+	def __init__(self, condtree):
+		self.condtree = condtree
+
+	def eval(self, evalconf, depends):
+		return not self.condtree.eval(evalconf, depends)
+
+class CondTreeNode_And(CondTreeNode):
+	"""
+	logic 'and' of multiple conditions
+	evaluation stops when the first false condition is encountered
+	"""
+	def __init__(self, condtrees):
+		self.condtrees = condtrees
+
+	def eval(self, evalconf, depends):
+		for c in self.condtrees:
+			if not c.eval(evalconf, depends):
+				return False
+
+		return True
+
+class CondTreeNode_Or(CondTreeNode):
+	"""
+	logic 'or' of multiple conditions
+	evaluation stops when the first true condition is encountered
+	"""
+	def __init__(self, condtrees):
+		self.condtrees = condtrees
+
+	def eval(self, evalconf, depends):
+		for c in self.condtrees:
+			if c.eval(evalconf, depends):
+				return True
+
+		return False
+
+class CondTreeNode_Xor(CondTreeNode):
+	"""
+	logic 'xor' of multiple conditions
+	true if an odd number of conditions evaluate to true
+	all conditions are evaluated
+	"""
+	def __init__(self, condtrees):
+		self.condtrees = condtrees
+
+	def eval(self, evalconf, depends):
+		result = False
+
+		for c in self.condtrees:
+			if c.eval(evalconf, depends):
+				result = not result
+
+		return result
+
+class CondTreeNode_Implies(CondTreeNode):
+	"""
+	logic 'implies' of two conditions
+	true if the left condition is false, or if left and right are true
+	the right condition is not evaluated if the left condition is false
+	"""
+	def __init__(self, condtreel, condtreer):
+		self.condtreel = condtreel
+		self.condtreer = condtreer
+
+	def eval(self, evalconf, depends):
+		return not condtreel.eval(evalconf, depends) or condtreer.eval(evalconf, depends)
+
+class CondTreeNode_Leaf(CondTreeNode):
+	"""
+	abstract class that represents a condtree leaf node,
+	i.e. one that actually checks a condition,
+	such as 'equals', 'greater than', 'subset', ...
+	"""
+	def __init__(self, leftvals, rightvals):
+		"""
+		leftvals
+			ValTreeNode for the vals left of the operator
+		rightvals
+			ValTreeNode for the vals right vor the operator
+		"""
+		self.leftvals = leftvals
+		self.rightvals = rightvals
+
+	def evallr(self, evalconf, depends):
+		"""
+		evaluate the left and right valtrees
+		used by the eval() methods
+		"""
+		left = self.leftvals.eval(evalconf, Var.TYPE_STRING, depends)
+		right = self.rightvals.eval(evalconf, Var.TYPE_STRING, depends)
+		return left, right
+
+	def select(operator):
+		"""
+		selects the appropriate CondTreeNode leaf type, from the given operator
+		"""
+		if operator in ["==", "=", "equals", "eq"]:
+			return CondTreeNode_Leaf_Equals
+		elif operator in ["subsumes"]:
+			return CondTreeNode_Leaf_SubSet
+		else:
+			raise Exception("Unknown condition operator")
+
+class CondTreeNode_Leaf_Equals(CondTreeNode_Leaf):
+	"""
+	checks whether the left and right expressions are equal
+	note that in the current implementation, this also checks whether the order is identical.
+	maybe introduce a '===' operator for that? TODO
+	"""
+	def check(self, evalconf, depends):
+		leftvals, rightvals = self.evallr(evalconf, depends)
+		return leftvals == rightvals
+
+class CondTreeNode_Leaf_SubSet(CondTreeNode_Leaf):
+	"""
+	checks whether the left expression is a subset of the right expression
+	does not take order into consideration
+	"""
+	def check(self, evalconf, depends):
+		leftvals, rightvals = self.evallr()
+		return set(leftvals) < set(rightvals)
+
+#TODO obviously we need more Leaf nodes
+
+class ValTreeNode:
+	"""
+	similar to CondTreeNode, represents one value tree node.
+	assignment values consist of a list of val tree nodes, which may themselves have more
+	value tree nodes as children.
+	consider the example: cflags += -g
+		the values are a single ValTreeNode of type Literal, with value '-g'.
+	consider the example: cflags += -g, -Wall, $(shell ls), $lflags, ${${mode}}
+		the values are four ValTreeNodes:
+		one literal, '-g'
+		one literal, '-Wall'
+		one function call, function name is a literal 'shell', function args is one literal 'ls'
+		one variable call, variable name is a literal 'lflags'
+		one variable call, variable name is a variable call, variable name is a literal 'mode'
+	"""
+
+	def __init__(self, conf):
+		"""
+		conf
+			configuration where the ValTreeNode was declared
+		"""
+		self.conf = conf
+
+	def eval(self, evalconf, valtype, depends):
+		"""
+		evaluates this node and returns the result values as a list of strings
+
+		evalconf
+			configuration for which we are evaluating
+			needed e.g. when calling variables, or evaluating conditions
+		valtype
+			type that we expect the eval() to return (STRING, PATH, INT, ...)
+		depends
+			for detecting circular variable dependencies (and thus infinite loops)
+		"""
+		#not implemented in the abstract base class
+		raise NotImplementedError()
+
+	def typecheck(self, vals, valtype):
+		if self.valtype == Var.TYPE_STRING:
+			#everything is allowed, nothing needs to be modified
+			return vals
+
+		elif self.valtype == Var.TYPE_PATH:
+			#make sure the path is one of:
+			# an absolute POSIX path
+			# a smpath
+			return [smpathifrel(v, self.conf.directory) for v in vals]
+
+		elif self.valtype == TYPE_INT:
+			for v in vals:
+				try:
+					int(v)
+				except:
+					raise Exception("Value must be an integer, but is " + v)
+
+		elif type(self.valtype) == list:
+			for v in vals:
+				if v not in self.valtype:
+					raise Exception("Value must be one of " + str(self.valtype)
+						+ ", but is " + v)
+			return vals
+
+class ValTreeNode_List(ValTreeNode):
+	"""
+	contains a list of ValTreeNodes
+	"""
+	def __init__(self, conf, nodes):
+		"""
+		nodes
+			list of ValTreeNodes
+		"""
+		super().__init__(conf)
+		self.nodes = nodes
+
+	def eval(self, evalconf, valtype, depends):
+		result = []
+		for node in self.nodes:
+			result += node.eval(evalconf, valtype, depends)
+
+		return self.typecheck(result, valtype)
+
+class ValTreeNode_StringLiteral(ValTreeNode):
+	"""
+	contains one string literal
+	"""
+	def __init__(self, conf, val):
+		"""
+		val
+			the literal value
+		"""
+		super().__init__(conf)
 		self.val = val
+
+	def eval(self, evalconf, valtype, depends):
+		return self.typecheck([val], valtype)
+
+class ValTreeNode_Var(ValTreeNode):
+	"""
+	evaluates an other variable, by its name
+	varname obviously is a ValTreeNode itself
+	"""
+	def __init__(self, conf, varname):
+		"""
+		varname
+			Variable name (must eval to exactly one string)
+		"""
+		super().__init__(conf)
 		self.varname = varname
 
-	def check(self, conf, depends = OrderedSet()):
-		return (variables[varname].get(conf, depends) == val)
+	def eval(self, evalconf, valtype, depends):
+		#first, get the variable name
+		varname = self.varname.eval(evalconf, Var.TYPE_STRING, depends)
+		if len(varname) != 1:
+			#TODO some more sophisticated error reporting
+			raise Exception("varname must be exactly one string, but is " + repr(varname))
+		varname = varname[0]
 
-class Val:
+		#now, eval that variable
+		result = variables[varname[0]].eval(evalconf, depends)
+
+		return self.typecheck(result, valtype)
+
+class ValTreeNode_Fun(ValTreeNode):
 	"""
-	represents one variable value. it consists of:
-	the actual string value
-	a list of conditions, all of which must be met for the value to be applied to the result list
-	a variable mode (see below)
+	runs a function, by name and parameters
+	"""
+	def __init__(self, conf, funname, args):
+		"""
+		funname
+			Function name (must eval to exactly one string)
+		args
+			Function arguments
+			the valtype depends on the function name
+		"""
+		super().__init__(conf)
+		self.funname = funname
+		self.args = args
+
+	def eval(self, evalconf, valtype, depends):
+		#first, get the function name
+		funname = self.funname.eval(evalconf, Var.TYPE_STRING, depends)
+		if len(funname) != 1:
+			raise Exception("funnae must be exactly one string, but is " + repr(funname))
+		funname = funname[0]
+
+		#TODO modular function concept, with user-definable functions etc etc
+		if funname == "count":
+			#the 'count' function requires its arguments to be of TYPE_STRING
+			args = self.args.eval(evalconf, Var.TYPE_STRING, depends)
+
+			#run the 'count' function magic (its really complicated!)
+			result = [str(len(args))]
+		elif funname == "path":
+			#the 'path' function has the only function to force the evaluation of its args as TYPE_PATH
+			args = self.args.eval(evalconf, Var.TYPE_PATH, depends)
+			result = args
+		else:
+			raise Exception("unknown function: " + funname)
+
+		return self.typecheck(result, valtype)
+
+class VarAssignment:
+	"""
+	represents one assignment of a list of values to a variable, under a certain condition, with a certain mode.
+
+	valtree
+		the value tree (type ValTreeNode)
+		evals to a list of string values
+	condtree
+		the condition tree (type CondTreeNode)
+		must eval to True for the assignment to take effect
+	mode
+		if the assignment takes effect, mode selects how it will influence the result list:
+		MODE_APPEND (+=) appends valtree.eval() to the result list. existing vals are moved to the end.
+		MODE_SET    (=)  replaces the result list with valtree.eval()
+		MODE_REOVE  (-=) removes all values in valtree.eval() from the result list.
+	src
+		a string that describes the source of this assignment, for use in dbg/error messages,
+		e.g. '^/smfile, line 80' or 'argv[3]'
 	"""
 
-	#append the value to the list. if it is already in the list, move it to the end.
-	MODE_APPEND = EnumVal("Append")
-	#delete the existing list, append the value
-	MODE_SET = EnumVal("Set")
-	#if it exists, remove the value from the existing list
-	MODE_REMOVE = EnumVal("Remove")
+	MODE_APPEND = EnumVal("Assignment mode: Append")
+	MODE_SET    = EnumVal("Assignment mode: Set")
+	MODE_REMOVE = EnumVal("Assignment mode: Remove")
 
-	def __init__(self, string, conditions, mode):
-		self.string = string
-		self.conditions = conditions
+	def __init__(self, valtree, condtree, mode, src):
+		self.valtree = valtree
+		self.condtree = condtree
 		self.mode = mode
-	
-	def check_conds(self, conf, depends = OrderedSet()):
-		"""
-		check all conditions
-		there might be circular dependencies, which could leed to infinite loops.
-		we keep track of already-evaluated variables in 'depends'.
-		also, conditions may evaluate differently depending on the active conf,
-		so we need that as an argument as well.
-		"""
-		if conditions != None:
-			for c in conditions:
-				if not c.check(conf, depends):
-					return False
-		return True
+		self.src = src
 
 class Var:
 	"""
-	one complete configuration variable, such as 'cflags'.
-	stores a list of Vals for each conf
+	One complete configuration variable, such as 'cflags'.
+	Stores lists of VarAssignments for each conf.
+
+	valtype
+		the kind of information that is carried in the variable values.
+		may be STRING (simple string), PATH (strings will be auto-converted to smpaths),
+		or INT (assignment will fail for non-integer strings)
+	varquant
+		specifies whether the variable stores only a single value (SINGLE),
+		or a list of multiple values (MULTI)
+	assscope
+		specifies whether assignments affect the var only for the conf where they were assigned (SCOPE_CONF),
+		or if the concept of confs does not apply to this variable at all (SCOPE_GLOBAL).
+		most variables will be SCOPE_CONF.
 	"""
 
-	TYPE_STRING = EnumVal("String")
-	TYPE_PATH = EnumVal("Path")
-	TYPE_INT = EnumVal("Int")
+	TYPE_STRING = EnumVal("Value type: String")
+	TYPE_PATH = EnumVal("Value type: Path")
+	TYPE_INT = EnumVal("Value type: Int")
 
-	def __init__(self, name, vartype = TYPE_STRING, single = False, defaultvals = []):
+	QUANT_SINGLE = EnumVal("Variable Quantifier: Single")
+	QUANT_MULTI = EnumVal("Variable Quantifier: Multi")
+
+	SCOPE_CONF = EnumVal("Scope: Conf")
+	SCOPE_GLOBAL = EnumVal("Scope: Global")
+
+	def __init__(self, name, valtype = TYPE_STRING, varquant = QUANT_MULTI, assscope = SCOPE_CONF, defaultassignments = []):
 		"""
-		varname:
-			We need to know our own name for debugging purposes
-		vartype:
-			TYPE_STRING: Semantics-free strings
-			TYPE_PATH: Strings are interpreted as paths relative to the directory of the conf
-			TYPE_INT: If the String is not a valid Integer, a fatal error is raised
-			List of strings: Only one of these is allowed.
-		single:
-			The variable is single-valued, i.e. when reading, instead of the list, only the
-			newest entry is returned.
-			A fatal error is raised if multiple values are added at once.
-		defaultvals:
-			The default values of the variable, i.e. a list of all values for the 'default' conf.
-			After initialization, a Var stores only a value list for the default conf.
+		defaultassignments:
+			A list of VarAssignments, used as default (root) conf for this variable
 		"""
 		self.name = name
-		self.vartype = vartype
-		self.single = single
-		self.vals = {"default": defaultvals}
+		self.valtype = valtype
+		self.varquant = varquant
 
-		#add ourselves to the global variable list
+		self.assscope = assscope
+		if self.assscope == Var.SCOPE_CONF:
+			self.assignments = {conf_default: defaultassignments}
+		elif self.assscope == Var.SCOPE_GLOBAL:
+			self.assignments = defaultassignments
+
 		variables[name] = self
 
-	def addval(self, vallist, conf):
-		""" adds the given value to the variable, for the given conf """
-
-		#semantics stuff
-		if self.vartype == VARTYPE_STRING:
-			#VARTYPE_STRING has no semantics
-			pass
-
-		elif self.vartype == VARTYPE_PATH:
-			#convert relative paths to smpaths
-			val = smpathifrel(val, confinfo[conf].directory)
-
-		#if vartype is an int, we parse it as such
-		elif self.vartype == VARTYPE_INT:
-			#check whether val is 
-			try:
-				int(val)
-			except:
-				raise Exception("Variable allows only integer values")
-
-		#if vartype is a list, then val must be one of the list elements
-		elif isinstance(self.vartype, list):
-			if val not in self.vartype:
-				raise Exception("Value must be one of " + str(self.vartype))
-		else:
-			raise Exception("Variable type unknown")
-
-		#add val to the value list of conf
-		if conf not in self.vals:
-			self.vals[conf] = [val]
-		else:
-			self.vals[conf].append(val)
-
-	def get(self, conf, depends = OrderedSet()):
+	def addassignment(self, assignment, conf):
 		"""
-		returns the variable value(s) for a certain configuration
-		there might be circular dependencies, which could leed to infinite loops.
-		we keep track of already-evaluated variables in 'depends'.
+		adds the given VarAssignment, scoped for conf
 		"""
+		if self.assscope == Var.SCOPE_CONF:
+			if conf not in self.assignments:
+				self.assignments[conf] = [assignment]
+			else:
+				self.assignments[conf].append(assignment)
+		elif self.assscope == Var.SCOPE_GLOBAL:
+			self.assignments.append(assignment)
+
+	def eval(self, evalconf, depends = OrderedSet()):
+		"""
+		returns the string values of the var, for a certain conf.
+		evalconf:
+			the conf for which we are evaluating
+		depends:
+			when getting values of a variable, we might need other variables as depends.
+			that way, circular dependencies and thus infinite loops may happen.
+			we use depends to keep track of these dependencies and detect errors.
+		"""
+
+		#check if self is already in depends
 		if depends.append(self) == False:
+			#if yes, raise exception.
 			chain = self.name
 			for v in depends:
 				chain += ' -> ' + v.name
-			raise Exception("Circular dependency resolving conditions: " + chain)
+			raise Exception("Circular variable dependency: " + chain)
 
+		#prepare set of result strings
 		result = OrderedSet()
 
-		#for each val from each parent config
-		for conf in confparenthyperres(conf):
-			for val in self.vals.get(conf, []):
-				#if condition of the value evaluates true, apply to result
-				if val.check_conds(conf, depends):
-					(mode, string) = val.get()
-					if mode == VALMODE_APPEND:
-						result.append(string)
-					elif mode == VALMODE_SET:
-						result.clear()
-						result.append(string)
-					elif mode == VALMODE_REMOVE:
-						result.remove(string)
-		
-		if self.single:
+		#iterate over all assignments in all parent configs
+		if self.varscope == Var.SCOPE_CONF:
+			assignments = ((assignment, conf)
+				for conf in evalconf.parenthyperres()
+				for assignment in self.assignments.get(conf, []))
+		elif self.varscope == Var.SCOPE_GLOBAL:
+			assignments = ((assignment, conf_default)
+				for conf in self.assignments)
+
+		for assignment in assignments:
+			#first, check the condition
+			if not assignment.condtree.eval(evalconf, depends):
+				continue
+
+			vals = assignment.valtree.eval(evalconf, depends, self.valtype)
+
+			#apply assignment strings to result, depending on assignment mode
+			if assignment.mode == VarAssignment.MODE_APPEND:
+				for v in vals:
+					result.append(s)
+			elif assignment.mode == VarAssignment.MODE_SET:
+				result.clear()
+				for v in vals:
+					result.append(s)
+			elif assignment.mode == VarAssignment.MODE_REMOVE:
+				for v in vals:
+					result.remove(s)
+
+		if self.varquant == QUANT_SINGLE:
 			try:
 				return result.newest()
 			except:
-				raise Exception("Single-val variable has no value")
-		else:
+				raise Exception("Single-quantified variable has no value")
+		elif self.varquant == QUANT_MULTI:
 			return result
 
-def confparenthyperres(origin):
-	"""
-	returns all confs that the origin depends on, with the 'default' root configuration
-	at the beginning and origin itself at the end
-	"""
-	result = OrderedSet()
-	for parent in confinfo[origin].parents:
-		result.update(confparenthyperres(parent))
-	result.append(origin)
-	return result
+#these global dicts are automatically filled in the constructors of the Confs/Vars.
+""" allows quick lookup of Conf objects by their name """
+configs = {}
+
+""" the root configuration """
+conf_default = Config(name = "base:default", parents = [], directory = "^")
+
+""" allows finding Var objects by their name """
+variables = {}
 
 #all variables and their default configurations
-Var('c', Var.TYPE_STRING, True, [
-	Val(Cond.create("srcsuffix==cpp"), Val.MODE_APPEND, "g++"),
-	Val(Cond.create("srcsuffix==c"  ), Val.MODE_APPEND, "gcc")
-])
+var_compiler = Var(name = "c", varquant = Var.QUANT_SINGLE, defaultassignments = [
+	# c[$srcsuffix == c] = gcc
+	VarAssignment(
+		valtree = ValTreeNode_StringLiteral(conf_default, "gcc"),
+		condtree = CondTreeNode_Leaf_Equals(
+			ValTreeNode_Var(conf_default,
+				ValTreeNode_StringLiteral(conf_default, "srcsuffix")
+			),
+			ValTreeNode_StringLiteral(conf_default, "c")
+		),
+		mode = VarAssignment.MODE_APPEND,
+		src = "default configuration"
+	),
 
-#the used source files
-Var('srcs', Var.TYPE_PATH, False, [])
-#etc... basically, type the variable list from documentation section 3
+	# c[$srcsuffix == cpp] = g++
+	VarAssignment(
+		valtree = ValTreeNode_StringLiteral(conf_default, "g++"),
+		condtree = CondTreeNode_Leaf_Equals(
+			ValTreeNode_Var(conf_default,
+				ValTreeNode_StringLiteral(conf_default, "srcsuffix")
+			),
+			ValTreeNode_StringLiteral(conf_default, "cpp")
+		),
+		mode = VarAssignment.MODE_APPEND,
+		src = "default configuration"
+	)
+])

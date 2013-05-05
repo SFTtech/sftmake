@@ -26,8 +26,8 @@ def testseries(name, testfun, testtostr, *tests):
 		print(name + ": " + str(i).zfill(countstrlen) + "/" + countstr + ": " + testtostr(test))
 		if(testfun(test)):
 			success += 1
-		
-	message = name + ": " + str(success).zfill(countstrlen) + "/" + countstr + " successfull" 
+
+	message = name + ": " + str(success).zfill(countstrlen) + "/" + countstr + " successfull"
 	if success == count:
 		greenprint(message)
 		return True

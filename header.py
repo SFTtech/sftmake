@@ -6,7 +6,7 @@
 #
 # As always, this programm comes with NO WARRANTY...
 #
-# (c) 2013 Michael Ensslin	<michael@ensslin.cc>
+# (c) 2013 Michael Ensslin      <michael@ensslin.cc>
 # (c) 2013 Jonas Jelten
 # (c) 2013 Andre Kupka
 # (c) 2013-2213 Max Veit
@@ -70,7 +70,7 @@
 # determine at run-time if its code is run as part of an assembled
 # main file, or as a standalone file.
 # The check can, e.g. be done via the statement
-#	"assembled" in globals()
+#       "assembled" in globals()
 assembled = True
 
 # End of Header

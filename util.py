@@ -7,6 +7,9 @@ import multiprocessing
 
 
 class EnumVal:
+	"""
+	simply functions as a named object, for use e.g. as enum value.
+	"""
 	def __init__(self, representation):
 		self.representation = representation
 
@@ -14,9 +17,11 @@ class EnumVal:
 		return repr(self.representation)
 
 class OrderedSet:
-	""" wrapper around OrderedDict because fak u python
-
-	we just need OrderedSet functionality, so we set val = None for all keys. dirty, nah?"""
+	"""
+	we emulate 'OrderedSet' functionality from an OrderedDict by setting
+	val = None.
+	fak u python for not providing OrderedSet.
+	"""
 	def __init__(self):
 		from collections import OrderedDict
 		self.storage = OrderedDict()
@@ -58,10 +63,16 @@ class OrderedSet:
 
 smroot = None #will be set once needed, see below
 
-#functions for path conversions
 
-#convert path to absolute POSIX path
+#functions for path conversions:
+
 def abspath(path, relto = '^'):
+	"""
+	if path is absolute, don't change it
+	if path is smpath, convert it to absolute
+	if path is rel, convert it to absolute
+	"""
+
 	global smroot
 
 	#if the path is empty, fak u
@@ -87,8 +98,14 @@ def abspath(path, relto = '^'):
 
 	return os.path.normpath(result)
 
-#convert path to relative POSIX path
+
 def relpath(path, relto = '^'):
+	"""
+	if path is absolute, convert it to rel
+	if path is smpath, convert it to rel
+	if path is rel, don't change it
+	"""
+
 	global smroot
 
 	if(not path): #fak u
@@ -107,8 +124,14 @@ def relpath(path, relto = '^'):
 	else:
 		return os.path.normpath(path)
 
-#convert path to sftmake path
+
 def smpath(path, relto = '^'):
+	"""
+	if path is absolute, convert it to smpath
+	if path is smpath, don't change it
+	if path is rel, convert it to smpath
+	"""
+
 	global smroot
 
 	#if the path is empty, fak u
@@ -134,8 +157,13 @@ def smpath(path, relto = '^'):
 	else:
 		return '^/' + path
 
-#convert path to sftmke path if it is relative
+
 def smpathifrel(path, relto = '^'):
+	"""
+	if path is absolute, don't change it
+	if path is smpath, don't change it
+	if path is rel, change it to smpath
+	"""
 	#if the path is empty, fak u
 	if not path:
 		raise Exception("Path must not be empty")
@@ -145,6 +173,7 @@ def smpathifrel(path, relto = '^'):
 
 	else:
 		return smpath(path, relto)
+
 
 #TODO Decide on an encoding. It can be made arbitrarily complicated.
 def generate_oname(obj_desc):
@@ -169,6 +198,7 @@ def generate_oname(obj_desc):
 	# And_there_you_go::_A_weirdly:/interestingly-escaped_command.
 	return obj_desc
 
+
 def get_thread_count():
 	"""gets the number or hardware threads, or 1 if that can't be done"""
 
@@ -179,6 +209,7 @@ def get_thread_count():
 		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
 		return fallback;
 
+
 def find_smroot():
 	path = os.path.abspath('.')
 	while(not os.path.isfile(path + "/smfile")):
@@ -188,12 +219,14 @@ def find_smroot():
 			path = os.path.abspath(path + '/..')
 	return path
 
+
 def get_smroot():
 	global smroot
 
 	if smroot == None:
 		smroot = find_smroot()
 	return smroot
+
 
 def in_smdir(path, relto = "^"):
 	'''
@@ -219,3 +252,9 @@ def in_smdir(path, relto = "^"):
 		return False
 
 	pass
+
+
+def concat(lists):
+	for l in lists:
+		for val in l:
+			yield val
