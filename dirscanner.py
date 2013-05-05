@@ -82,34 +82,35 @@ class smtree:
 				if ignorefile:
 					continue
 
-				#determine file type
+				#determine smfile type (root, directory, target, source, inline)
 				#is this a root smfile?
 				if re.match(self.rootsmfile_names, f):
 					if self.root_smfile != None:
 						raise Exception("Another root smfile candidate found: " + path + "/" + f)
 					else:
 						# we found the root smfile
-						self.root_smfile = smfile(path, f, smfile.rootsmfile)
+						self.root_smfile = rootsmfile(path, f)
 						continue
 
 				#is this a directory smfile?
 				if re.match(self.directorysm_names, f):
 					# a directory-smfile was found
-					self.smfiles.append(smfile(path, f, smfile.dirsmfile))
+					self.smfiles.append(dirsmfile(path, f))
 					continue
 
 				#is this a target smfile?
 				if re.match(self.targetsm_names, f):
 					# a target-smfile was found
-					self.smfiles.append(smfile(path, f, smfile.targetsmfile))
+					self.smfiles.append(targetsmfile(path, f))
 					continue
 
 				#is this a source smfile?
 				if re.match(self.sourcesm_names, f):
 					# a source-smfile was found
-					self.smfiles.append(smfile(path, f, smfile.srcsmfile))
+					self.smfiles.append(srcsmfile(path, f))
 					continue
 
+				#if we reach this point, the file is no smfile.
 				print(path + "/" + f)
 
 			#all folders in the current folder (path)
@@ -150,3 +151,23 @@ class smfile:
 			raise Exception("unknown smfile type '" + repr(smtype) + "'")
 		else:
 			self.smtype = smtype
+
+class rootsmfile(smfile):
+	def __init__(self, path, filename):
+		smfile.__init__(self, path, filename, self.rootsmfile)
+
+class dirsmfiles(smfile):
+	def __init__(self, path, filename):
+		smfile.__init__(self, path, filename, self.dirsmfile)
+
+class targetsmfile(smfile):
+	def __init__(self, path, filename):
+		smfile.__init__(self, path, filename, self.targetsmfile)
+
+class srcsmfile(smfile):
+	def __init__(self, path, filename):
+		smfile.__init__(self, path, filename, self.srcsmfile)
+
+class inlinesmfile(smfile):
+	def __init__(self, path, filename):
+		smfile.__init__(self, path, filename, self.inlinesmfile)
