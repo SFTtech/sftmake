@@ -4,8 +4,8 @@
 #
 # licensed GPLv3 or later, no warranty, gschichten.
 #
-# main sftmake entry file, currently using conf-pysmfile
-# for configuration
+# directory scanner for locating smfiles
+# and scanning for inline configuration
 #
 # (c) 2013 [sft]technologies, jonas jelten
 
@@ -28,27 +28,76 @@ per source:    ^/foo/srcfile.cpp.smfile       /srcfile.cpp.src.sm   /srcfile.cpp
 
 class smtree:
 
-	#use these regexes to ignore files/folders
-	ignorenames = ["__pycache__", r"\..*"]
+	#regexes to ignore files/folders
+	ignorenames = r"(__pycache__$|#.*|\..+)"
+
+	#define regexes for the smfile types
+	rootsmfile_names  = r"^(smfile|root\.smfile)$"
+	directorysm_names = r"^(dir|directory)\.(sm|smfile)$"
+	targetsm_names    = r"^.+\.target\.(sm|smfile)$"
+	sourcesm_names    = r"^.+\.(src|source)\.(sm|smfile)$"
 
 	def __init__(self, rootpath):
-		self.smroot = rootpath  #abspath to project dir
-		self.filestructure = [] #filestructure, starting at ^, elem=(foldername, [elem, ...])
+		self.smroot = rootpath  #path to project dir
+
 		self.smfiles = []       #list of all smfile, relpaths
 		self.files = []         #list of all files, relpaths
+		self.directories = []   #list of all directories, relpath
 
-	def find_smfiles(self):
-		smf_lambda = lambda d = False
-		self.smfiles = filter(smf_lambda, self.files)
+		self.scanned_all_files = False
+		self.scanned_smfiles = False
 
-	def find_all_files(self):
-		for (path, dirs, files) in os.walk(smroot):
-			# filter hidden directories
+		#TODO: these functions shoule be disablable
+		self.find_all_files()
 
-			f_lambda = lambda d = False
-			dirs = filter(f_lambda , dirs)
-			dirs[:] = [d for d in dirs if re.match(, d)]
 
+	def find_files(self):
+		"""
+		scan the whole directory tree for files (including smfiles)
+		and store them into a big file array
+		"""
+
+		if self.scanned_all_files:
+			return
+
+		print(os.getcwd())
+		print("scanning " + self.smroot + " for files")
+		for (path, dirs, files) in os.walk(self.smroot):
+
+			print("looking in path " + path + "for contents")
+
+			#check whether we should look into the current folder (path)
+			ignorepath = False
+			if re.match(self.ignorenames, path):
+				ignorepath = True
+
+			#the current path will be ignored
+			if ignorepath:
+				continue
+
+			#all files in the current folder (path)
 			for f in files:
-				if f[0] not in '#.' and (f == "smfile" or f.endswith(".smfile") or f.endswith(".sm")):
-					self.smfilepaths.add(os.path.join(path, f))
+				ignorefile = False
+				if re.match(self.ignorenames, f):
+					ignorefile = True
+
+				if ignorefile:
+					continue
+
+				print(path + "/" + f)
+
+			#all folders in the current folder (path)
+			for d in dirs:
+				ignoredir = False
+				if re.match(self.ignorenames, d):
+					ignoredir = True
+
+				if ignoredir:
+					continue
+
+				print(path + "/" + d)
+
+		self.scanned_all_files = True
+
+	def get_root_smfile(self):
+		return "lolnope"

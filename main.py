@@ -23,6 +23,7 @@ import os.path
 import util
 import re
 import pprint
+import dirscanner
 
 import conf_smfile
 
@@ -46,9 +47,12 @@ def main():
 	print("default configuration:")
 	print(defaultconf.data)
 
-	#search for the project root directory
+
 	smroot = util.get_smroot()
-	root_smfile = smroot + "/smfile" #TODO: may have other names
+	#filetree = dirscanner.smtree(util.relpath(smroot))
+	filetree = dirscanner.smtree(util.relpath(smroot))
+
+	root_smfile = filetree.get_root_smfile()
 
 	#create a smfile handle, may be python or smlang
 	smfile = conf_smfile.smfile_factory(root_smfile)
@@ -65,7 +69,6 @@ def main():
 	print("project main configuration:")
 	print(mainfileconf)
 
-	#if enabled, search for other smfiles in the whole dirtree
 
 if __name__ == "__main__":
 	main()

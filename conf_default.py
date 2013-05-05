@@ -14,8 +14,6 @@
 
 from sm import smconfig
 
-print("lol")
-
 sftmake = smconfig()
 sftmake.lol()
 
