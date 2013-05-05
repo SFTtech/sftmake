@@ -11,7 +11,7 @@
 # (c) 2013 [sft]technologies, jonas jelten
 
 import re
-
+import dirscanner
 
 '''
 class for working with an smfile
@@ -37,6 +37,9 @@ class smfile:
 
 
 def smfile_factory(filepath):
+
+	if isinstance(filepath, dirscanner.smfile):
+		filepath = filepath.path + "/" + filepath.filename
 
 	#number of lines of the smfile that will be looked at
 	#to determine the config language

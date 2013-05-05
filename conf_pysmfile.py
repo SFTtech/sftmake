@@ -40,7 +40,6 @@ class pysmfile(smfile):
 
 			msg = "Error parsing python smfile:\n"
 			msg += "- Cause: " + e.msg + "\n"
-			msg += "- IE: " + str(e.print_file_and_line) + "\n"
 			msg += "- File: " + repr(self) + "\n"
 			msg += "- Line: " + str(e.lineno) + ", "
 			msg += "Char: " + str(e.offset) + "\n"

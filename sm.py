@@ -13,6 +13,7 @@
 # (c) 2013 [sft]technologies, jonas jelten
 
 import pprint
+import util
 
 class smconfig:
 
@@ -46,3 +47,7 @@ class smconfig:
 
 	def __str__(self):
 		return pprint.pformat(self.data)
+
+
+#if everything should be built, 'build' has to be:
+everything = util.EnumVal("everything")

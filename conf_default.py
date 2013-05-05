@@ -21,3 +21,5 @@ sftmake.lol()
 
 sftmake.set('c', 'gcc')
 sftmake.set('cflags', '-march=native')
+
+#sftmake.set('build', sm.everything)
