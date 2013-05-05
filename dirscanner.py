@@ -27,23 +27,21 @@ per source:     ^/foo/srcfile.cpp.smfile       /srcfile.cpp.src.sm   /srcfile.cp
 class smtree:
 
 	#regexes to ignore files/folders
-	ignorenames = r"(__pycache__$|#.*|\..+)"
+	ignorenames = r"(__pycache__$|#.*|\..+|(M|m)akefile)"
 
 	#define regexes for the smfile types
 	rootsmfile_names  = r"^(smfile|root\.smfile)$"
 	directorysm_names = r"^(dir|directory)\.(sm|smfile)$"
 	targetsm_names    = r"^.+\.target\.(sm|smfile)$"
-	sourcesm_names    = r"^.+\.(src|source)\.(sm|smfile)$"
+	sourcesm_names    = r"^(.+)\.(src|source)\.(sm|smfile)$"
 
 	def __init__(self, rootpath):
 		self.smroot = rootpath  #path to project dir
 
 		self.root_smfile = None  #the project root smfile
-
 		self.smfiles = []
 
 		self.scanned_all_files = False
-		self.scanned_smfiles = False
 
 		#TODO: these functions shoule be disablable
 		self.find_files()
@@ -90,6 +88,7 @@ class smtree:
 					else:
 						# we found the root smfile
 						self.root_smfile = rootsmfile(path, f)
+						self.smfiles.append(self.root_smfile)
 						continue
 
 				#is this a directory smfile?
@@ -133,6 +132,18 @@ class smtree:
 
 		return self.root_smfile
 
+	def __repr__(self):
+		return "smfile-tree: " + str(len(self.smfiles)) + " smfiles found"
+
+	def __str__(self):
+		txt = repr(self) + "\n"
+		txt += "found smfiles:\n"
+
+		for sf in self.smfiles:
+			txt += "\t" + str(sf)
+
+		return txt
+
 
 class smfile:
 	#types of smfiles:
@@ -146,11 +157,19 @@ class smfile:
 	def __init__(self, path, filename, smtype):
 		self.path = path
 		self.filename = filename
+		self.fullname = self.path + "/" + self.filename
 
 		if not smtype in [self.rootsmfile, self.targetsmfile, self.dirsmfile, self.srcsmfile, self.inlinesmfile]:
 			raise Exception("unknown smfile type '" + repr(smtype) + "'")
 		else:
 			self.smtype = smtype
+
+	def __str__(self):
+		txt = repr(self) + "\n"
+		return txt
+
+	def __repr__(self):
+		return "smfile " + str(type(self)) + " -> " + self.fullname
 
 class rootsmfile(smfile):
 	def __init__(self, path, filename):
@@ -167,6 +186,17 @@ class targetsmfile(smfile):
 class srcsmfile(smfile):
 	def __init__(self, path, filename):
 		smfile.__init__(self, path, filename, self.srcsmfile)
+
+		smfilename = self.path + "/" + self.filename
+		matchingfile = re.search(smtree.sourcesm_names, smfilename)
+		if matchingfile:
+			realfilename = matchingfile.group(1)
+
+			if not os.path.isfile(realfilename):
+				raise Exception("source smconfig found for nonexistant file \n\t" + realfilename)
+
+		else:
+			raise Exception("wtf internal fail, it should always match...")
 
 class inlinesmfile(smfile):
 	def __init__(self, path, filename):

@@ -22,7 +22,7 @@ import sys
 import os.path
 import util
 import re
-import pprint
+from pprint import pprint
 import dirscanner
 
 import conf_smfile
@@ -51,6 +51,8 @@ def main():
 	smroot = util.get_smroot()
 	#filetree = dirscanner.smtree(util.relpath(smroot))
 	filetree = dirscanner.smtree(util.relpath(smroot))
+
+	print(str(filetree))
 
 	root_smfile = filetree.get_root_smfile()
 
