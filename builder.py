@@ -1262,7 +1262,7 @@ class WantedDependency(BuildElement):
 	"""if a dependency is wanted, this type is used."""
 
 	def __init__(self, wname):
-		BuildElement.__init__(self, wname)
+		super().__init__(wname)
 		self.inname = None
 		self.outname = relpath(wname)
 
@@ -1295,7 +1295,7 @@ class HeaderFile(BuildElement):
 	projectheader = 52838
 
 	def __init__(self, hname):
-		BuildElement.__init__(self, hname)
+		super().__init__(hname)
 
 		if util.in_smdir(self.inname):
 			self.headertype = HeaderFile.projectheader
@@ -1335,7 +1335,7 @@ class SourceFile(BuildElement):
 	"""a source file like lolmysource.c"""
 
 	def __init__(self, filename):
-		BuildElement.__init__(self, filename)
+		super().__init__(filename)
 		self.objdir = ""
 		self.mdfile = ""
 
@@ -1355,7 +1355,7 @@ class BuildTarget(BuildElement):
 	'''A build target is a library or a executable binary'''
 
 	def __init__(self, tname):
-		BuildElement.__init__(self, tname)
+		super().__init__(tname)
 		self.name = tname
 		self.outname = relpath(tname)
 		self.encname = generate_oname(self.outname)

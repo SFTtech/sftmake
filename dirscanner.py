@@ -172,25 +172,25 @@ class sftmake_file:
 class smfile(sftmake_file):
 
 	def __init__(self, path, filename):
-		sftmake_file.__init__(self, path, filename)
+		super().__init__(path, filename)
 
 	def __repr__(self):
 		return "smfile " + str(type(self)) + " -> " + self.fullname
 
 class rootsmfile(smfile):
 	def __init__(self, path, filename):
-		smfile.__init__(self, path, filename)
+		super().__init__(path, filename)
 
 class dirsmfiles(smfile):
 	def __init__(self, path, filename):
-		smfile.__init__(self, path, filename)
+		super().__init__(path, filename)
 
 class assignmentsmfile(smfile):
 	def __init__(self, path, filename):
-		smfile.__init__(self, path, filename)
+		super().__init__(path, filename)
 
 	def __str__(self):
-		txt = smfile.__repr__(self) + " for " + self.realfilename + "\n"
+		txt = super().__repr__() + " for " + self.realfilename + "\n"
 		return txt
 
 class targetsmfile(assignmentsmfile):
@@ -208,7 +208,7 @@ class targetsmfile(assignmentsmfile):
 
 class srcsmfile(assignmentsmfile):
 	def __init__(self, path, filename):
-		assignmentsmfile.__init__(self, path, filename)
+		super().__init__(path, filename)
 
 		matchingfile = re.search(smtree.sourcesm_names, self.fullname)
 		if matchingfile:
@@ -225,4 +225,4 @@ class srcsmfile(assignmentsmfile):
 
 class inlinesmfile(smfile):
 	def __init__(self, path, filename):
-		smfile.__init__(self, path, filename)
+		super().__init__(path, filename)
