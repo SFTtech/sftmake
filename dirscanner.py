@@ -21,7 +21,7 @@ def find_smroot():
 	#TODO: use the regex from smtree below to check for root smfile
 	while(not os.path.isfile(path + "/smfile")):
 		if(path == "/"):
-			raise Exception("No smfile found")
+			raise Exception("No project root smfile found")
 		else:
 			path = os.path.abspath(path + '/..')
 	return path
@@ -43,10 +43,10 @@ class smtree:
 	ignorenames = r"(__pycache__$|#.*|\..+|(M|m)akefile)"
 
 	#define regexes for the smfile types
-	rootsmfile_names  = r"^(smfile|root\.smfile)$"
-	directorysm_names = r"^((dir|directory)\.(sm|smfile)|smdir)$"
-	targetsm_names    = r"^(.+)\.(target\.(sm|smfile)|smtarget)$"
-	sourcesm_names    = r"^(.+)\.((src|source)\.(sm|smfile)|smsrc)$"
+	rootsmfile_names  = r"^(smfile|root\.smfile)(\.py)?$"
+	directorysm_names = r"^((dir|directory)\.(sm|smfile)|smdir)(\.py)?$"
+	targetsm_names    = r"^(.+)\.(target\.(sm|smfile)|smtarget)(\.py)?$"
+	sourcesm_names    = r"^(.+)\.((src|source)\.(sm|smfile)|smsrc)(\.py)?$"
 
 	def __init__(self, rootpath):
 		self.smroot = rootpath  #path to project dir
@@ -170,7 +170,6 @@ class sftmake_file:
 		return "file [" + self.fullname + "]"
 
 class smfile(sftmake_file):
-	#types of smfiles:
 
 	def __init__(self, path, filename):
 		sftmake_file.__init__(self, path, filename)

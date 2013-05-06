@@ -54,20 +54,17 @@ def main():
 
 	print(str(filetree))
 
-	root_smfile = filetree.get_root_smfile()
+	root_smfile_name = filetree.get_root_smfile()
 
 	#create a smfile handle, may be python or smlang
-	smfile = conf_smfile.smfile_factory(root_smfile)
-	smfile_content = smfile.get_content()
-
-	print("################ content of main "+ repr(smfile) +":")
-	print(smfile_content)
-	print("################ end of smfile content\n\n")
+	root_smfile = conf_smfile.smfile_factory(root_smfile_name)
 
 	#read the root smfile
-	smfile.run()
+	root_smfile.run()
+	#TODO: add config in root smfile which specifies the directories
+	#      to be scanned.
 
-	mainfileconf = smfile.data
+	mainfileconf = root_smfile.data
 	print("project main configuration:")
 	print(mainfileconf)
 

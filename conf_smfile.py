@@ -38,23 +38,10 @@ class smfile:
 
 def smfile_factory(filepath):
 
-	if isinstance(filepath, dirscanner.smfile):
-		filepath = filepath.path + "/" + filepath.filename
+	if isinstance(filepath, dirscanner.sftmake_file):
+		filepath = filepath.fullname
 
-	#number of lines of the smfile that will be looked at
-	#to determine the config language
-	headerline_count = 3
-
-	with open(filepath) as f:
-		headerlines = ""
-
-		for i in range(headerline_count):
-			headerlines += f.readline()
-
-	#if the first line of the smfile contains "python",
-	#it is written in python.
-	#TODO: better and more flexible header syntax
-	if re.match(r"#.*python.*", headerlines):
+	if filepath.endswith(r".py"):
 		#python conf file
 
 		from conf_pysmfile import pysmfile
@@ -62,11 +49,9 @@ def smfile_factory(filepath):
 		return smfile
 
 	#TODO: smlang smfile
-	#elif re.match(r".*smlang.*", headerlines):
+	else:
+		print("here the smlang-smfile would be created")
 	#	smlang conf file
 	#	from conf_smsmfile import smsmfile
 	#	smfile = smsmfile(filepath)
 	#	return smfile
-
-	else:
-		raise Exception("unknown smfile file header in " + str(filepath))
