@@ -14,7 +14,7 @@ class EnumVal:
 		self.representation = representation
 
 	def __repr__(self):
-		return repr(self.representation)
+		return self.representation
 
 class OrderedSet:
 	"""

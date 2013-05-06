@@ -13,12 +13,20 @@ class Config:
 	name
 		example conf names:
 
-		base:default
-		base:args
-		dir:^
-		target:^/libsft
-		src:^/main.cpp
-		srcfortarget:^/libsft:^/main.cpp
+		default
+		args
+		^
+		^/libsft
+		^/main.cpp
+		^/libsft:^/main.cpp
+
+	conftype
+		One of
+			TYPE_BASE (the 'default' and 'args' configs),
+			TYPE_DIR,
+			TYPE_TARGET,
+			TYPE_SRC,
+			TYPE_SRCFORTARGET
 
 	parents
 		list of pointers to direct parent configurations
@@ -49,11 +57,23 @@ class Config:
 			^/tests
 	"""
 
-	def __init__(self, name, parents, directory):
+	TYPE_BASE = EnumVal("Base config")
+	TYPE_DIR = EnumVal("Directory config")
+	TYPE_TARGET = EnumVal("Target config")
+	TYPE_SRC = EnumVal("Sourcefile config")
+	TYPE_SRCFORTARGET = EnumVal("Source- for- target config")
+
+	def __init__(self, name, conftype, parents, directory):
 		self.name = name
+		self.conftype = conftype
 		self.parents = parents
 		self.directory = directory
 		configs[name] = self
+
+	def __repr__(self):
+		result = repr(self.conftype) + ": " + self.name + " (dir: " + self.directory
+		result += "; parents: " + repr([paren.name for paren in self.parents]) + ")"
+		return result
 
 	def parenthyperres(self):
 		"""
@@ -97,6 +117,9 @@ class CondTreeNode_Not(CondTreeNode):
 	def __init__(self, condtree):
 		self.condtree = condtree
 
+	def __repr__(self):
+		return "not(" + repr(self.condtree) + ")"
+
 	def eval(self, evalconf, depends):
 		return not self.condtree.eval(evalconf, depends)
 
@@ -107,6 +130,9 @@ class CondTreeNode_And(CondTreeNode):
 	"""
 	def __init__(self, condtrees):
 		self.condtrees = condtrees
+
+	def __repr__(self):
+		return "and(" + repr(self.condtrees) + ")"
 
 	def eval(self, evalconf, depends):
 		for c in self.condtrees:
@@ -123,6 +149,9 @@ class CondTreeNode_Or(CondTreeNode):
 	def __init__(self, condtrees):
 		self.condtrees = condtrees
 
+	def __repr__(self):
+		return "or(" + repr(self.condtrees) + ")"
+
 	def eval(self, evalconf, depends):
 		for c in self.condtrees:
 			if c.eval(evalconf, depends):
@@ -138,6 +167,9 @@ class CondTreeNode_Xor(CondTreeNode):
 	"""
 	def __init__(self, condtrees):
 		self.condtrees = condtrees
+
+	def __repr__(self):
+		return "xor(" + repr(self.condtrees) + ")"
 
 	def eval(self, evalconf, depends):
 		result = False
@@ -158,6 +190,9 @@ class CondTreeNode_Implies(CondTreeNode):
 		self.condtreel = condtreel
 		self.condtreer = condtreer
 
+	def __repr__(self):
+		return "(" + repr(self.condtreel) + ") -> (" + repr(self.condtreer) + ")"
+
 	def eval(self, evalconf, depends):
 		return not condtreel.eval(evalconf, depends) or condtreer.eval(evalconf, depends)
 
@@ -177,6 +212,9 @@ class CondTreeNode_Leaf(CondTreeNode):
 		self.leftvals = leftvals
 		self.rightvals = rightvals
 
+	def __repr__(self):
+		return "(" + repr(self.leftvals) + " " + self.operator + " " + repr(self.rightvals) + ")"
+
 	def evallr(self, evalconf, depends):
 		"""
 		evaluate the left and right valtrees
@@ -192,7 +230,7 @@ class CondTreeNode_Leaf(CondTreeNode):
 		"""
 		if operator in ["==", "=", "equals", "eq"]:
 			return CondTreeNode_Leaf_Equals
-		elif operator in ["subsumes"]:
+		elif operator in ["subset of", "subsumes"]:
 			return CondTreeNode_Leaf_SubSet
 		else:
 			raise Exception("Unknown condition operator")
@@ -203,6 +241,8 @@ class CondTreeNode_Leaf_Equals(CondTreeNode_Leaf):
 	note that in the current implementation, this also checks whether the order is identical.
 	maybe introduce a '===' operator for that? TODO
 	"""
+	operator = "=="
+
 	def check(self, evalconf, depends):
 		leftvals, rightvals = self.evallr(evalconf, depends)
 		return leftvals == rightvals
@@ -212,6 +252,8 @@ class CondTreeNode_Leaf_SubSet(CondTreeNode_Leaf):
 	checks whether the left expression is a subset of the right expression
 	does not take order into consideration
 	"""
+	operator = "subset of"
+
 	def check(self, evalconf, depends):
 		leftvals, rightvals = self.evallr()
 		return set(leftvals) < set(rightvals)
@@ -293,6 +335,9 @@ class ValTreeNode_List(ValTreeNode):
 		super().__init__(conf)
 		self.nodes = nodes
 
+	def __repr__(self):
+		return repr(self.nodes)
+
 	def eval(self, evalconf, valtype, depends):
 		result = []
 		for node in self.nodes:
@@ -312,6 +357,9 @@ class ValTreeNode_StringLiteral(ValTreeNode):
 		super().__init__(conf)
 		self.val = val
 
+	def __repr__(self):
+		return '"' + self.val + '"'
+
 	def eval(self, evalconf, valtype, depends):
 		return self.typecheck([val], valtype)
 
@@ -327,6 +375,9 @@ class ValTreeNode_Var(ValTreeNode):
 		"""
 		super().__init__(conf)
 		self.varname = varname
+
+	def __repr__(self):
+		return '${' + repr(self.varname) + '}'
 
 	def eval(self, evalconf, valtype, depends):
 		#first, get the variable name
@@ -356,6 +407,9 @@ class ValTreeNode_Fun(ValTreeNode):
 		super().__init__(conf)
 		self.funname = funname
 		self.args = args
+
+	def __repr__(self):
+		return '$(' + repr(self.funname) + ' ' + repr(self.args) + ')'
 
 	def eval(self, evalconf, valtype, depends):
 		#first, get the function name
@@ -410,6 +464,17 @@ class VarAssignment:
 		self.mode = mode
 		self.src = src
 
+	def opname(self):
+		if self.mode == VarAssignment.MODE_APPEND:
+			return '+='
+		elif self.mode == VarAssignment.MODE_SET:
+			return ':='
+		elif self.mode == VarAssignment.MODE_REMOVE:
+			return '-='
+
+	def __repr__(self):
+		return '[' + repr(self.condtree) + ']' + self.opname() + repr(self.valtree) + " (defined in " + self.src + ")"
+
 class Var:
 	"""
 	One complete configuration variable, such as 'cflags'.
@@ -454,6 +519,22 @@ class Var:
 			self.assignments = defaultassignments
 
 		variables[name] = self
+
+	def __repr__(self):
+		result = "Name: " + self.name + "\n"
+		result += str(self.valtype) + "\n"
+		result += str(self.varquant) + "\n"
+		result += str(self.assscope) + "\n"
+		result += "Assignments:" + "\n"
+		if self.assscope == Var.SCOPE_CONF:
+			for conf in self.assignments:
+				result += repr(conf) + ":\n"
+				for ass in self.assignments[conf]:
+					result += "  " + repr(ass) + "\n"
+		elif self.assscope == Var.SCOPE_GLOBAL:
+			for ass in self.assignments:
+				result += repr(ass) + "\n"
+		return result
 
 	def addassignment(self, assignment, conf):
 		"""
@@ -530,7 +611,7 @@ class Var:
 configs = {}
 
 """ the root configuration """
-conf_default = Config(name = "base:default", parents = [], directory = "^")
+conf_default = Config(name = "default", conftype=Config.TYPE_BASE, parents = [], directory = "^")
 
 """ allows finding Var objects by their name """
 variables = {}
