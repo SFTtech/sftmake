@@ -1,7 +1,8 @@
 statement: WHITESPACE? (declaration | assignment);
 
-declaration: quantifier WHITESPACE type WHITESPACE identifier WHITESPACE? (',' WHITESPACE? identifier WHITESPACE?)*;
+declaration: (scope WHITESPACE)? quantifier WHITESPACE type WHITESPACE identifier WHITESPACE? (',' WHITESPACE? identifier WHITESPACE?)*;
 
+scope: VARSCOPE;
 quantifier: VARQUANT;
 type: VARTYPE;
 
