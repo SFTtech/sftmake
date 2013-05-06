@@ -122,13 +122,13 @@ print("\n\n\n")
 
 
 confinfo = {}
-conf_base = conf.Config([], '^', conf.Config.BASE)
-conf_main = conf.Config([conf_base], '^', conf.Config.SRC)
-conf_lib0 = conf.Config([conf_base], '^', conf.Config.SRC)
-conf_lib1 = conf.Config([conf_base], '^', conf.Config.SRC)
-conf_both = conf.Config([conf_base], '^', conf.Config.SRC)
-conf_lib = conf.Config([conf_base], '^', conf.Config.SRC)
-conf_bin = conf.Config([conf_base], '^', conf.Config.SRC)
+conf_base = conf.Config('dir:^', [], '^')
+conf_main = conf.Config('target:^/lolbinary', [conf_base], '^')
+conf_lib0 = conf.Config('^...', [conf_base], '^')
+conf_lib1 = conf.Config('^...', [conf_base], '^')
+conf_both = conf.Config('^...', [conf_base], '^')
+conf_lib = conf.Config('^...', [conf_base], '^')
+conf_bin = conf.Config('^...', [conf_base], '^')
 confinfo["^/main.c"] = conf_main
 confinfo["^/library0.c"] = conf_lib0
 confinfo["^/library1.c"] = conf_lib1
@@ -515,9 +515,7 @@ class BuildOrder:
 			for source in variables["use"].get(target):
 				targetconf = confinfo[target]
 				sourceconf = confinfo[source]
-				newconf = conf.Config(parents=[targetconf,sourceconf], \
-									  directory=sourceconf.directory, \
-									  kind=conf.Config.SRCFORTARGET)
+				newconf = conf.Config(name="TODO", parents=[targetconf,sourceconf], directory=sourceconf.directory)
 				confinfo[target + '-' + source] = newconf
 
 		#---------------------
