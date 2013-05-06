@@ -14,6 +14,19 @@ import os
 import re
 import util
 
+
+
+def find_smroot():
+	path = os.path.abspath('.')
+	#TODO: use the regex from smtree below to check for root smfile
+	while(not os.path.isfile(path + "/smfile")):
+		if(path == "/"):
+			raise Exception("No smfile found")
+		else:
+			path = os.path.abspath(path + '/..')
+	return path
+
+
 """
 scan from project root directory and cascade into all subfolders
 
@@ -31,19 +44,17 @@ class smtree:
 
 	#define regexes for the smfile types
 	rootsmfile_names  = r"^(smfile|root\.smfile)$"
-	directorysm_names = r"^(dir|directory)\.(sm|smfile)$"
-	targetsm_names    = r"^.+\.target\.(sm|smfile)$"
-	sourcesm_names    = r"^(.+)\.(src|source)\.(sm|smfile)$"
+	directorysm_names = r"^((dir|directory)\.(sm|smfile)|smdir)$"
+	targetsm_names    = r"^(.+)\.(target\.(sm|smfile)|smtarget)$"
+	sourcesm_names    = r"^(.+)\.((src|source)\.(sm|smfile)|smsrc)$"
 
 	def __init__(self, rootpath):
 		self.smroot = rootpath  #path to project dir
 
 		self.root_smfile = None  #the project root smfile
 		self.smfiles = []
+		self.regular_files = []
 
-		self.scanned_all_files = False
-
-		#TODO: these functions shoule be disablable
 		self.find_files()
 
 
@@ -53,10 +64,6 @@ class smtree:
 		and store them into a big file array
 		"""
 
-		if self.scanned_all_files:
-			return
-
-		print(os.getcwd())
 		print("scanning " + self.smroot + " for files")
 		for (path, dirs, files) in os.walk(self.smroot):
 
@@ -110,7 +117,10 @@ class smtree:
 					continue
 
 				#if we reach this point, the file is no smfile.
-				print(path + "/" + f)
+				print("regular file: -> " + path + "/" + f)
+
+				rfile = sftmake_file(path, f)
+				self.regular_files.append(rfile)
 
 			#all folders in the current folder (path)
 			for d in dirs:
@@ -122,8 +132,6 @@ class smtree:
 					continue
 
 				print(path + "/" + d)
-
-		self.scanned_all_files = True
 
 	def get_root_smfile(self):
 		"""
@@ -142,53 +150,68 @@ class smtree:
 		for sf in self.smfiles:
 			txt += "\t" + str(sf)
 
+		txt += "\nfound regular files:\n"
+
+		for f in self.regular_files:
+			txt += "\t" + str(f)
 		return txt
 
-
-class smfile:
-	#types of smfiles:
-
-	rootsmfile = util.EnumVal("root-smfile")
-	dirsmfile = util.EnumVal("directory-smfile")
-	targetsmfile = util.EnumVal("target-smfile")
-	srcsmfile = util.EnumVal("source-smfile")
-	inlinesmfile = util.EnumVal("inline-smfile")
-
-	def __init__(self, path, filename, smtype):
+class sftmake_file:
+	def __init__(self, path, filename):
 		self.path = path
 		self.filename = filename
 		self.fullname = self.path + "/" + self.filename
-
-		if not smtype in [self.rootsmfile, self.targetsmfile, self.dirsmfile, self.srcsmfile, self.inlinesmfile]:
-			raise Exception("unknown smfile type '" + repr(smtype) + "'")
-		else:
-			self.smtype = smtype
 
 	def __str__(self):
 		txt = repr(self) + "\n"
 		return txt
 
 	def __repr__(self):
+		return "file [" + self.fullname + "]"
+
+class smfile(sftmake_file):
+	#types of smfiles:
+
+	def __init__(self, path, filename):
+		sftmake_file.__init__(self, path, filename)
+
+	def __repr__(self):
 		return "smfile " + str(type(self)) + " -> " + self.fullname
 
 class rootsmfile(smfile):
 	def __init__(self, path, filename):
-		smfile.__init__(self, path, filename, self.rootsmfile)
+		smfile.__init__(self, path, filename)
 
 class dirsmfiles(smfile):
 	def __init__(self, path, filename):
-		smfile.__init__(self, path, filename, self.dirsmfile)
+		smfile.__init__(self, path, filename)
 
-class targetsmfile(smfile):
+class assignmentsmfile(smfile):
 	def __init__(self, path, filename):
-		smfile.__init__(self, path, filename, self.targetsmfile)
+		smfile.__init__(self, path, filename)
 
-class srcsmfile(smfile):
+	def __str__(self):
+		txt = smfile.__repr__(self) + " for " + self.realfilename + "\n"
+		return txt
+
+class targetsmfile(assignmentsmfile):
 	def __init__(self, path, filename):
-		smfile.__init__(self, path, filename, self.srcsmfile)
+		assignmentsmfile.__init__(self, path, filename)
 
-		smfilename = self.path + "/" + self.filename
-		matchingfile = re.search(smtree.sourcesm_names, smfilename)
+		matchingtarget = re.search(smtree.targetsm_names, self.fullname)
+		if matchingtarget:
+			targetname = matchingtarget.group(1)
+			self.realfilename = targetname
+
+		else:
+			raise Exception("internal error, the target always has to match")
+
+
+class srcsmfile(assignmentsmfile):
+	def __init__(self, path, filename):
+		assignmentsmfile.__init__(self, path, filename)
+
+		matchingfile = re.search(smtree.sourcesm_names, self.fullname)
 		if matchingfile:
 			realfilename = matchingfile.group(1)
 
@@ -200,10 +223,7 @@ class srcsmfile(smfile):
 		else:
 			raise Exception("wtf internal fail, it should always match...")
 
-	def __str__(self):
-		txt = smfile.__repr__(self) + " for " + self.realfilename + "\n"
-		return txt
 
 class inlinesmfile(smfile):
 	def __init__(self, path, filename):
-		smfile.__init__(self, path, filename, self.inlinesmfile)
+		smfile.__init__(self, path, filename)

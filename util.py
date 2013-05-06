@@ -80,7 +80,7 @@ def abspath(path, relto = '^'):
 		raise Exception('Path must not be empty')
 
 	if smroot == None:
-		smroot = find_smroot()
+		smroot = get_smroot()
 
 	#if the path starts with '/', it's already absolute
 	if(path[0] == '/'):
@@ -115,7 +115,7 @@ def relpath(path, relto = '^'):
 		return os.path.relpath(path, abspath(relto))
 
 	if smroot == None:
-		smroot = find_smroot()
+		smroot = get_smroot()
 
 	if(path[0] == '^'):
 		return os.path.relpath(smroot + '/' + path[1:], abspath(relto))
@@ -143,7 +143,7 @@ def smpath(path, relto = '^'):
 		return path
 
 	if smroot == None:
-		smroot = find_smroot()
+		smroot = get_smroot()
 
 	#else, get relative path
 	if(path[0] != '/'):
@@ -207,23 +207,14 @@ def get_thread_count():
 	except NotImplementedError: # may happen under !POSIX
 		fallback = 1
 		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
-		return fallback;
-
-
-def find_smroot():
-	path = os.path.abspath('.')
-	while(not os.path.isfile(path + "/smfile")):
-		if(path == "/"):
-			raise Exception("No smfile found")
-		else:
-			path = os.path.abspath(path + '/..')
-	return path
+		return fallback
 
 
 def get_smroot():
 	global smroot
 
 	if smroot == None:
+		from dirscanner import find_smroot
 		smroot = find_smroot()
 	return smroot
 
@@ -239,7 +230,7 @@ def in_smdir(path, relto = "^"):
 	global smroot
 
 	if smroot == None:
-		smroot = find_smroot()
+		smroot = get_smroot()
 
 	filepath = abspath(path)
 
