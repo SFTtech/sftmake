@@ -1,7 +1,9 @@
 #this makefile is used for assembling, testing and generating [SFT]make parts.
 PARTSDIR=parts
-TESTSDIR=tests
+TESTSDIR=tests-enabled
 TARGETFILE=sftmake
+
+PYTHON=python3
 
 all: tests todo
 
@@ -33,11 +35,11 @@ parser: autoparser.py
 
 #targets for running tests
 testparts:
-	@for FILE in $(PARTSDIR)/*; do PART=$$(basename "parts/$$(readlink "$$FILE")"); echo ./$$PART; python3 $$PART || exit 1; done
+	@for FILE in $(PARTSDIR)/*; do PART=$$(basename "parts/$$(readlink "$$FILE")"); echo ./$$PART; ${PYTHON} $$PART || exit 1; done
 
 #this is the quiet version of testparts
 testpartsq:
-	@for FILE in $(PARTSDIR)/*; do PART=$$(basename "parts/$$(readlink "$$FILE")"); echo ./$$PART '1>/dev/null'; python3 $$PART 1>/dev/null || exit 1; done
+	@for FILE in $(PARTSDIR)/*; do PART=$$(basename "parts/$$(readlink "$$FILE")"); echo ./$$PART '1>/dev/null'; ${PYTHON} $$PART 1>/dev/null || exit 1; done
 
 autoparsertest: parser
 	./autoparsertest.py
@@ -55,7 +57,7 @@ testassemblyq: assembly
 
 #targets for running tests
 runtests:
-	@for FILE in $(TESTSDIR)/*; do PART=$$(basename "parts/$$(readlink "$$FILE")"); echo ./$$PART; python3 $$PART || exit 1; done
+	@for FILE in $(TESTSDIR)/*; do PART=$$(basename "parts/$$(readlink "$$FILE")"); echo ./$$PART; ${PYTHON} $$PART || exit 1; done
 	@echo -e "\x1b[32mAll good\x1b[m"
 
 todo:
