@@ -51,3 +51,16 @@ class smconfig:
 
 #if everything should be built, 'build' has to be:
 everything = util.EnumVal("everything")
+
+
+
+# c[$srcsuffix == c] = gcc in confnodes:
+#VarAssignment(
+#	valtree = ValTreeNode_StringLiteral(conf_default, "gcc"),
+#	condtree = CondTreeNode_Leaf_Equals(
+#		ValTreeNode_Var(conf_default, ValTreeNode_StringLiteral(conf_default, "srcsuffix")),
+#		ValTreeNode_StringLiteral(conf_default, "c")
+#	),
+#	mode = VarAssignment.MODE_APPEND,
+#	src = "default configuration"
+#)
