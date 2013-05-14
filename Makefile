@@ -3,7 +3,7 @@ PARTSDIR=parts
 TESTSDIR=tests-enabled
 TARGETFILE=sftmake
 
-PYTHON="python3"
+PYTHON=PYTHONPATH=. python3
 
 all: tests todo
 
