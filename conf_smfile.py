@@ -21,12 +21,14 @@ must be superclass for any config language class
 '''
 class smfile:
 
-	def __init__(self, filename):
-		self.filename = filename
+	def __init__(self, fname, smobj=None):
+		self.filename = fname
+		if smobj != None:
+			self.smobj = smobj
+
 		with open(self.filename) as f:
 			self.content = f.read()
 
-		#dict containing the configuration stuff:
 		self.data = None
 
 	def get_content(self):
@@ -36,21 +38,25 @@ class smfile:
 		raise NotImplementedError("run method must be implemented")
 
 
-def smfile_factory(filepath):
+def smfile_factory(fobj):
 
-	if isinstance(filepath, dirscanner.sftmake_file):
-		filepath = filepath.fullname
+	if isinstance(fobj, dirscanner.simple_file):
+		filename = fobj.fullname
+	else:
+		filename = fobj
+		fobj = None
 
-	if filepath.endswith(r".py"):
+	#create smfile wrapper/handler accordung to it's file extension
+	if filename.endswith(r".py"):
 		#python conf file
 
 		from conf_pysmfile import pysmfile
-		smfile = pysmfile(filepath)
+		smfile = pysmfile(filename, fobj)
 		return smfile
 
 	#TODO: smlang smfile
 	else:
-		print("here the smlang-smfile would be created")
+		raise Exception("only python smfiles supported yet.")
 	#	smlang conf file
 	#	from conf_smsmfile import smsmfile
 	#	smfile = smsmfile(filepath)

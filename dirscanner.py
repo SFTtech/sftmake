@@ -15,7 +15,6 @@ import re
 import util
 
 
-
 def find_smroot():
 	path = os.path.abspath('.')
 	#TODO: use the regex from smtree below to check for root smfile
@@ -40,13 +39,13 @@ per source:     ^/foo/srcfile.cpp.smfile       /srcfile.cpp.src.sm   /srcfile.cp
 class smtree:
 
 	#regexes to ignore files/folders
-	ignorenames = r"(__pycache__$|#.*|\..+|(M|m)akefile)"
+	ignorenames = re.compile(r"(__pycache__$|#.*|(M|m)akefile)|^.git|^\.[^/]")
 
 	#define regexes for the smfile types
-	rootsmfile_names  = r"^(smfile|root\.smfile)(\.py)?$"
-	directorysm_names = r"^((dir|directory)\.(sm|smfile)|smdir)(\.py)?$"
-	targetsm_names    = r"^(.+)\.(target\.(sm|smfile)|smtarget)(\.py)?$"
-	sourcesm_names    = r"^(.+)\.((src|source)\.(sm|smfile)|smsrc)(\.py)?$"
+	rootsmfile_names  = re.compile(r"^(smfile|root\.smfile)(\.py)?$")
+	directorysm_names = re.compile(r"^((dir|directory)\.(sm|smfile)|smdir)(\.py)?$")
+	targetsm_names    = re.compile(r"^(.+)\.(target\.(sm|smfile)|smtarget)(\.py)?$")
+	sourcesm_names    = re.compile(r"^(.+)\.((src|source)\.(sm|smfile)|smsrc)(\.py)?$")
 
 	def __init__(self, rootpath):
 		self.smroot = rootpath  #path to project dir
@@ -67,75 +66,83 @@ class smtree:
 		print("scanning " + self.smroot + " for files")
 		for (path, dirs, files) in os.walk(self.smroot):
 
-			print("looking in path " + path + "for contents")
+			print("looking in path " + path + " for contents")
 
 			#check whether we should look into the current folder (path)
 			ignorepath = False
-			if re.match(self.ignorenames, path):
+			if self.ignorenames.match(path):
 				ignorepath = True
 
 			#the current path will be ignored
 			if ignorepath:
+				print("ignoring current path: " + path)
 				continue
+
+			#all folders in the current folder (path)
+			for d in dirs:
+				ignoredir = False
+				if self.ignorenames.match(d):
+					ignoredir = True
+					dirs.remove(d) #so os.walk doesn't visit the dir
+					print("removing from list to visit: " + d)
+
+				if ignoredir:
+					continue
 
 			#all files in the current folder (path)
 			for f in files:
 				ignorefile = False
-				if re.match(self.ignorenames, f):
+				if self.ignorenames.match(f):
 					ignorefile = True
 
 				if ignorefile:
 					continue
 
+				fullpath = path + "/" + f
+
 				#determine smfile type (root, directory, target, source, inline)
 				#is this a root smfile?
-				if re.match(self.rootsmfile_names, f):
+				if self.rootsmfile_names.match(f):
 					if self.root_smfile != None:
-						raise Exception("Another root smfile candidate found: " + path + "/" + f)
+						raise Exception("Another root smfile candidate found: " + path + "/" + f + "\n conflicting with " + repr(self.root_smfile))
 					else:
 						# we found the root smfile
 						self.root_smfile = rootsmfile(path, f)
 						self.smfiles.append(self.root_smfile)
+						print("root-smfile -> " + fullpath)
 						continue
 
 				#is this a directory smfile?
-				if re.match(self.directorysm_names, f):
+				if self.directorysm_names.match(f):
 					# a directory-smfile was found
 					self.smfiles.append(dirsmfile(path, f))
+					print("directory-smfile -> " + fullpath)
 					continue
 
 				#is this a target smfile?
-				if re.match(self.targetsm_names, f):
+				if self.targetsm_names.match(f):
 					# a target-smfile was found
 					self.smfiles.append(targetsmfile(path, f))
+					print("target-smfile -> " + fullpath)
 					continue
 
 				#is this a source smfile?
-				if re.match(self.sourcesm_names, f):
+				if self.sourcesm_names.match(f):
 					# a source-smfile was found
 					self.smfiles.append(srcsmfile(path, f))
+					print("source-smfile -> " + fullpath)
 					continue
 
 				#if we reach this point, the file is no smfile.
-				print("regular file: -> " + path + "/" + f)
+				print("regular file => " + fullpath)
 
-				rfile = sftmake_file(path, f)
+				rfile = simple_file(path, f)
 				self.regular_files.append(rfile)
 
-			#all folders in the current folder (path)
-			for d in dirs:
-				ignoredir = False
-				if re.match(self.ignorenames, d):
-					ignoredir = True
-
-				if ignoredir:
-					continue
-
-				print(path + "/" + d)
 
 	def get_root_smfile(self):
 		"""
-		returns (path, filename) as the project root smfile
+		returns the project root smfile as object of rootsmfile class
 		"""
 
 		return self.root_smfile
@@ -156,7 +163,12 @@ class smtree:
 			txt += "\t" + str(f)
 		return txt
 
-class sftmake_file:
+
+
+class simple_file:
+	"""
+	any ordinary file...
+	"""
 	def __init__(self, path, filename):
 		self.path = path
 		self.filename = filename
@@ -169,13 +181,32 @@ class sftmake_file:
 	def __repr__(self):
 		return "file [" + self.fullname + "]"
 
-class smfile(sftmake_file):
+	def content(self):
+		with open(self.fullname) as f:
+			return f.read()
+
+class smfile(simple_file):
 
 	def __init__(self, path, filename):
 		super().__init__(path, filename)
 
 	def __repr__(self):
 		return "smfile " + str(type(self)) + " -> " + self.fullname
+
+	def smcontent(self):
+		"""
+		content relevant for sftmake, i.e. the whole smfile content
+		"""
+		return self.content()
+
+	def create_handler(self):
+		"""
+		creates a wrapper object that is used for interpreting the file's
+		contents.  conf_smfile is used for interpreting.
+		"""
+
+		import conf_smfile
+		return conf_smfile.smfile_factory(self)
 
 class rootsmfile(smfile):
 	def __init__(self, path, filename):
@@ -205,7 +236,6 @@ class targetsmfile(assignmentsmfile):
 		else:
 			raise Exception("internal error, the target always has to match")
 
-
 class srcsmfile(assignmentsmfile):
 	def __init__(self, path, filename):
 		super().__init__(path, filename)
@@ -224,5 +254,12 @@ class srcsmfile(assignmentsmfile):
 
 
 class inlinesmfile(smfile):
+	"""
+	only the inlined sftmake-relevant part of a project's source file
+	"""
 	def __init__(self, path, filename):
 		super().__init__(path, filename)
+
+	def smcontent(self):
+		#TODO: extract the inline content and return it
+		raise NotImplementedError("inline configs not supported yet")

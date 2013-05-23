@@ -57,80 +57,119 @@ class vartestadv:
 		return "vartestadvanced (" + str(id(self)) + ") :\t" + pprint.pformat(self.l, width=300)
 
 
+def initvars0():
+	#variable configuration for the testproject
 
-#variable configuration for the testproject
+	variables = dict()
+	variables["c"] = vartest("gcc")
+	variables["build"] = vartest({"^/lolbinary", "^/liblol.so"})
+	variables["filelist"] = vartest({'^/main.c', '^/both.c', '^/library0.c', '^/library1.c'})
 
-variables = dict()
-variables["c"] = vartest("gcc")
-variables["build"] = vartest({"^/lolbinary", "^/liblol.so"})
-variables["filelist"] = vartest({'^/main.c', '^/both.c', '^/library0.c', '^/library1.c'})
+	variables["objdir"] = vartest("^/.objdir")
 
-variables["objdir"] = vartest("^/.objdir")
+	variables["use"] = vartestadv(name="use")
+	variables["usedby"] = vartestadv(name="usedby")
+	variables["depends"] = vartestadv(name="depends")
+	variables["ldflags"] = vartestadv("ldflags")
+	variables["cflags"] = vartestadv("cflags")
 
-variables["use"] = vartestadv(name="use")
-variables["usedby"] = vartestadv(name="usedby")
-variables["depends"] = vartestadv(name="depends")
-variables["ldflags"] = vartestadv("ldflags")
-variables["cflags"] = vartestadv("cflags")
-
-variables["cflags"].setv("^/lolbinary", "-O1 -march=native")
-variables["cflags"].setv("^/lolbinary-^/main.c", "-O1 -march=native")
-variables["cflags"].setv("^/lolbinary-^/both.c", "-O1 -march=native")
-variables["cflags"].setv("^/liblol.so", "-O1 -march=native -fPIC")
-variables["cflags"].setv("^/liblol.so-^/library0.c", "-O1 -march=native -fPIC")
-variables["cflags"].setv("^/liblol.so-^/library1.c", "-O1 -march=native -fPIC")
-variables["cflags"].setv("^/liblol.so-^/both.c", "-O1 -march=native -fPIC")
-
-
-variables["ldflags"].setv("^/liblol.so", "-shared -Wl,-soname,liblol.so")
-variables["ldflags"].setv("^/lolbinary", "-L. -llol")
-
-variables["depends"].setv("^/main.c", {"^/both.c"})#set())
-variables["depends"].setv("^/both.c", set())
-variables["depends"].setv("^/library0.c", set())
-variables["depends"].setv("^/library1.c", set())
-variables["depends"].setv("^/lolbinary", {"^/liblol.so"})
-variables["depends"].setv("^/liblol.so", set())
-
-variables["depends"].setv("^/liblol.so-^/both.c", set())
-variables["depends"].setv("^/liblol.so-^/library0.c", set())
-variables["depends"].setv("^/liblol.so-^/library1.c", set())
-variables["depends"].setv("^/lolbinary-^/main.c", set())
-variables["depends"].setv("^/lolbinary-^/both.c", set())
-
-variables["use"].setv("^/lolbinary", {'^/both.c', '^/main.c'})
-variables["use"].setv("^/liblol.so", {'^/both.c', '^/library0.c', '^/library1.c'})
-variables["usedby"].setv("^/main.c", set())
-variables["usedby"].setv("^/both.c", set())
-variables["usedby"].setv("^/library0.c", set())
-variables["usedby"].setv("^/library1.c", set())
-
-variables["autodepends"] = vartest("MD") #vartest("no")
-variables["prebuild"] = vartest("echo startin build")
-variables["postbuild"] = vartest("echo finished build")
-variables["loglevel"] = vartest("2")
-
-print("var initialisation: \n")
-pprint.pprint(variables)
-print("\n\n\n")
+	variables["cflags"].setv("^/lolbinary", "-O1 -march=native")
+	variables["cflags"].setv("^/lolbinary-^/main.c", "-O1 -march=native")
+	variables["cflags"].setv("^/lolbinary-^/both.c", "-O1 -march=native")
+	variables["cflags"].setv("^/liblol.so", "-O1 -march=native -fPIC")
+	variables["cflags"].setv("^/liblol.so-^/library0.c", "-O1 -march=native -fPIC")
+	variables["cflags"].setv("^/liblol.so-^/library1.c", "-O1 -march=native -fPIC")
+	variables["cflags"].setv("^/liblol.so-^/both.c", "-O1 -march=native -fPIC")
 
 
-confinfo = {}
-conf_base = conf.Config('^', conf.Config.TYPE_DIR, [], '^')
-conf_main = conf.Config('^/main.c', conf.Config.TYPE_SRC, [conf_base], '^')
-conf_lib0 = conf.Config('^/library0.c', conf.Config.TYPE_SRC, [conf_base], '^')
-conf_lib1 = conf.Config('^/library1.c', conf.Config.TYPE_SRC, [conf_base], '^')
-conf_both = conf.Config('^/both.c', conf.Config.TYPE_SRC, [conf_base], '^')
-conf_lib = conf.Config('^/liblol.so', conf.Config.TYPE_TARGET, [conf_base], '^')
-conf_bin = conf.Config('^/lolbinary', conf.Config.TYPE_TARGET, [conf_base], '^')
-confinfo["^/main.c"] = conf_main
-confinfo["^/library0.c"] = conf_lib0
-confinfo["^/library1.c"] = conf_lib1
-confinfo["^/both.c"] = conf_both
-confinfo["^/liblol.so"] = conf_lib
-confinfo["^/lolbinary"] = conf_bin
+	variables["ldflags"].setv("^/liblol.so", "-shared -Wl,-soname,liblol.so")
+	variables["ldflags"].setv("^/lolbinary", "-L. -llol")
+
+	variables["depends"].setv("^/main.c", {"^/both.c"})#set())
+	variables["depends"].setv("^/both.c", set())
+	variables["depends"].setv("^/library0.c", set())
+	variables["depends"].setv("^/library1.c", set())
+	variables["depends"].setv("^/lolbinary", {"^/liblol.so"})
+	variables["depends"].setv("^/liblol.so", set())
+
+	variables["depends"].setv("^/liblol.so-^/both.c", set())
+	variables["depends"].setv("^/liblol.so-^/library0.c", set())
+	variables["depends"].setv("^/liblol.so-^/library1.c", set())
+	variables["depends"].setv("^/lolbinary-^/main.c", set())
+	variables["depends"].setv("^/lolbinary-^/both.c", set())
+
+	variables["use"].setv("^/lolbinary", {'^/both.c', '^/main.c'})
+	variables["use"].setv("^/liblol.so", {'^/both.c', '^/library0.c', '^/library1.c'})
+	variables["usedby"].setv("^/main.c", set())
+	variables["usedby"].setv("^/both.c", set())
+	variables["usedby"].setv("^/library0.c", set())
+	variables["usedby"].setv("^/library1.c", set())
+
+	variables["autodepends"] = vartest("MD") #vartest("no")
+	variables["prebuild"] = vartest("echo startin build")
+	variables["postbuild"] = vartest("echo finished build")
+	variables["loglevel"] = vartest("2")
+
+	confinfo = {}
+	conf_base = conf.Config('^', conf.Config.TYPE_DIR, [], '^')
+	conf_main = conf.Config('^/main.c', conf.Config.TYPE_SRC, [conf_base], '^')
+	conf_lib0 = conf.Config('^/library0.c', conf.Config.TYPE_SRC, [conf_base], '^')
+	conf_lib1 = conf.Config('^/library1.c', conf.Config.TYPE_SRC, [conf_base], '^')
+	conf_both = conf.Config('^/both.c', conf.Config.TYPE_SRC, [conf_base], '^')
+	conf_lib = conf.Config('^/liblol.so', conf.Config.TYPE_TARGET, [conf_base], '^')
+	conf_bin = conf.Config('^/lolbinary', conf.Config.TYPE_TARGET, [conf_base], '^')
+	confinfo["^/main.c"] = conf_main
+	confinfo["^/library0.c"] = conf_lib0
+	confinfo["^/library1.c"] = conf_lib1
+	confinfo["^/both.c"] = conf_both
+	confinfo["^/liblol.so"] = conf_lib
+	confinfo["^/lolbinary"] = conf_bin
+
+	return variables, confinfo
 
 
+def initvars1():
+	'''
+	approach of creating the config via python by using conf.py
+	'''
+
+	variables = dict()
+
+	config_project = conf.Config(name="project", conftype=conf.Config.TYPE_BASE, parents = [], directory='^')
+
+	#TODO: this has to be generated by the dirscanner!
+	conf_root = conf.Config('^', conf.Config.TYPE_DIR, [config_project], '^')
+	conf_main = conf.Config('^/main.c', conf.Config.TYPE_SRC, [conf_root], '^')
+	conf_lib0 = conf.Config('^/library0.c', conf.Config.TYPE_SRC, [conf_root], '^')
+	conf_lib1 = conf.Config('^/library1.c', conf.Config.TYPE_SRC, [conf_root], '^')
+	conf_both = conf.Config('^/both.c', conf.Config.TYPE_SRC, [conf_root], '^')
+	conf_lib = conf.Config('^/liblol.so', conf.Config.TYPE_TARGET, [conf_root], '^')
+	conf_bin = conf.Config('^/lolbinary', conf.Config.TYPE_TARGET, [conf_root], '^')
+
+
+	import dirscanner
+
+	filetree = dirscanner.smtree(rootpath="./sftmake-testproject")
+	smfile_handlers = []
+	for f in filetree.smfiles:
+		new_handler = f.create_handler()
+		new_handler.run()
+		smfile_handlers.append(new_handler)
+		print(str(new_handler))
+
+	cconf = conf.Var(name='c', valtype=conf.Var.TYPE_STRING, varquant = conf.Var.QUANT_SINGLE)
+	a0 = conf.VarAssignment(
+		valtree = conf.ValTreeNode_StringLiteral(config_project, "gcc"),
+		condtree = conf.CondTreeNode_True,
+		mode = conf.VarAssignment.MODE_APPEND,
+		src = "default configuration"
+	)
+
+
+	cconf.addassignment(a0, None)
+	variables["c"] = cconf
+
+	return variables, conf.configs
 
 
 
@@ -138,13 +177,13 @@ def main():
 	print("fak u dolan")
 	order = builder.BuildOrder()
 
-	#confinfo and variables are fucking global
-	#but now we catch those fuckers and never use them as global again..
+	variables, confinfo = initvars1()
 	order.fill(confinfo, variables)
 	print("\n")
 	pprint.pprint(order.filedict)
 	print("\n")
 
+	#use 4 threads
 	m = builder.JobManager(4)
 	m.queue_order(order)
 

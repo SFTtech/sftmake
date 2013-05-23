@@ -25,17 +25,20 @@ class pysmfile(smfile):
 	#this has to be set in the smfile
 	confvarname = "sftmake"
 
-	def __init__(self, filename):
-		smfile.__init__(self, filename)
+	def __init__(self, filename, smobj=None):
+		smfile.__init__(self, filename, smobj)
 
 	def run(self):
+		"""
+		parse the content of this smfile
+		"""
 		try:
-			smfile_st = parser.suite(self.content)
+			smfile_st = parser.suite(self.get_content())
 
 		except (SyntaxError) as e:
 			print(str(dir(e)))
 
-			#flines = self.content.split('\n')
+			#flines = self.get_content().split('\n')
 			#eline = '"'+ str(flines[e.lineno-1]) +'"'
 
 			msg = "Error parsing python smfile:\n"
@@ -61,7 +64,13 @@ class pysmfile(smfile):
 			self.data = self.smlocals[self.confvarname]
 
 		else:
-			raise Exception("variable "+ self.confvarname +" not defined in '"+ repr(self) +"'")
+			print("!!! config variable '"+ self.confvarname +"' not defined in '"+ repr(self) +"', ignoring file !!!")
 
 	def __repr__(self):
-		return ""+ util.smpath(self.filename) +""
+		return "pysmfile [" + self.filename + "]"
+
+	def __str__(self):
+		out = repr(self)
+		out += "\nData: " + repr(self.data)
+		out += ""
+		return out

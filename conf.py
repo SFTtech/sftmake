@@ -196,6 +196,32 @@ class CondTreeNode_Implies(CondTreeNode):
 	def eval(self, evalconf, depends):
 		return not condtreel.eval(evalconf, depends) or condtreer.eval(evalconf, depends)
 
+class CondTreeNode_True(CondTreeNode):
+	"""
+	always evaluates to True
+	"""
+	def __init__(self):
+		pass
+
+	def __repr__(self):
+		return "True"
+
+	def eval(self, evalconf, depends):
+		return True
+
+class CondTreeNode_False(CondTreeNode):
+	"""
+	always evaluates to False
+	"""
+	def __init__(self):
+		pass
+
+	def __repr__(self):
+		return "False"
+
+	def eval(self, evalconf, depends):
+		return False
+
 class CondTreeNode_Leaf(CondTreeNode):
 	"""
 	abstract class that represents a condtree leaf node,
