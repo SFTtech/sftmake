@@ -45,6 +45,18 @@ class smtree:
 
 		self.find_files()
 
+	def get_root_smfile(self):
+		"""
+		returns the project root smfile as object of rootsmfile class
+		"""
+
+		if self.root_smfile == None:
+			raise Exception("no root smfile found for this smtree")
+		return self.root_smfile
+
+	def get_targets(self):
+		return filter(lambda smfile: (isinstance(smfile, targetsmfile)), self.smfiles)
+
 
 	def find_files(self):
 		"""
@@ -127,14 +139,6 @@ class smtree:
 
 				rfile = simple_file(path, f)
 				self.regular_files.append(rfile)
-
-
-	def get_root_smfile(self):
-		"""
-		returns the project root smfile as object of rootsmfile class
-		"""
-
-		return self.root_smfile
 
 	def __repr__(self):
 		return "smfile-tree: " + str(len(self.smfiles)) + " smfiles found"
