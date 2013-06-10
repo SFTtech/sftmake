@@ -64,3 +64,6 @@ everything = util.EnumVal("everything")
 #	mode = VarAssignment.MODE_APPEND,
 #	src = "default configuration"
 #)
+
+#TODO: classes for all output types (e.g. binary, sharedlib, staticlib, ...)
+# options like gcc -Wl,-rpath=.,-shared,-static etc
