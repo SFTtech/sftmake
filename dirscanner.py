@@ -15,17 +15,6 @@ import re
 import util
 
 
-def find_smroot():
-	path = os.path.abspath('.')
-	#TODO: use the regex from smtree below to check for root smfile
-	while(not os.path.isfile(path + "/smfile")):
-		if(path == "/"):
-			raise Exception("No project root smfile found")
-		else:
-			path = os.path.abspath(path + '/..')
-	return path
-
-
 """
 scan from project root directory and cascade into all subfolders
 
