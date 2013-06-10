@@ -166,6 +166,7 @@ class simple_file:
 		self.path = path
 		self.filename = filename
 		self.fullname = self.path + "/" + self.filename
+		self._smname = None
 
 	def __str__(self):
 		txt = repr(self) + "\n"
@@ -177,6 +178,12 @@ class simple_file:
 	def content(self):
 		with open(self.fullname) as f:
 			return f.read()
+
+	def get_smname(self):
+		if self._smname == None:
+			self._smname = util.smpath(self.fullname)
+
+		return self._smname
 
 class smfile(simple_file):
 
