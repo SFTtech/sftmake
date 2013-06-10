@@ -325,29 +325,29 @@ class ValTreeNode:
 		raise NotImplementedError()
 
 	def typecheck(self, vals, valtype):
-		if self.valtype == Var.TYPE_STRING:
+
+		if valtype == Var.TYPE_STRING:
 			#everything is allowed, nothing needs to be modified
 			return vals
 
-		elif self.valtype == Var.TYPE_PATH:
+		elif valtype == Var.TYPE_PATH:
 			#make sure the path is one of:
 			# an absolute POSIX path
 			# a smpath
-			return [smpathifrel(v, self.conf.directory) for v in vals]
+			return ( smpathifrel(v, self.conf.directory) for v in vals )
 
-		elif self.valtype == TYPE_INT:
-			for v in vals:
-				try:
-					int(v)
-				except:
-					raise Exception("Value must be an integer, but is " + v)
+		elif valtype == Var.TYPE_INT:
+			return ( int(v) for v in vals )
 
-		elif type(self.valtype) == list:
+		elif type(valtype) == list:
 			for v in vals:
 				if v not in self.valtype:
 					raise Exception("Value must be one of " + str(self.valtype)
 						+ ", but is " + v)
 			return vals
+
+		else:
+			raise Exception("unknown value type encountered while checking")
 
 class ValTreeNode_List(ValTreeNode):
 	"""
@@ -387,7 +387,7 @@ class ValTreeNode_StringLiteral(ValTreeNode):
 		return '"' + self.val + '"'
 
 	def eval(self, evalconf, valtype, depends):
-		return self.typecheck([val], valtype)
+		return self.typecheck([self.val], valtype)
 
 class ValTreeNode_Var(ValTreeNode):
 	"""
