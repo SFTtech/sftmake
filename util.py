@@ -227,10 +227,16 @@ def get_smroot():
 	global smroot
 
 	if smroot == None:
-		from dirscanner import find_smroot
-		smroot = find_smroot()
+		raise Exception("smroot must be set e.g. by dirscanner.smtree('./basedir/').get_root_smfile().path")
 	return smroot
 
+def set_smroot(newroot):
+	"""
+	actually this is totally dirty and should be forbidden.
+	"""
+	global smroot
+
+	smroot = newroot
 
 def in_smdir(path, relto = "^"):
 	'''
