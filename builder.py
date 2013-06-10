@@ -383,8 +383,10 @@ class BuildOrder:
 		#0. step: resolve usedby-requirements
 		# move the file 'usedby' target definitions
 		# into the target, so it 'uses' the source
-		for source in variables["filelist"].get():
-			for target in variables["usedby"].get(source):
+
+		'''
+		for source in variables["filelist"].eval(conf.configs["project"]):
+			for target in variables["usedby"].get(conf.configs[source]):
 				#TODO: we should not modify variables...
 				#Add source filename to config(target).use:
 				target_use = variables["use"].get(target)
@@ -392,6 +394,7 @@ class BuildOrder:
 				variables["use"].setv(target_use)
 
 				#TODO: Add libs to config(target).libs ?
+		'''
 
 
 		#---------------------
@@ -401,8 +404,14 @@ class BuildOrder:
 		# later, use .get(target + "-" + source) to access properties,
 		# the get method will do the hyperresolution
 
-		for target in variables["build"].get():
-			for source in variables["use"].get(target):
+		targetlist = variables["build"].eval(conf.configs["project"])
+
+		print("================================== target list:")
+		for t in targetlist:
+			print(t)
+
+		for target in targetlist:
+			for source in variables["use"].eval(conf.configs[target]):
 				targetconf = confinfo[target]
 				sourceconf = confinfo[source]
 				newconf = conf.Config(name="TODO", parents=[targetconf,sourceconf], directory=sourceconf.directory, conftype=conf.Config.TYPE_SRCFORTARGET)
@@ -413,7 +422,7 @@ class BuildOrder:
 		#create BuildElements and fill them with information
 		#supplied by the variables configuration
 
-		for target in variables["build"].get():
+		for target in targetlist:
 			order_target = BuildTarget(target)
 
 			for element in variables["use"].get(target):
