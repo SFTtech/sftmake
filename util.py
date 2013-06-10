@@ -2,6 +2,7 @@
 import os
 import re
 import multiprocessing
+from collections import OrderedDict
 
 
 
@@ -16,6 +17,8 @@ class EnumVal:
 	def __repr__(self):
 		return self.representation
 
+
+#TODO: find a better implementation (e.g. by extending set())
 class OrderedSet:
 	"""
 	we emulate 'OrderedSet' functionality from an OrderedDict by setting
@@ -23,7 +26,6 @@ class OrderedSet:
 	fak u python for not providing OrderedSet.
 	"""
 	def __init__(self):
-		from collections import OrderedDict
 		self.storage = OrderedDict()
 
 	#append an element
@@ -59,6 +61,17 @@ class OrderedSet:
 
 	def __iter__(self):
 		return self.storage.__iter__()
+
+	def __repr__(self):
+		out = ""
+		out += "OrderedSet("
+		for i in self.storage.keys():
+			out += repr(i) + ", "
+		out += ")"
+		return out
+
+	def __str__(self):
+		return str(self.storage)
 
 
 smroot = None #will be set once needed, see below
