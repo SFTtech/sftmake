@@ -57,6 +57,9 @@ class smtree:
 	def get_targets(self):
 		return filter(lambda smfile: (isinstance(smfile, targetsmfile)), self.smfiles)
 
+	def get_sources(self):
+		return filter(lambda smfile: (isinstance(smfile, srcsmfile)), self.smfiles)
+
 
 	def find_files(self):
 		"""
@@ -163,10 +166,11 @@ class simple_file:
 	any ordinary file...
 	"""
 	def __init__(self, path, filename):
-		self.path = path
+		self.directory = path
 		self.filename = filename
-		self.fullname = self.path + "/" + self.filename
+		self.fullname = self.directory + "/" + self.filename
 		self._smname = None
+		self._dirsmname = None
 
 	def __str__(self):
 		txt = repr(self) + "\n"
@@ -184,6 +188,13 @@ class simple_file:
 			self._smname = util.smpath(self.fullname)
 
 		return self._smname
+
+	def get_dir_smname(self):
+		if self._dirsmname == None:
+			self._dirsmname = util.smpath(self.directory)
+
+		return self._dirsmname
+
 
 class smfile(simple_file):
 

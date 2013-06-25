@@ -409,6 +409,7 @@ class BuildOrder:
 		print("================================== target list:")
 		for t in targetlist:
 			print(t)
+		print("================================== end of target list")
 
 		for target in targetlist:
 			for source in variables["use"].eval(conf.configs[target]):
