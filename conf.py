@@ -529,11 +529,15 @@ class Var:
 	SCOPE_CONF = EnumVal("Scope: Conf")
 	SCOPE_GLOBAL = EnumVal("Scope: Global")
 
-	def __init__(self, name, valtype = TYPE_STRING, varquant = QUANT_MULTI, assscope = SCOPE_CONF, defaultassignments = []):
+	def __init__(self, name, valtype = TYPE_STRING, varquant = QUANT_MULTI, assscope = SCOPE_CONF, defaultassignments = None):
 		"""
 		defaultassignments:
 			A list of VarAssignments, used as default (root) conf for this variable
 		"""
+
+		if defaultassignments == None:
+			defaultassignments = []
+
 		self.name = name
 		self.valtype = valtype
 		self.varquant = varquant
