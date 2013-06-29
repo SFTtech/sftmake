@@ -206,6 +206,9 @@ class smfile(simple_file):
 	def __init__(self, path, filename):
 		super().__init__(path, filename)
 
+		self.realfilename = None
+		self.realsmfilename = None
+
 	def __repr__(self):
 		return "smfile " + str(type(self)) + " -> " + self.fullname
 
@@ -217,12 +220,17 @@ class smfile(simple_file):
 
 	def create_handler(self):
 		"""
-		creates a wrapper object that is used for interpreting the file's
+		creates a wrapper object that is used for interpreting the files
 		contents.  conf_smfile is used for interpreting.
 		"""
 
 		import conf_smfile
 		return conf_smfile.smfile_factory(self)
+
+
+	def get_associated_smname(self):
+		raise NotImplementedError("This has to be implemented for the specific smfile types")
+
 
 class rootsmfile(smfile):
 	def __init__(self, path, filename):
@@ -252,6 +260,12 @@ class targetsmfile(assignmentsmfile):
 		else:
 			raise Exception("internal error, the target always has to match")
 
+	def get_associated_smname(self):
+		if self.realsmfilename == None:
+			self.realsmfilename = util.smpath(self.realfilename)
+		return self.realsmfilename
+
+
 class srcsmfile(assignmentsmfile):
 	def __init__(self, path, filename):
 		super().__init__(path, filename)
@@ -268,6 +282,11 @@ class srcsmfile(assignmentsmfile):
 		else:
 			raise Exception("wtf internal fail, it should always match...")
 
+	def get_associated_smname(self):
+		if self.realsmfilename == None:
+			self.realsmfilename = util.smpath(self.realfilename)
+		return self.realsmfilename
+
 
 class inlinesmfile(smfile):
 	"""
@@ -279,3 +298,6 @@ class inlinesmfile(smfile):
 	def smcontent(self):
 		#TODO: extract the inline content and return it
 		raise NotImplementedError("inline configs not supported yet")
+
+	def get_associated_smname(self):
+		return self.get_smname()
