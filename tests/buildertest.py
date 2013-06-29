@@ -16,6 +16,8 @@
 import builder
 import pprint
 import conf
+import re
+import util
 
 #test classes which simulate conf.py behavior
 
@@ -55,6 +57,68 @@ class vartestadv:
 			self.l[key] = [val]
 	def __repr__(self):
 		return "vartestadvanced (" + str(id(self)) + ") :\t" + pprint.pformat(self.l, width=300)
+
+
+def create_config(name, directory, ctype):
+	#create config for target, will be in conf.configs[t]
+
+	if name in conf.configs:
+		raise Exception(name + " already has a configuration, you fail0r!")
+
+	parent = directory
+
+	if not parent in conf.configs:
+		config_stack = []
+
+		#fill the to-be-created config stack with missing configs
+		while not parent in conf.configs:
+			config_stack.append(parent)
+			parent = util.parent_folder(parent)
+
+			#this happens if the parent of ^ is searched
+			if parent == '':
+				break
+
+		#after the loop above,
+		#config_stack now looks like this:
+		#[^/lol/folder/module, ^/lol/folder, ^/lol, ^]
+
+		#easier creation by reversing:
+		config_stack.reverse()
+		#the reversed config_stack:
+		#[^, ^/lol, ^/lol/folder, ^/lol/folder/module]
+
+		#iterate over the config stack, we need the index
+		for i in range(len(config_stack)):
+
+			#the name of config we want to create:
+			c = config_stack[i]
+
+			if c == "^":
+				#topmost parent of all the configs
+				parent = "project"
+			elif i < 1:
+				#the config at beginning does not have a predecessor in the list
+				# so we need to calculate the parent folder
+				parent = util.parent_folder(c)
+			else:
+				#if existing, the parent of the current is stored in the list
+				# before the current directory
+				parent = config_stack[i-1]
+
+			#create the config, name = c, and set the last parameter as follows:
+			# directory = c as well, this is for the relativ path resolutions
+			# of config entries (so lol.c is resolved to c/lol.c)
+			parentconfs = [conf.configs[parent]]
+			conf.Config(c, conf.Config.TYPE_DIR, parentconfs, c)
+
+		#now we fetch the real newly created parent config of 'name'
+		parent = config_stack.pop()
+
+	#create the desired configuration node
+	parentconf = [conf.configs[parent]]
+	conf.Config(name, ctype, parentconf, directory)
+
 
 
 def initvars0():
