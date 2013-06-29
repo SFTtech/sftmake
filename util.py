@@ -263,6 +263,8 @@ def in_smdir(path, relto = "^"):
 
 	pass
 
+def parent_folder(path):
+	return os.path.dirname(path)
 
 def concat(lists):
 	for l in lists:
