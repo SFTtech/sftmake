@@ -55,11 +55,10 @@ class smtree:
 		return self.root_smfile
 
 	def get_targets(self):
-		return filter(lambda smfile: (isinstance(smfile, targetsmfile)), self.smfiles)
+		return (smfile for smfile in self.smfiles if isinstance(smfile, targetsmfile))
 
 	def get_sources(self):
-		return filter(lambda smfile: (isinstance(smfile, srcsmfile)), self.smfiles)
-
+		return (smfile for smfile in self.smfiles if isinstance(smfile, srcsmfile))
 
 	def find_files(self):
 		"""
