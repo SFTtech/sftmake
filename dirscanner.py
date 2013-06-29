@@ -54,11 +54,17 @@ class smtree:
 			raise Exception("no root smfile found for this smtree")
 		return self.root_smfile
 
+	def get_target_smfiles(self):
+		return [smfile for smfile in self.smfiles if isinstance(smfile, targetsmfile)]
+
+	def get_source_smfiles(self):
+		return [smfile for smfile in self.smfiles if isinstance(smfile, srcsmfile)]
+
 	def get_targets(self):
-		return (smfile for smfile in self.smfiles if isinstance(smfile, targetsmfile))
+		raise NotImplementedError()
 
 	def get_sources(self):
-		return (smfile for smfile in self.smfiles if isinstance(smfile, srcsmfile))
+		return self.regular_files
 
 	def find_files(self):
 		"""
