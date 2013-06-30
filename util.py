@@ -5,6 +5,8 @@ import multiprocessing
 from collections import OrderedDict
 
 
+#must be set externally, by calling util.set_smroot(path)
+smroot = None
 
 
 class EnumVal:
@@ -74,9 +76,6 @@ class OrderedSet:
 		return str(self.storage)
 
 
-smroot = None #will be set once needed, see below
-
-
 #functions for path conversions:
 
 def abspath(path, relto = '^'):
@@ -86,26 +85,23 @@ def abspath(path, relto = '^'):
 	if path is rel, convert it to absolute
 	"""
 
-	global smroot
-
 	#if the path is empty, fak u
-	if(not path):
+	if not path:
 		raise Exception('Path must not be empty')
 
-	if smroot == None:
-		smroot = get_smroot()
+	smroot = get_smroot()
 
 	#if the path starts with '/', it's already absolute
-	if(path[0] == '/'):
+	if path[0] == '/':
 		result = path
 
 	#if the path starts with '^', we need to replace that with smroot
-	elif(path[0] == '^'):
+	elif path[0] == '^':
 		result = smroot + '/' + path[1:]
 
 	#else, the path is relative... to relto
 	else:
-		if(relto[0] != '^'):
+		if relto[0] != '^':
 			raise Exception('relto must start with ^')
 		result = abspath(relto) + '/' + path
 
@@ -121,16 +117,16 @@ def relpath(path, relto = '^'):
 
 	global smroot
 
-	if(not path): #fak u
+	if not path: #fak u
 		raise Exception("Path must not be empty")
 
-	elif(path[0] == '/'):
+	elif path[0] == '/':
 		return os.path.relpath(path, abspath(relto))
 
 	if smroot == None:
 		smroot = get_smroot()
 
-	if(path[0] == '^'):
+	if path[0] == '^':
 		return os.path.relpath(smroot + '/' + path[1:], abspath(relto))
 
 	#else, path is already relative to relto
@@ -145,22 +141,27 @@ def smpath(path, relto = '^'):
 	if path is rel, convert it to smpath
 	"""
 
-	global smroot
-
 	#if the path is empty, fak u
-	if(not path):
+	if not path:
 		raise Exception("Path must not be empty")
 
-	#if the path starts with '^', it's already an sftmake path
-	if(path[0] == '^'):
-		return path
+	smroot = get_smroot()
 
-	if smroot == None:
-		smroot = get_smroot()
+	#if the path starts with '^', it's an sftmake path that may need a relative conversion
+	if path[0] == '^':
+		path = smroot + '/' + path[1:]
+
+	#TODO: reenable the abspath generation, but beware:
+	#smroot = ./lol
+	#exspected:
+	#smpath(./lol/rofl) == ^/rofl
+	#
+	#but, when enabling this (NOT exspected):
+	#smpath(./lol/rofl) == ^/lol/lol/rofl
 
 	#else, get relative path
-	if(path[0] != '/'):
-		path = abspath(path, relto)
+	#if not path[0] == '/':
+	#	path = abspath(path, relto)
 
 	#generate path relative to smroot (to just add ^ then)
 	path = os.path.relpath(path, smroot)
@@ -227,7 +228,7 @@ def get_smroot():
 	global smroot
 
 	if smroot == None:
-		raise Exception("smroot must be set e.g. by dirscanner.smtree('./basedir/').get_root_smfile().path")
+		raise Exception("smroot must be set e.g. by dirscanner.smtree('./basedir/').get_root_smfile().directory")
 	return smroot
 
 def set_smroot(newroot):
