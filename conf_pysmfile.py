@@ -23,6 +23,7 @@ class pysmfile(smfile):
 
 	#the name of the config variable
 	#this has to be set in the smfile
+	#TODO!!111
 	confvarname = "sftmake"
 
 	def __init__(self, filename, smobj=None):
@@ -65,6 +66,11 @@ class pysmfile(smfile):
 
 		else:
 			print("!!! config variable '"+ self.confvarname +"' not defined in '"+ repr(self) +"', ignoring file !!!")
+
+
+	#this is implemented it pysmfiles superclass
+	#def get_associated_smname(self):
+		#pass
 
 	def __repr__(self):
 		return "pysmfile [" + self.filename + "]"

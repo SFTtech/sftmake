@@ -37,6 +37,12 @@ class smfile:
 	def run(self):
 		raise NotImplementedError("run method must be implemented")
 
+	def get_associated_smname(self):
+		if self.smobj != None:
+			return self.smobj.get_associated_smname()
+		else:
+			raise Exception("associated name could not be returned as this smfile did not store its dirscanner.simple_file wrapper")
+
 
 def smfile_factory(fobj):
 
