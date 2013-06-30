@@ -379,26 +379,9 @@ class BuildOrder:
 		attention: black magic is involved here.
 		'''
 
-		#---------------------
-		#0. step: resolve usedby-requirements
-		# move the file 'usedby' target definitions
-		# into the target, so it 'uses' the source
-
-		'''
-		for source in variables["filelist"].eval(conf.configs["project"]):
-			for target in variables["usedby"].get(conf.configs[source]):
-				#TODO: we should not modify variables...
-				#Add source filename to config(target).use:
-				target_use = variables["use"].get(target)
-				target_use.add(source)
-				variables["use"].setv(target_use)
-
-				#TODO: Add libs to config(target).libs ?
-		'''
-
 
 		#---------------------
-		#1. step: create source-for-target configurations
+		#0. step: create source-for-target configurations
 		# create new Config object, with parents=[target,source]
 		# and save it as confinfo[targetname + "-" + sourcename] = Config(...)
 		# later, use .get(target + "-" + source) to access properties,
@@ -406,20 +389,19 @@ class BuildOrder:
 
 		targetlist = variables["build"].eval(conf.configs["project"])
 
-		print("================================== target list:")
+		print("\n\n================================== target list:")
 		for t in targetlist:
 			print(t)
-		print("================================== end of target list")
+		print("================================== end of target list\n\n")
 
 		for target in targetlist:
 			for source in variables["use"].eval(conf.configs[target]):
 				targetconf = confinfo[target]
 				sourceconf = confinfo[source]
 				newconf = conf.Config(name="TODO", parents=[targetconf,sourceconf], directory=sourceconf.directory, conftype=conf.Config.TYPE_SRCFORTARGET)
-				confinfo[target + '-' + source] = newconf
 
 		#---------------------
-		#2. step: iterate through all dependencies and fill them
+		#1. step: iterate through all dependencies and fill them
 		#create BuildElements and fill them with information
 		#supplied by the variables configuration
 
@@ -521,7 +503,11 @@ class BuildOrder:
 
 			#create wanted dependencies (by config) for this target.
 			target_depends = variables["depends"].get(target)
-			pprint.pprint(target_depends)
+
+
+			#pprint.pprint(target_depends)
+
+
 			for d in target_depends:
 				d_obj = WantedDependency(d)
 				order_target.depends_wanted.add(d_obj)
@@ -545,7 +531,7 @@ class BuildOrder:
 			self.targets.add(order_target)
 
 		#----------------------
-		# 3. step: reuse wanted dependencies to add buildelements
+		# 2. step: reuse wanted dependencies to add buildelements
 		# to the correct hierarchy etc
 
 		print("\ncurrent filedict:")
