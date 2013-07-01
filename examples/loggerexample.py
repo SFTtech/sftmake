@@ -1,5 +1,6 @@
 #!/usr/bin/python3
-from logger import *
+from logger import logger, LogWriter, LogStorage
+from logger.levels import *
 
 #now follows some example usage code
 logger.addsink(LogWriter())
