@@ -10,4 +10,4 @@ __pycache__
 sftmake
 smfile
 wisentparser.py
-tests/wisentparser.py
+examples/wisentparser.py

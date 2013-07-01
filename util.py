@@ -3,6 +3,8 @@ import os
 import re
 import multiprocessing
 
+inf = float("+inf")
+
 class EnumVal:
 	"""
 	simply functions as a named object, for use e.g. as enum value.

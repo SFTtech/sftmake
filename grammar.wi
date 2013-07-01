@@ -7,7 +7,8 @@ statement: STARTOFSTATEMENT (declaration | assignment) ENDOFSTATEMENT;
 declaration: VARSCOPE WS VARQUANT WS VARTYPE WS IDENTIFIER (WS IDENTIFIER)*;
 
 #an assignment assigns values to a variable, with a condition
-assignment: IDENTIFIER ('[' boolexpression ']')? ASSIGNMENTOP expressionlist;
+assignment: IDENTIFIER condition? ASSIGNMENTOP expressionlist;
+condition: '[' boolexpression ']';
 
 #a boolean expression evaluates to a boolean value
 boolexpression:

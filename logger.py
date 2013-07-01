@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from time import time
 from sys import stdout
+from util import inf
 
 def ttywidth(f):
 	"""
@@ -18,7 +19,7 @@ def ttywidth(f):
 			fcntl.ioctl(f.fileno(), termios.TIOCGWINSZ, struct.pack('HHHH', 0, 0, 0, 0)))
 		return w
 	except:
-		return float("+inf")
+		return inf
 
 def printedlen(s):
 	"""
@@ -270,7 +271,7 @@ class LogWriter(LogSink):
 		rightstr = self.rightfmt.format(**msg.__dict__)
 		rightw = printedlen(rightstr)
 		centerw = ttywidth(self.logfile) - leftw - rightw
-		if centerw < 16 or centerw == float("+inf") or not self.fancy:
+		if centerw < 16 or centerw == inf or not self.fancy:
 			#use traditional style
 			self.logfile.write(leftstr.strip() + " " + rightstr.strip() + " " + msg.msg.strip() + '\n')
 		else:
