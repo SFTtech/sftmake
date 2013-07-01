@@ -214,17 +214,16 @@ def absorb_whitespaces(tokens):
 	"""
 	tokens = list(tokens)
 	for i in range(1, len(tokens) - 1):
-		token = tokens[i]
-
-		if token.tokentype == TOKEN_WS:
+		if tokens[i].tokentype == TOKEN_WS:
 			if tokens[i - 1].tokentype.absorb_right:
-				tokens[i - 1].text = tokens[i - 1].text + token.text
+				tokens[i - 1].text = tokens[i - 1].text + tokens[i].text
+				tokens[i] = None
 				continue
 			if tokens[i + 1].tokentype.absorb_left:
-				tokens[i + 1].text = token.text + tokens[i + 1].text
+				tokens[i + 1].text = tokens[i].text + tokens[i + 1].text
+				tokens[i] = None
 				continue
-
-		yield token
+	return (token for token in tokens if token != None)
 
 def tokenize_statement(statement):
 	tokens = tokenize_chars(statement)
