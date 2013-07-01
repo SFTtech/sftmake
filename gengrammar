@@ -1,2 +1,2 @@
 #!/bin/sh
-wisent -o autoparser.py -e autoparsertest.py grammar.wi
+wisent -o wisentparser.py -e tests/wisentparser.py grammar.wi
