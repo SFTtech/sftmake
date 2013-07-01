@@ -272,7 +272,7 @@ class LogWriter(LogSink):
 		centerw = ttywidth(self.logfile) - leftw - rightw
 		if centerw < 16 or centerw == float("+inf") or not self.fancy:
 			#use traditional style
-			print(leftstr.strip() + " " + rightstr.strip() + " " + msg.msg.strip())
+			self.logfile.write(leftstr.strip() + " " + rightstr.strip() + " " + msg.msg.strip() + '\n')
 		else:
 			#use fancy style
 			lines = []
@@ -287,9 +287,9 @@ class LogWriter(LogSink):
 				lines = ['']
 
 			#print the first line, with leftstr and rightstr
-			print(leftstr + lines[0].ljust(centerw) + rightstr)
+			self.logfile.write(leftstr + lines[0].ljust(centerw) + rightstr + '\n')
 			for line in lines[1:]:
-				print(leftpadding + line)
+				self.logfile.write(leftpadding + line + '\n')
 
 #initialize the log levels (ofc, nobody prevents you from defining your own)
 fatal =     LogLevel(50, "FAT", "1;31")
