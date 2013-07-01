@@ -19,12 +19,12 @@ $(TARGETFILE): parser
 	@echo -e "\n\n\n# End of assembled [SFT]make file" >> $(TARGETFILE)
 	@echo -e "# Assembled at $(date)" >> $(TARGETFILE)
 
-autoparser.py: assignmentgrammar.wi
+autoparser.py: grammar.wi
 	@#invoke the wisent parser generator
 	@#note that a modified python3 version of wisent is required, which generates valid python3 code.
 	@#for the list of patches, see the python3-wisent package in the arch user repository:
 	@#https://aur.archlinux.org/packages/python3-wisent/
-	wisent -o autoparser.py -e autoparsertest.py assignmentgrammar.wi
+	wisent -o autoparser.py -e autoparsertest.py grammar.wi
 	@chmod +x autoparser.py
 
 #PHONY targets for faster invocation
