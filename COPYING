@@ -1,17 +1,41 @@
-When one hears about "free software", the first thing that comes to mind might be "no cost". While this is true in most cases, the term "free software" as used by the Free Software Foundation (originators of the GNU Project and creators of the GNU General Public License) is intended to mean "free as in freedom" rather than the "no cost" sense (which is usually referred to as "free as in free beer"). Free software in this sense is software which you are free to use, copy, modify, redistribute, with no limit. Contrast this with the licensing of most commercial software packages, where you are allowed to load the software on a single computer, are allowed to make no copies, and never see the source code. Free software allows incredible freedom to the end user. Since the source code is universally available, there are also many more chances for bugs to be caught and fixed.
+Released under the GPLv3 license or later.
+For the license terms, see the file LICENSE.
 
-When a program is licensed under the GNU General Public License (the GPL):
+As always, this programm comes with NO WARRANTY...
 
-    you have the right to use the program for any purpose
-    you have the right to modify the program, and have access to the source codes
-    you have the right to copy and distribute the program
-    you have the right to improve the program, and release your own versions. 
+(c) 2013 Michael Ensslin      <michael@ensslin.cc>
+(c) 2013 Jonas Jelten
+(c) 2013 Andre Kupka
+(c) 2013-2213 Max Veit
 
-In return for these rights, you have some responsibilities if you distribute a GPL'd program, responsibilities that are designed to protect your freedoms and the freedoms of others:
+sftmake uses auto-generated code from the Wisent parser generator.
+That code is subject to the following copyringt notice:
 
-    You must provide a copy of the GPL with the program, so that the recipient is aware of his rights under the license.
-    You must include the source code or make the source code freely available.
-    If you modify the code and distribute the modified version, you must license your modifications under the GPL and make the source code of your changes available. (You may not use GPL'd code as part of a proprietary program.)
-    You may not restrict the licensing of the program beyond the terms of the GPL. (You may not turn a GPL'd program into a proprietary product.) 
+<begin wisent copyright notice>
 
-For more on the GPL, check the GNU Project Web site. 
+Copyright (C) 2008, 2009  Jochen Voss <voss@seehuhn.de>
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions
+are met:
+
+Redistributions in binary form must reproduce the above copyright notice, this
+list of conditions and the following disclaimer in the documentation and/or
+other materials provided with the distribution.
+
+The name of the author may not be used to endorse or promote products derived
+from this software without specific prior written permission.
+
+This software is provided by the author "as is" and any express or
+implied warranties, including, but not limited to, the implied
+warranties of merchantability and fitness for a particular purpose
+are disclaimed.  In no event shall the author be liable for any
+direct, indirect, incidental, special, exemplary, or consequential
+damages (including, but not limited to, procurement of substitute
+goods or services; loss of use, data, or profits; or business
+interruption) however caused and on any theory of liability, whether
+in contract, strict liability, or tort (including negligence or
+otherwise) arising in any way out of the use of this software, even
+if advised of the possibility of such damage.
+
+<end wisent copyright notice>
