@@ -500,9 +500,11 @@ class Var:
 	QUANT_SINGLE = EnumVal("Variable Quantifier: Single")
 	QUANT_MULTI = EnumVal("Variable Quantifier: Multi")
 
-	SCOPE_CONF = EnumVal("Scope: Conf")
+	SCOPE_LOCAL = EnumVal("Scope: Local")
+	SCOPE_INHERITED = EnumVal("Scope: Inherited")
 	SCOPE_GLOBAL = EnumVal("Scope: Global")
 
+	#TODO change SCOPE_CONF to SCOPE_INHERITED, add SCOPE_LOCAL
 	def __init__(self, name, valtype = TYPE_STRING, varquant = QUANT_MULTI, assscope = SCOPE_CONF, defaultassignments = []):
 		"""
 		defaultassignments:
@@ -513,8 +515,12 @@ class Var:
 		self.varquant = varquant
 
 		self.assscope = assscope
-		if self.assscope == Var.SCOPE_CONF:
-			self.assignments = {conf_default: defaultassignments}
+		if self.assscope == Var.SCOPE_INHERITED:
+			self.assignments = defaultdict(lambda: [])
+			self.assignments[conf_default] = defaultassignments
+		elif self.assscope == Var.SCOPE_LOCAL:
+			self.assignments = defaultdict(lambda: [])
+			self.defaultassignments = defaultassignments
 		elif self.assscope == Var.SCOPE_GLOBAL:
 			self.assignments = defaultassignments
 
@@ -526,7 +532,7 @@ class Var:
 		result += str(self.varquant) + "\n"
 		result += str(self.assscope) + "\n"
 		result += "Assignments:" + "\n"
-		if self.assscope == Var.SCOPE_CONF:
+		if self.assscope == Var.SCOPE_INHERITED or self.assscope == Var.SCOPE_LOCAL:
 			for conf in self.assignments:
 				result += repr(conf) + ":\n"
 				for ass in self.assignments[conf]:
@@ -540,19 +546,19 @@ class Var:
 		"""
 		adds the given VarAssignment, scoped for conf
 		"""
-		if self.assscope == Var.SCOPE_CONF:
-			if conf not in self.assignments:
-				self.assignments[conf] = [assignment]
-			else:
-				self.assignments[conf].append(assignment)
+		if self.assscope == Var.SCOPE_INHERITED or self.assscope == Var.SCOPE_LOCAL:
+			self.assignments[conf].append(assignment)
 		elif self.assscope == Var.SCOPE_GLOBAL:
-			self.assignments.append(assignment)
+			self.assignments.append((assignment, conf))
 
 	def eval(self, evalconf, depends = OrderedSet()):
 		"""
 		returns the string values of the var, for a certain conf.
+
 		evalconf:
 			the conf for which we are evaluating
+			note that evalconf is relevant even for Vars with scope == SCOPE_GLOBAL,
+			because conditions, functions or variable substitutions may be involved.
 		depends:
 			when getting values of a variable, we might need other variables as depends.
 			that way, circular dependencies and thus infinite loops may happen.
@@ -570,14 +576,19 @@ class Var:
 		#prepare set of result strings
 		result = OrderedSet()
 
-		#iterate over all assignments in all parent configs
-		if self.varscope == Var.SCOPE_CONF:
-			assignments = ((assignment, conf)
-				for conf in evalconf.parenthyperres()
-				for assignment in self.assignments.get(conf, []))
+		if self.varscope == Var.SCOPE_INHERITED:
+			#iterate over all assignments in all parent configs
+			relevantconfs = evalconf.parenthyperres()
+		elif self.varscope == Var.SCOPE_LOCAL:
+			#relevant are only the default conf and the eval conf
+			relevantconfs = [conf_default, evalconf]
 		elif self.varscope == Var.SCOPE_GLOBAL:
-			assignments = ((assignment, conf_default)
-				for conf in self.assignments)
+			#relevant are all confs
+			relevantconfs = self.assignments
+
+		assignments = ((assignment, conf)
+			for conf in relevantconfs
+			for assignment in self.assignments[conf]))
 
 		for assignment in assignments:
 			#first, check the condition
