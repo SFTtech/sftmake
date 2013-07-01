@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import string
-from parser import ParserException
+from parser.parser import ParserException
 from util import inf, EnumVal
 
 #all of these exception types are required for automatic testing
