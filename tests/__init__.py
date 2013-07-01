@@ -1,9 +1,7 @@
-def run():
-	print("running tokenizer tests")
-	import tests.tokenizer
-	tests.tokenizer.run()
+from logger.levels import *
 
-	print("running parser tests")
+def run():
+	important("running parser tests")
 	import tests.parser
 	tests.parser.run()
 

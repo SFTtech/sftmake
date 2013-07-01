@@ -249,3 +249,51 @@ def concat(lists):
 	for l in lists:
 		for val in l:
 			yield val
+
+def ttywidth(f):
+	"""
+	Determines the width of a terminal
+
+	f
+		File object pointing to the terminal
+	returns
+		Width of the terminal, in characters, or +inf if the file does not represent a terminal or an other
+		error has occured
+	"""
+	try:
+		import fcntl, termios, struct
+		_, w, _, _ = struct.unpack('HHHH',
+			fcntl.ioctl(f.fileno(), termios.TIOCGWINSZ, struct.pack('HHHH', 0, 0, 0, 0)))
+		return w
+	except:
+		return inf
+
+def printedlen(s):
+	"""
+	Determines the length of a string excluding ANSI escape sequences such as color codes
+	Does NOT consider tab characters, newlines etc, just ANSI escape sequences.
+
+	returns
+		Length of s, in characters
+	"""
+	result = 0
+	escaped = False
+	for c in s:
+		if c == "\x1b" and not escaped:
+			escaped = True
+		if not escaped:
+			result += 1
+		elif c.isalpha() and escaped:
+			escaped = False
+	return result
+
+def ansicolorstring(colid):
+	"""
+	Determines the ANSI escape sequence for a certain color code
+
+	colid
+		Color code, or any ';'-separated concatenation thereof
+	returns
+		ANSI escape sequence for colid
+	"""
+	return '\x1b[' + colid + 'm'

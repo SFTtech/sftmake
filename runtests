@@ -1,3 +1,5 @@
 #!/usr/bin/python3
-from tests import run
-run()
+from logger import logger, LogWriter
+logger.addsink(LogWriter())
+import tests
+tests.run()

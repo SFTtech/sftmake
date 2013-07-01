@@ -10,10 +10,11 @@ class ParserException(Exception):
 		self.got = got
 
 def parse_statement(statement):
-	import tokenizer
-	tokens = ((t.tokentype.name, (t.text, t.pos)) for t in tokenizer.tokenize_statement(statement))
-	import wisentparser
-	p = wisentparser.Parser()
+	from parser.tokenizer import tokenize_statement
+	from parser.wisentparser import Parser
+
+	tokens = ((t.tokentype.name, (t.text, t.pos)) for t in tokenize_statement(statement))
+	p = Parser()
 	try:
 		tree = p.parse(tokens)
 	except p.ParseErrors as e:

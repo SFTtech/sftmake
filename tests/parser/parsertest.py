@@ -1,5 +1,6 @@
 #!/usr/bin/python3
-from parser import parse_statement
+from parser.parser import parse_statement
+from logger.levels import *
 
 statements = [
 	"c:=gcc",
@@ -8,5 +9,5 @@ statements = [
 
 def run():
 	for statement in statements:
-		print("statement:")
-		print(parse_statement(statement))
+		message("statement: " + statement)
+		message(parse_statement(statement))

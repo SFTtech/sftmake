@@ -1,7 +1,7 @@
 #!/bin/sh
 #this script packs sftmake into a single, executable ZIP archive
 PACKED_NAME=sftmake
-zip -r ${PACKED_NAME}.zip *.py LICENSE COPYING tests grammar.wi __pycache__ doc examples
+zip -r ${PACKED_NAME}.zip *.py LICENSE COPYING tests parser logger __pycache__ doc examples
 head -1 __main__.py > $PACKED_NAME
 cat ${PACKED_NAME}.zip >> $PACKED_NAME
 chmod +x $PACKED_NAME
