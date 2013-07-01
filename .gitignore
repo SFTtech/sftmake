@@ -9,4 +9,5 @@ tmp*
 __pycache__
 sftmake
 smfile
-
+autoparser.py
+autoparsertest.py

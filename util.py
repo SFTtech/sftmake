@@ -3,15 +3,13 @@ import os
 import re
 import multiprocessing
 
-
-
-
 class EnumVal:
 	"""
 	simply functions as a named object, for use e.g. as enum value.
 	"""
-	def __init__(self, representation):
+	def __init__(self, representation, **kw):
 		self.representation = representation
+		self.__dict__.update(kw)
 
 	def __repr__(self):
 		return self.representation
