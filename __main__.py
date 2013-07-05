@@ -70,4 +70,5 @@ def main():
 
 
 if __name__ == "__main__":
-	main()
+	from logger.exceptions import handle_exceptions
+	handle_exceptions(main, exitcode = 1)

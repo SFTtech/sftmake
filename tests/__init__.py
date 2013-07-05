@@ -1,7 +1,8 @@
 from logger.levels import *
+from logger.exceptions import handle_exceptions
 
 def run():
-	important("running parser tests")
+	important("tests.parser.run()")
 	import tests.parser
-	tests.parser.run()
+	handle_exceptions(tests.parser.run, sectionname = "parser tests")
 

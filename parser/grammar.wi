@@ -4,29 +4,29 @@ statement: STARTOFSTATEMENT (declaration | assignment) ENDOFSTATEMENT;
 
 #a declaration specifies the variable type, and a list of variable names
 #variables are always declared globally; multiple declarations of one variable result in a fatal error
-declaration: VARSCOPE WS VARQUANT WS VARTYPE WS IDENTIFIER (WS IDENTIFIER)*;
+declaration: VARSCOPE WS VARTYPE WS VARQUANT WS IDENTIFIER (WS IDENTIFIER)*;
 
 #an assignment assigns values to a variable, with a condition
 assignment: IDENTIFIER condition? ASSIGNMENTOP expressionlist;
 condition: '[' boolexpression ']';
 
 #a boolean expression evaluates to a boolean value
-boolexpression:
-	(BOOLOP_PREFIX? (expression | '[' expressionlist ']') PREDICATE (expression | '[' expressionlist ']')) |
-	(BOOLOP_PREFIX? '(' boolexpression ')' (BOOLOP_INFIX BOOLOP_PREFIX? '(' boolexpression ')')*);
+boolatom: expression PREDICATE expression;
+boolliteral: BOOLOP_PREFIX? boolatom;
+boolexpression: boolliteral | BOOLOP_PREFIX? '(' boolexpression ')' (BOOLOP_INFIX BOOLOP_PREFIX? '(' boolexpression ')')*;
 
 #the following all evaluate to a list of VARTYPE values (strings or similar)
 expressionlist: (expression (WS expression)*)?;
 
-expression:       (             literal | funccall | varsubst | doublequoted | singlequoted)+;
-doublequoted: '"' (doublequoted_literal | funccall | varsubst                              )* '"';
-singlequoted: "'" (singlequoted_literal                                                    )* "'";
+expression:       (             literal | funccall | varsubst | '[' expressionlist ']' | doublequoted | singlequoted)+;
+doublequoted: '"' (doublequoted_literal | funccall | varsubst                                                       )* '"';
+singlequoted: "'" (singlequoted_literal                                                                             )* "'";
 
-funccall: '$' '(' expressionlist ')';
+funccall: '$' '(' expression (WS expressionlist)? ')';
 varsubst: '$' IDENTIFIER | '$' '{' expression '}';
 
 #literal types, for use in expression. some characters or words are allowed only within quotes
 literal: IDENTIFIER | LITERAL;
-keyword: VARSCOPE | VARQUANT | VARTYPE | ASSIGNMENTOP | BOOLOP_PREFIX | BOOLOP_INFIX | PREDICATE;
+keyword: VARSCOPE | VARTYPE | VARQUANT | ASSIGNMENTOP | BOOLOP_PREFIX | BOOLOP_INFIX | PREDICATE;
 doublequoted_literal: literal | keyword | WS | "'" | '[' | ']';
 singlequoted_literal: literal | keyword | WS | '"' | '[' | ']' | '$' | '(' | ')' | '{' | '}';

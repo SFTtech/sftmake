@@ -1,9 +1,10 @@
 from logger.levels import *
+from logger.exceptions import handle_exceptions
 
 def run():
-	important("running tokenizer tests")
+	important("tests.parser.tokenizer.run()")
 	import tests.parser.tokenizertest
-	tests.parser.tokenizertest.run()
-	important("running parser tests")
+	handle_exceptions(tests.parser.tokenizertest.run, sectionname = "tokenizer tests")
+	important("tests.parser.parser.run()")
 	import tests.parser.parsertest
-	tests.parser.parsertest.run()
+	handle_exceptions(tests.parser.parsertest.run, sectionname = "parser tests")

@@ -1,25 +1,6 @@
-#!/usr/bin/python3
 import string
-from parser.parser import ParserException
 from util import inf, EnumVal
-
-#all of these exception types are required for automatic testing
-class TokenizerException(ParserException):
-	pass
-class TokenizerEscapeSequenceException(TokenizerException):
-	pass
-class TokenizerXEscapeIllegalCharacterException(TokenizerEscapeSequenceException):
-	pass
-class TokenizerXEscapeEndOfLineException(TokenizerEscapeSequenceException):
-	pass
-class TokenizerUEscapeIllegalCharacterException(TokenizerEscapeSequenceException):
-	pass
-class TokenizerUEscapeEndOfLineException(TokenizerEscapeSequenceException):
-	pass
-class TokenizerEscapeIllegalCharacterException(TokenizerEscapeSequenceException):
-	pass
-class TokenizerEscapeEndOfLineException(TokenizerEscapeSequenceException):
-	pass
+from parser.exceptions import *
 
 class TokenType:
 	def __init__(self, name, absorb_left = False, absorb_right = False, condensable = False):
@@ -39,6 +20,9 @@ class Token:
 
 	def __repr__(self):
 		return str(self.tokentype) + ": '" + str(self.text) + "'"
+
+	def totuple(self):
+		return self.tokentype.name, (self.text, self.pos)
 
 #constants for tokenizer
 TOKEN_STARTOFSTATEMENT = TokenType("STARTOFSTATEMENT", absorb_right = True)
@@ -192,7 +176,7 @@ def replace_symbols(tokens):
 					token.pos += occpos + occlen
 					token.text = token.text[occpos + occlen:]
 				else:
-					token.tokentype = SYMBOLS[symbol]
+					token.tokentype = TOKEN_SYMBOLS[symbol]
 					token.text = symbol
 					token.pos += occpos
 					break
