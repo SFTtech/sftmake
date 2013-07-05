@@ -151,17 +151,9 @@ def smpath(path, relto = '^'):
 	if path[0] == '^':
 		path = smroot + '/' + path[1:]
 
-	#TODO: reenable the abspath generation, but beware:
-	#smroot = ./lol
-	#exspected:
-	#smpath(./lol/rofl) == ^/rofl
-	#
-	#but, when enabling this (NOT exspected):
-	#smpath(./lol/rofl) == ^/lol/lol/rofl
-
 	#else, get relative path
-	#if not path[0] == '/':
-	#	path = abspath(path, relto)
+	if not path[0] == '/':
+		path = relto + '/' + os.path.normpath(path)
 
 	#generate path relative to smroot (to just add ^ then)
 	path = os.path.relpath(path, smroot)
