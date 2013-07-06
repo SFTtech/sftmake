@@ -21,43 +21,35 @@ must be superclass for any config language class
 '''
 class smfile:
 
-	def __init__(self, fname, smobj=None):
-		self.filename = fname
-		if smobj != None:
-			self.smobj = smobj
-
-		with open(self.filename) as f:
-			self.content = f.read()
-
+	def __init__(self, fileobj):
+		self.fileobj = fileobj
 		self.data = None
 
+		with open(self.fileobj.fullname) as f:
+			self.content = f.read()
+
 	def get_content(self):
+		"""return the real smfile content"""
 		return self.content
 
 	def run(self):
 		raise NotImplementedError("run method must be implemented")
 
 	def get_associated_smname(self):
-		if self.smobj != None:
-			return self.smobj.get_associated_smname()
-		else:
-			raise Exception("associated name could not be returned as this smfile did not store its dirscanner.simple_file wrapper")
+		return self.fileobj.get_associated_smname()
 
 
 def smfile_factory(fobj):
 
-	if isinstance(fobj, dirscanner.simple_file):
-		filename = fobj.fullname
-	else:
-		filename = fobj
-		fobj = None
+	if not isinstance(fobj, dirscanner.simple_file):
+		raise Exception("smfile creation needs to have a dirscanner.simple_file as argument")
 
 	#create smfile wrapper/handler accordung to it's file extension
-	if filename.endswith(r".py"):
+	if fobj.fullname.endswith(r".py"):
 		#python conf file
 
 		from conf_pysmfile import pysmfile
-		smfile = pysmfile(filename, fobj)
+		smfile = pysmfile(fobj)
 		return smfile
 
 	#TODO: smlang smfile
