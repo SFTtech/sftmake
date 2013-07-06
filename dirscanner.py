@@ -13,7 +13,7 @@
 import os
 import re
 import util
-
+from logger import *
 
 """
 scan from project root directory and cascade into all subfolders
@@ -72,10 +72,10 @@ class smtree:
 		and store them into a big file array
 		"""
 
-		print("scanning " + self.smroot + " for files")
+		debug("scanning " + self.smroot + " for files")
 		for (path, dirs, files) in os.walk(self.smroot):
 
-			print("looking in path " + path + " for contents")
+			debug("looking in path " + path + " for contents")
 
 			#check whether we should look into the current folder (path)
 			ignorepath = False
@@ -84,7 +84,7 @@ class smtree:
 
 			#the current path will be ignored
 			if ignorepath:
-				print("ignoring current path: " + path)
+				debug("ignoring current path: " + path)
 				continue
 
 			#all folders in the current folder (path)
@@ -93,7 +93,7 @@ class smtree:
 				if self.ignorenames.match(d):
 					ignoredir = True
 					dirs.remove(d) #so os.walk doesn't visit the dir
-					print("removing from list to visit: " + d)
+					debug("removing from list to visit: " + d)
 
 				if ignoredir:
 					continue
@@ -118,32 +118,32 @@ class smtree:
 						# we found the root smfile
 						self.root_smfile = rootsmfile(path, f)
 						self.smfiles.append(self.root_smfile)
-						print("root-smfile -> " + fullpath)
+						debug("root-smfile -> " + fullpath)
 						continue
 
 				#is this a directory smfile?
 				if self.directorysm_names.match(f):
 					# a directory-smfile was found
 					self.smfiles.append(dirsmfile(path, f))
-					print("directory-smfile -> " + fullpath)
+					debug("directory-smfile -> " + fullpath)
 					continue
 
 				#is this a target smfile?
 				if self.targetsm_names.match(f):
 					# a target-smfile was found
 					self.smfiles.append(targetsmfile(path, f))
-					print("target-smfile -> " + fullpath)
+					debug("target-smfile -> " + fullpath)
 					continue
 
 				#is this a source smfile?
 				if self.sourcesm_names.match(f):
 					# a source-smfile was found
 					self.smfiles.append(srcsmfile(path, f))
-					print("source-smfile -> " + fullpath)
+					debug("source-smfile -> " + fullpath)
 					continue
 
 				#if we reach this point, the file is no smfile.
-				print("regular file => " + fullpath)
+				debug("regular file => " + fullpath)
 
 				rfile = simple_file(path, f)
 				self.regular_files.append(rfile)
@@ -208,6 +208,7 @@ class smfile(simple_file):
 
 		self.realfilename = None
 		self.realsmfilename = None
+		self.smhandler = None
 
 	def __repr__(self):
 		return "smfile " + str(type(self)) + " -> " + self.fullname
@@ -223,13 +224,15 @@ class smfile(simple_file):
 		creates a wrapper object that is used for interpreting the files
 		contents.  conf_smfile is used for interpreting.
 		"""
-
 		import conf_smfile
-		return conf_smfile.smfile_factory(self)
+		self.smhandler = conf_smfile.smfile_factory(self)
+		return self.smhandler
 
+	def get_handler(self):
+		return self.smhandler
 
 	def get_associated_smname(self):
-		raise NotImplementedError("This has to be implemented for the specific smfile types")
+		raise NotImplementedError("This has to be implemented for the specific smfile types, you are calling the method of the base class.")
 
 
 class rootsmfile(smfile):
@@ -239,6 +242,9 @@ class rootsmfile(smfile):
 class dirsmfiles(smfile):
 	def __init__(self, path, filename):
 		super().__init__(path, filename)
+
+	def get_associated_smname(self):
+		return self.get_dir_smname()
 
 class assignmentsmfile(smfile):
 	def __init__(self, path, filename):
