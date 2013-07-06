@@ -2,6 +2,7 @@
 *.swo
 .swp
 *~
+*.pyc
 \#*
 *#*
 temp*
@@ -9,4 +10,5 @@ tmp*
 __pycache__
 sftmake
 smfile
-
+parser/wisentparser.py
+examples/wisentparser.py

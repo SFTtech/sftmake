@@ -1,0 +1,8 @@
+#!/usr/bin/python3
+from logger import logger, LogWriter
+from logger.exceptions import handle_exceptions
+
+logger.addsink(LogWriter())
+import tests
+
+handle_exceptions(tests.run)

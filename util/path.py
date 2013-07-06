@@ -1,82 +1,9 @@
-#!/usr/bin/python3
 import os
 import re
-import multiprocessing
-from collections import OrderedDict
-
 
 #must be set externally, by calling util.set_smroot(path)
 smroot = None
 
-
-class EnumVal:
-	"""
-	simply functions as a named object, for use e.g. as enum value.
-	"""
-	def __init__(self, representation):
-		self.representation = representation
-
-	def __repr__(self):
-		return self.representation
-
-
-#TODO: find a better implementation (e.g. by extending set())
-class OrderedSet:
-	"""
-	we emulate 'OrderedSet' functionality from an OrderedDict by setting
-	val = None.
-	fak u python for not providing OrderedSet.
-	"""
-	def __init__(self):
-		self.storage = OrderedDict()
-
-	#append an element
-	#returns true if the element was new
-	def append(self, x):
-		if(x in self.storage):
-			self.storage.pop(x)
-			self.storage[x] = None
-			return False
-		else:
-			self.storage[x] = None
-			return True
-
-	#delete an element
-	def delete(self, x):
-		self.storage.pop(x)
-
-	#remove all elements
-	def clear(self):
-		self.storage.clear()
-
-	#update the ordered set with an other ordered set
-	def update(self, x):
-		for v in x:
-			self.storage.pop(v)
-		self.storage.update(x.storage)
-
-	def tolist(self):
-		return [x for x in self.storage]
-
-	def newest(self):
-		return next(reversed(self.storage))
-
-	def __iter__(self):
-		return self.storage.__iter__()
-
-	def __repr__(self):
-		out = ""
-		out += "OrderedSet("
-		for i in self.storage.keys():
-			out += repr(i) + ", "
-		out += ")"
-		return out
-
-	def __str__(self):
-		return str(self.storage)
-
-
-#functions for path conversions:
 
 def abspath(path, relto = '^'):
 	"""
@@ -107,7 +34,6 @@ def abspath(path, relto = '^'):
 
 	return os.path.normpath(result)
 
-
 def relpath(path, relto = '^'):
 	"""
 	if path is absolute, convert it to rel
@@ -132,7 +58,6 @@ def relpath(path, relto = '^'):
 	#else, path is already relative to relto
 	else:
 		return os.path.normpath(path)
-
 
 def smpath(path, relto = '^'):
 	"""
@@ -188,7 +113,6 @@ def smpathifrel(path, relto = '^'):
 	else:
 		return smpath(path, relto)
 
-
 #TODO Decide on an encoding. It can be made arbitrarily complicated.
 def generate_oname(obj_desc):
 	"""Encodes the object name/command description in order to be sanely
@@ -211,18 +135,6 @@ def generate_oname(obj_desc):
 	obj_desc = re.sub(r"=", "-", obj_desc)
 	# And_there_you_go::_A_weirdly:/interestingly-escaped_command.
 	return obj_desc
-
-
-def get_thread_count():
-	"""gets the number or hardware threads, or 1 if that can't be done"""
-
-	try:
-		return multiprocessing.cpu_count()
-	except NotImplementedError: # may happen under !POSIX
-		fallback = 1
-		sys.stderr.write('warning: cpu number detection failed, fallback to ' + fallback + '\n')
-		return fallback
-
 
 def get_smroot():
 	global smroot
@@ -266,8 +178,3 @@ def in_smdir(path, relto = "^"):
 
 def parent_folder(path):
 	return os.path.dirname(path)
-
-def concat(lists):
-	for l in lists:
-		for val in l:
-			yield val

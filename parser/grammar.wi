@@ -1,0 +1,32 @@
+#each config file consists of statements (one per line).
+#statements can also be passed as command-line arguments, and are defined in the defaultconf file.
+statement: STARTOFSTATEMENT (declaration | assignment) ENDOFSTATEMENT;
+
+#a declaration specifies the variable type, and a list of variable names
+#variables are always declared globally; multiple declarations of one variable result in a fatal error
+declaration: VARSCOPE WS VARTYPE WS VARQUANT WS IDENTIFIER (WS IDENTIFIER)*;
+
+#an assignment assigns values to a variable, with a condition
+assignment: IDENTIFIER condition? ASSIGNMENTOP expressionlist;
+condition: '[' boolexpression ']';
+
+#a boolean expression evaluates to a boolean value
+boolatom: expression PREDICATE expression;
+boolliteral: BOOLOP_PREFIX? boolatom;
+boolexpression: boolliteral | BOOLOP_PREFIX? '(' boolexpression ')' (BOOLOP_INFIX BOOLOP_PREFIX? '(' boolexpression ')')*;
+
+#the following all evaluate to a list of VARTYPE values (strings or similar)
+expressionlist: (expression (WS expression)*)?;
+
+expression:       (             literal | funccall | varsubst | '[' expressionlist ']' | doublequoted | singlequoted)+;
+doublequoted: '"' (doublequoted_literal | funccall | varsubst                                                       )* '"';
+singlequoted: "'" (singlequoted_literal                                                                             )* "'";
+
+funccall: '$' '(' expression (WS expressionlist)? ')';
+varsubst: '$' IDENTIFIER | '$' '{' expression '}';
+
+#literal types, for use in expression. some characters or words are allowed only within quotes
+literal: IDENTIFIER | LITERAL;
+keyword: VARSCOPE | VARTYPE | VARQUANT | ASSIGNMENTOP | BOOLOP_PREFIX | BOOLOP_INFIX | PREDICATE;
+doublequoted_literal: literal | keyword | WS | "'" | '[' | ']';
+singlequoted_literal: literal | keyword | WS | '"' | '[' | ']' | '$' | '(' | ')' | '{' | '}';

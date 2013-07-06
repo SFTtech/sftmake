@@ -23,11 +23,9 @@ import time
 from logger import *
 
 
-if not "assembled" in globals():
-	import util
-	from util import abspath,smpath,relpath,generate_oname
-	import conf
-
+import util
+from util import abspath,smpath,relpath,generate_oname
+import conf
 
 
 
