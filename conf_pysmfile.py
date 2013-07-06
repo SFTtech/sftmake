@@ -12,6 +12,7 @@
 
 import parser #python-internal python parser (contains lots of python)
 import util
+from logger import *
 
 from conf_smfile import smfile
 
@@ -26,8 +27,8 @@ class pysmfile(smfile):
 	#TODO!!111
 	confvarname = "sftmake"
 
-	def __init__(self, filename, smobj=None):
-		smfile.__init__(self, filename, smobj)
+	def __init__(self, fileobj):
+		smfile.__init__(self, fileobj)
 
 	def run(self):
 		"""
@@ -65,7 +66,7 @@ class pysmfile(smfile):
 			self.data = self.smlocals[self.confvarname]
 
 		else:
-			print("!!! config variable '"+ self.confvarname +"' not defined in '"+ repr(self) +"', ignoring file !!!")
+			important("!!! config variable '"+ self.confvarname +"' not defined in '"+ repr(self) +"', ignoring file !!!")
 
 
 	#this is implemented it pysmfiles superclass
@@ -73,7 +74,7 @@ class pysmfile(smfile):
 		#pass
 
 	def __repr__(self):
-		return "pysmfile [" + self.filename + "]"
+		return "pysmfile [" + self.fileobj.filename + "]"
 
 	def __str__(self):
 		out = repr(self)
