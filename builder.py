@@ -20,6 +20,8 @@ import shlex
 import subprocess
 import threading
 import time
+from logger import *
+
 
 if not "assembled" in globals():
 	import util
@@ -389,15 +391,15 @@ class BuildOrder:
 
 		targetlist = variables["build"].eval(conf.configs["project"])
 
-		print("\n\n================================== target list:")
+		message("================================== target list:")
 		for t in targetlist:
-			print(t)
-		print("================================== end of target list\n\n")
+			message(t)
+		message("================================== end of target list")
 
 		for target in targetlist:
 			for source in variables["use"].eval(conf.configs[target]):
-				targetconf = confinfo[target]
-				sourceconf = confinfo[source]
+				targetconf = conf.configs[target]
+				sourceconf = conf.configs[source]
 				newconf = conf.Config(name="TODO", parents=[targetconf,sourceconf], directory=sourceconf.directory, conftype=conf.Config.TYPE_SRCFORTARGET)
 
 		#---------------------
