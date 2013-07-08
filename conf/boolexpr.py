@@ -35,6 +35,34 @@ class CondTreeNode_Not(CondTreeNode):
 	def eval(self, evalconf, depends):
 		return not self.condtree.eval(evalconf, depends)
 
+
+class CondTreeNode_Bool(CondTreeNode):
+	"""
+	always evaluates to the given value
+	"""
+	def __init__(self, value):
+		self.value = value
+
+	def __repr__(self):
+		return repr(self.value)
+
+	def eval(self, evalconf, depends):
+		return self.value
+
+class CondTreeNode_True(CondTreeNode_Bool):
+	"""
+	always evaluates to True
+	"""
+	def __init__(self):
+		super().__init__(True)
+
+class CondTreeNode_False(CondTreeNode_Bool):
+	"""
+	always evaluates to False
+	"""
+	def __init__(self):
+		super().__init__(False)
+
 class CondTreeNode_And(CondTreeNode):
 	"""
 	logic 'and' of multiple conditions
