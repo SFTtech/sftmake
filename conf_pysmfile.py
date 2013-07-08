@@ -32,33 +32,13 @@ class pysmfile(smfile):
 		"""
 		parse the content of this smfile
 		"""
-		try:
-			smfile_st = parser.suite(self.get_content())
-
-		except (SyntaxError) as e:
-			print(str(dir(e)))
-
-			#flines = self.get_content().split('\n')
-			#eline = '"'+ str(flines[e.lineno-1]) +'"'
-
-			msg = "Error parsing python smfile:\n"
-			msg += "- Cause: " + e.msg + "\n"
-			msg += "- File: " + repr(self) + "\n"
-			msg += "- Line: " + str(e.lineno) + ", "
-			msg += "Char: " + str(e.offset) + "\n"
-			msg += "Expression: \n" + e.text
-			msg += ''.join([' ' for i in range(e.offset-1)]) + "^ there..."
-			raise Exception(msg)
-
-		#compile the python smfile:
-		smfile_code = parser.compilest(smfile_st, "smfile: " + repr(self))
 
 		#preserve global variables, reset local (e.g. smfile_code) variables
 		self.smglobals = globals()
 		self.smlocals = {}
 
 		#execute the python smfile:
-		exec(smfile_code, self.smglobals, self.smlocals)
+		exec(self.get_content(), self.smglobals, self.smlocals)
 
 		if self.confvarname in self.smlocals.keys():
 			self.data = self.smlocals[self.confvarname]
