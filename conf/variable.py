@@ -64,7 +64,7 @@ class Var:
 		"""
 		self.assignments[conf] = assignment
 
-	def eval(self, conf, depends = OrderedSet()):
+	def eval(self, conf, depends = None):
 		"""
 		determines the value [list] of the var, for a certain conf
 
@@ -82,6 +82,10 @@ class Var:
 			'depends' contains a list of all tree nodes (variables) that have been visited in the
 			current path of evaluation; duplicate entries mean detection of a loop
 		"""
+
+		if depends == None:
+			depends = OrderedSet()
+
 		if depends.append(self) == False:
 			raise CircularDependencyException(depends, self.name)
 
