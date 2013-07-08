@@ -1,6 +1,7 @@
 from time import time
 from sys import stdout
-from util import inf, ttywidth, printedlen, ansicolorstring
+from util.misc import inf
+from util.term import ttywidth, printedlen, ansicolorstring
 
 class LogMessage:
 	"""
