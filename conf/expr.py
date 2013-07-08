@@ -49,7 +49,7 @@ class Literal(Expression):
 			String
 		"""
 		self.value = value
-		Expression.__init__(conf)
+		super().__init__(conf)
 
 	def eval(self, conf, depends, valtype):
 		return self.typeconv([self.value], valtype)
@@ -67,11 +67,10 @@ class FuncCall(Expression):
 		"""
 		self.funcname = funcname
 		self.funcargs = funcargs
-		Expression.__init__(conf)
+		super().__init__(conf)
 
 	def eval(self, conf, depends, valtype):
 		fname = self.funcname.eval(conf, depends, variable.VALTYPE_STRING)
-		
 
 class ExpressionList(Expression):
 	"""
@@ -83,7 +82,7 @@ class ExpressionList(Expression):
 			list(Expression)
 		"""
 		self.expressions = expressions
-		Expression.__init__(conf)
+		super().__init__(conf)
 
 	def eval(self, conf, depends, valtype):
 		result = []
