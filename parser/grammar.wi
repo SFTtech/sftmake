@@ -18,9 +18,9 @@ boolexpression: boolliteral | BOOLOP_PREFIX? '(' boolexpression ')' (BOOLOP_INFI
 #the following all evaluate to a list of VARTYPE values (strings or similar)
 expressionlist: (expression (WS expression)*)?;
 
-expression:       (             literal | funccall | varsubst | '[' expressionlist ']' | doublequoted | singlequoted)+;
-doublequoted: '"' (doublequoted_literal | funccall | varsubst                                                       )* '"';
-singlequoted: "'" (singlequoted_literal                                                                             )* "'";
+expression:        (             literal | funccall | varsubst | '[' expressionlist ']' | _doublequoted | _singlequoted)+;
+_doublequoted: '"' (doublequoted_literal | funccall | varsubst                                                         )* '"';
+_singlequoted: "'" (singlequoted_literal                                                                               )* "'";
 
 funccall: '$' '(' expression (WS expressionlist)? ')';
 varsubst: '$' IDENTIFIER | '$' '{' expression '}';
