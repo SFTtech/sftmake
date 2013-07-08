@@ -12,8 +12,9 @@
 
 import os
 import re
-import util
-from logger import *
+
+from util.path import smpath
+from logger.levels import *
 
 """
 scan from project root directory and cascade into all subfolders
@@ -190,13 +191,13 @@ class simple_file:
 
 	def get_smname(self):
 		if self._smname == None:
-			self._smname = util.smpath(self.fullname)
+			self._smname = smpath(self.fullname)
 
 		return self._smname
 
 	def get_dir_smname(self):
 		if self._dirsmname == None:
-			self._dirsmname = util.smpath(self.directory)
+			self._dirsmname = smpath(self.directory)
 
 		return self._dirsmname
 
@@ -268,7 +269,7 @@ class targetsmfile(assignmentsmfile):
 
 	def get_associated_smname(self):
 		if self.realsmfilename == None:
-			self.realsmfilename = util.smpath(self.realfilename)
+			self.realsmfilename = smpath(self.realfilename)
 		return self.realsmfilename
 
 
@@ -290,7 +291,7 @@ class srcsmfile(assignmentsmfile):
 
 	def get_associated_smname(self):
 		if self.realsmfilename == None:
-			self.realsmfilename = util.smpath(self.realfilename)
+			self.realsmfilename = smpath(self.realfilename)
 		return self.realsmfilename
 
 

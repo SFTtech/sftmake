@@ -10,9 +10,7 @@
 #
 # (c) 2013 [sft]technologies, jonas jelten
 
-import parser #python-internal python parser (contains lots of python)
-import util
-from logger import *
+from logger.levels import *
 
 from conf_smfile import smfile
 
