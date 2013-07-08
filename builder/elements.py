@@ -15,7 +15,8 @@ from logger import *
 
 
 import util
-from util import abspath,smpath,relpath,generate_oname
+from util.path import abspath,smpath,relpath
+from util.path import generate_oname
 import conf
 
 

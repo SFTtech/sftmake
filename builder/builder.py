@@ -20,11 +20,16 @@ import shlex
 import subprocess
 import threading
 import time
+
+from builder.elements import *
+
 from logger import *
 
 
 import util
-from util import abspath,smpath,relpath,generate_oname
+import util.misc
+from util.path import abspath,smpath,relpath
+from util.path import generate_oname
 import conf
 
 
@@ -105,7 +110,7 @@ class BuildWorker:
 class JobManager:
 	"""thread manager for invoking the compilers"""
 
-	def __init__(self, max_workers=util.get_thread_count()):
+	def __init__(self, max_workers=util.misc.get_thread_count()):
 		self.workers = []
 
 		self.pending_jobs  = set()		# jobs that will be processed sometime
@@ -118,7 +123,7 @@ class JobManager:
 		self.error = 0
 
 		self.job_lock = threading.Condition()
-		self.filesys_lock = threading.Condition()
+		#self.filesys_lock = threading.Condition()
 
 	def queue_order(self, order):
 		if not isinstance(order, BuildOrder):
@@ -302,7 +307,7 @@ class BuildOrder:
 		self.filedict = dict()
 		self.usedelements = set()
 
-	def set_thread_count(self, n = util.get_thread_count()):
+	def set_thread_count(self, n = util.misc.get_thread_count()):
 		self.max_jobs = n
 
 	def find_reuse_element(self, element):
