@@ -1,10 +1,10 @@
-import multiprocessing
-
 inf = float("+inf")
 nan = float("NaN")
 
 def get_thread_count():
 	"""gets the number or hardware threads, or 1 if that can't be done"""
+
+	import multiprocessing
 
 	try:
 		return multiprocessing.cpu_count()
