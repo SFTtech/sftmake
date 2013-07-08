@@ -13,7 +13,7 @@
 # (c) 2013 [sft]technologies, jonas jelten
 
 import pprint
-import util
+from util.datatypes import EnumVal
 
 class smconfig:
 
@@ -50,7 +50,7 @@ class smconfig:
 
 
 #if everything should be built, 'build' has to be:
-everything = util.EnumVal("everything")
+everything = EnumVal("everything")
 
 
 
