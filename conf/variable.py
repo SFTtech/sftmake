@@ -10,9 +10,9 @@ VALTYPE_PATH = EnumVal("Value type: Path")
 """ Assignment values are treated as integers """
 VALTYPE_INT = EnumVal("Value type: Int")
 valtypes = {
-	"string": TYPE_STRING,
-	"path":   TYPE_PATH,
-	"int":    TYPE_INT
+	"string": VALTYPE_STRING,
+	"path":   VALTYPE_PATH,
+	"int":    VALTYPE_INT
 }
 
 """ Only the last value that has been assigned to the variable counts """
@@ -20,8 +20,8 @@ VALCOUNT_SINGLE = EnumVal("Value count: Single value")
 """ All values that have been assigned count """
 VALCOUNT_LIST = EnumVal("Value count: List")
 valcounts = {
-	"single": QUANT_SINGLE,
-	"multi":  QUANT_MULTI
+	"single": VALCOUNT_SINGLE,
+	"multi":  VALCOUNT_LIST
 }
 
 """ Only the variable assignments from this config count """
@@ -31,9 +31,9 @@ ASSIGNMENTSCOPE_INHERITED = EnumVal("Assignment scope: Inherited")
 """ All variable assignments from all configs count """
 ASSIGNMENTSCOPE_GLOBAL = EnumVal("Assignment scope: Global")
 assignmentscopes = {
-	"local":     SCOPE_LOCAL,
-	"inherited": SCOPE_MULTI,
-	"global":    SCOPE_GLOBAL
+	"local":     ASSIGNMENTSCOPE_LOCAL,
+	"inherited": ASSIGNMENTSCOPE_INHERITED,
+	"global":    ASSIGNMENTSCOPE_GLOBAL
 }
 
 class Var:
