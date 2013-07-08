@@ -1,3 +1,9 @@
+import conf.expr
+
+class BooleanExpression:
+	def eval(self, conf, depends):
+		raise NotImplementedError("Abstract base type 'BooleanExpression' does not implement 'eval'")
+
 class CondTreeNode:
 	"""
 	represents one condition tree node.
