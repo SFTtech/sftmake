@@ -1,5 +1,6 @@
 import string
-from util import inf, EnumVal
+from util.misc import inf
+from util.datatypes import EnumVal
 from parser.exceptions import *
 
 class TokenType:
