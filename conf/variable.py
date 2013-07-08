@@ -1,7 +1,7 @@
 from conf import variables
 from conf import assignment
 from conf.exceptions import *
-from util import OrderedDefaultDict
+from util.datatypes import OrderedDefaultDict, EnumVal
 
 """ Assignment values are treated as strings, without any semantics """
 VALTYPE_STRING = EnumVal("Value type: String")

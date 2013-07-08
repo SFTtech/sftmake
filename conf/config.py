@@ -1,3 +1,7 @@
+from util.datatypes import EnumVal
+
+from conf import configs
+
 class Config:
 	"""
 	other than the name might suggest, this class holds no actual config data.

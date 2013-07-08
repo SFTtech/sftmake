@@ -1,4 +1,4 @@
-from util import EnumVal
+from util.datatypes import EnumVal
 
 """ The values from the assignment are appended to the result list of the variable """
 MODE_APPEND = EnumVal("Assignment mode: Append")
