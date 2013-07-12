@@ -63,7 +63,7 @@ class Var:
 		note that even for variables with ASSIGNMENTSCOPE_GLOBAL,
 		conf has a relevancebecause it determines the order of the assignments
 		"""
-		self.assignments[conf] = assignment
+		self.assignments[conf].append(assignment)
 
 	def eval(self, conf, depends = None):
 		"""
