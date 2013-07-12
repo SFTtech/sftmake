@@ -1,7 +1,8 @@
 from conf import variables
 from conf import assignment
 from conf.exceptions import *
-from util.datatypes import OrderedDefaultDict, EnumVal
+from util.datatypes import OrderedDefaultDict, EnumVal, OrderedSet
+from logger.levels import *
 
 """ Assignment values are treated as strings, without any semantics """
 VALTYPE_STRING = EnumVal("Value type: String")
@@ -89,13 +90,14 @@ class Var:
 		if depends.append(self) == False:
 			raise CircularDependencyException(depends, self.name)
 
-		if self.varscope == ASSIGNMENTSCOPE_INHERITED:
+		if self.assignmentscope == ASSIGNMENTSCOPE_INHERITED:
 			#the confs of all parents are relevant (order from parent to child)
+			debug(str(type(conf)) + " ==== " + str(conf))
 			relevantconfs = conf.parenthyperres()
-		elif self.varscope == ASSIGNMENTSCOPE_LOCAL:
+		elif self.assignmentscope == ASSIGNMENTSCOPE_LOCAL:
 			#only this conf is relevant
 			relevantconfs = [conf]
-		elif self.varscope == ASSIGNMENTSCOPE_GLOBAL:
+		elif self.assignmentscope == ASSIGNMENTSCOPE_GLOBAL:
 			#all confs are relevant (order equals the order in which the conffiles were read)
 			relevantconfs = self.assignments
 

@@ -18,6 +18,7 @@ import pprint
 import builder.builder
 
 import util
+import util.path
 
 from logger import *
 from logger.levels import *
@@ -29,48 +30,8 @@ import conf.assignment as assignment
 from conf.config import Config
 from conf.variable import Var
 from conf.assignment import Assignment
-from conf.expr import Literal
-from conf.boolexpr import CondTreeNode_True
-
-
-#test classes which simulate conf.py behavior
-
-class vartest:
-	def __init__(self, arg):
-		self.l = arg
-
-	def get(self, a = ""):
-		return self.l
-
-	def __repr__(self):
-		if self.l == None:
-			return "None"
-		else:
-			return "vartest:\t" + pprint.pformat(self.l)
-
-class vartestadv:
-	def __init__(self, name=""):
-		self.l = dict()
-		self.n = name
-
-	def get(self, param):
-		print("getting [" + param + "] @" + self.n + " = ", end='')
-		ret = self.l[param]
-		print(str(ret))
-		return ret
-
-	def setv(self, key, val):
-		print("setting [" + key + "] @" + self.n + " = " + str(val))
-		self.l[key] = val
-
-	def pushv(self, key, val):
-		print("pushing [" + key + "] @" + self.n + " = " + str(val))
-		if key in self.l:
-			self.l[key].append(val)
-		else:
-			self.l[key] = [val]
-	def __repr__(self):
-		return "vartestadvanced (" + str(id(self)) + ") :\t" + pprint.pformat(self.l, width=300)
+import conf.expr as expr
+import conf.boolexpr as boolexpr
 
 
 def create_config(name, directory, ctype):
@@ -87,7 +48,7 @@ def create_config(name, directory, ctype):
 		#fill the to-be-created config stack with missing configs
 		while not parent in conf.configs:
 			config_stack.append(parent)
-			parent = util.parent_folder(parent)
+			parent = util.path.parent_folder(parent)
 
 			#this happens if the parent of ^ is searched
 			if parent == '':
@@ -135,80 +96,9 @@ def create_config(name, directory, ctype):
 
 
 
-def initvars0():
-	#variable configuration for the testproject
-
-	variables = dict()
-	variables["c"] = vartest("gcc")
-	variables["build"] = vartest({"^/lolbinary", "^/liblol.so"})
-	variables["filelist"] = vartest({'^/main.c', '^/both.c', '^/library0.c', '^/library1.c'})
-
-	variables["objdir"] = vartest("^/.objdir")
-
-	variables["use"] = vartestadv(name="use")
-	variables["usedby"] = vartestadv(name="usedby")
-	variables["depends"] = vartestadv(name="depends")
-	variables["ldflags"] = vartestadv("ldflags")
-	variables["cflags"] = vartestadv("cflags")
-
-	variables["cflags"].setv("^/lolbinary", "-O1 -march=native")
-	variables["cflags"].setv("^/lolbinary-^/main.c", "-O1 -march=native")
-	variables["cflags"].setv("^/lolbinary-^/both.c", "-O1 -march=native")
-	variables["cflags"].setv("^/liblol.so", "-O1 -march=native -fPIC")
-	variables["cflags"].setv("^/liblol.so-^/library0.c", "-O1 -march=native -fPIC")
-	variables["cflags"].setv("^/liblol.so-^/library1.c", "-O1 -march=native -fPIC")
-	variables["cflags"].setv("^/liblol.so-^/both.c", "-O1 -march=native -fPIC")
-
-
-	variables["ldflags"].setv("^/liblol.so", "-shared -Wl,-soname,liblol.so")
-	variables["ldflags"].setv("^/lolbinary", "-L. -llol")
-
-	variables["depends"].setv("^/main.c", {"^/both.c"})#set())
-	variables["depends"].setv("^/both.c", set())
-	variables["depends"].setv("^/library0.c", set())
-	variables["depends"].setv("^/library1.c", set())
-	variables["depends"].setv("^/lolbinary", {"^/liblol.so"})
-	variables["depends"].setv("^/liblol.so", set())
-
-	variables["depends"].setv("^/liblol.so-^/both.c", set())
-	variables["depends"].setv("^/liblol.so-^/library0.c", set())
-	variables["depends"].setv("^/liblol.so-^/library1.c", set())
-	variables["depends"].setv("^/lolbinary-^/main.c", set())
-	variables["depends"].setv("^/lolbinary-^/both.c", set())
-
-	variables["use"].setv("^/lolbinary", {'^/both.c', '^/main.c'})
-	variables["use"].setv("^/liblol.so", {'^/both.c', '^/library0.c', '^/library1.c'})
-	variables["usedby"].setv("^/main.c", set())
-	variables["usedby"].setv("^/both.c", set())
-	variables["usedby"].setv("^/library0.c", set())
-	variables["usedby"].setv("^/library1.c", set())
-
-	variables["autodepends"] = vartest("MD") #vartest("no")
-	variables["prebuild"] = vartest("echo startin build")
-	variables["postbuild"] = vartest("echo finished build")
-	variables["loglevel"] = vartest("2")
-
-	confinfo = {}
-	conf_base = Config('^', Config.TYPE_DIR, [], '^')
-	conf_main = Config('^/main.c', Config.TYPE_SRC, [conf_base], '^')
-	conf_lib0 = Config('^/library0.c', Config.TYPE_SRC, [conf_base], '^')
-	conf_lib1 = Config('^/library1.c', Config.TYPE_SRC, [conf_base], '^')
-	conf_both = Config('^/both.c', Config.TYPE_SRC, [conf_base], '^')
-	conf_lib = Config('^/liblol.so', Config.TYPE_TARGET, [conf_base], '^')
-	conf_bin = Config('^/lolbinary', Config.TYPE_TARGET, [conf_base], '^')
-	confinfo["^/main.c"] = conf_main
-	confinfo["^/library0.c"] = conf_lib0
-	confinfo["^/library1.c"] = conf_lib1
-	confinfo["^/both.c"] = conf_both
-	confinfo["^/liblol.so"] = conf_lib
-	confinfo["^/lolbinary"] = conf_bin
-
-	return variables, confinfo
-
-
 def initvars1():
 	'''
-	approach of creating the config via python by using conf.py
+	approach of creating the config via python by using conf infrastructure
 	'''
 
 	debug("starting creating variables by using dirscanner now")
@@ -229,8 +119,8 @@ def initvars1():
 	cconf = Var(name='c', valtype=variable.VALTYPE_STRING, valcount = variable.VALCOUNT_LIST)
 
 	a0 = Assignment(
-		expressionlist = Literal(conf_project, "gcc"),
-		condition = CondTreeNode_True(),
+		expressionlist = expr.Literal(conf_project, "gcc"),
+		condition = boolexpr.CondTreeNode_True(),
 		mode = assignment.MODE_APPEND,
 		src = "default configuration"
 	)
@@ -275,10 +165,10 @@ def initvars1():
 	#end assigning root smfile stuff
 
 	#variable which contains a list of smnames, which are targets to be built
-	variables["build"] = conf.Var(name='build', assscope=conf.Var.SCOPE_GLOBAL, valtype = conf.Var.TYPE_STRING)
+	variables["build"] = variable.Var(name='build', assignmentscope=variable.ASSIGNMENTSCOPE_GLOBAL)
 
 	#variable to store which sources are used for a given target
-	variables["use"] = conf.Var(name='use', assscope=conf.Var.SCOPE_CONF, valtype = conf.Var.TYPE_STRING)
+	variables["use"] = variable.Var(name='use')
 
 	#get all defined targets by existing target smfiles
 	targetlist = filetree.get_target_smfiles()
@@ -291,21 +181,21 @@ def initvars1():
 		#type(target) == dirscanner.targetsmfile
 		d = target.get_dir_smname()
 		t = target.get_associated_smname()
-		tsmhandler = target.get_smhandler()
+		tsmhandler = target.get_handler()
 
 		debug("** creating configurations for target " + t)
 
 		#creates the inherit structure configuration (parents are set etc)
 		create_config(name=t, directory=d, ctype=Config.TYPE_TARGET)
 
-		variables["build"].addassignment(
-			conf.VarAssignment(
-				valtree = Literal(conf_project, t),
-				condtree = conf.CondTreeNode_True(),
-				mode = conf.VarAssignment.MODE_APPEND,
+		variables["build"].assign(
+			conf=conf.configs[t],
+			assignment = assignment.Assignment(
+				expressionlist = expr.Literal(conf_project, t),
+				condition = boolexpr.CondTreeNode_True(),
+				mode = assignment.MODE_APPEND,
 				src = "scanned targets"
-			),
-			conf=conf.configs[t]
+			)
 		)
 
 		#get the created smfile interpreter:
@@ -319,21 +209,21 @@ def initvars1():
 
 				#create entries for all to-be-used sources by this target
 				for usesrc in sh.data.data['use']:
-					usesrc = util.path.smpath(usesrc, relto=target.fileobj.get_dir_smname)
+					usesrc = util.path.smpath(usesrc, relto=target.get_dir_smname())
 
-			variables["use"].addassignment(
-				conf.VarAssignment(
-					valtree = Literal(conf.configs[t], newuse),
-					condtree = conf.CondTreeNode_True(),
-					mode = conf.VarAssignment.MODE_APPEND,
-					src = "scanned smfile content"
-				),
-				conf.configs[t]
-			)
+					variables["use"].assign(
+						conf = conf.configs[t],
+						assignment = assignment.Assignment(
+							expressionlist = expr.Literal(conf.configs[t], usesrc),
+							condition = boolexpr.CondTreeNode_True(),
+							mode = assignment.MODE_APPEND,
+							src = "scanned smfile content"
+						)
+					)
 
 
 
-	variables["filelist"] = conf.Var(name='filelist', assscope=conf.Var.SCOPE_GLOBAL, valtype = conf.Var.TYPE_STRING)
+	variables["filelist"] = variable.Var(name='filelist', assignmentscope=variable.ASSIGNMENTSCOPE_GLOBAL)
 
 	#get list of all sourcefiles from scanned filetree
 	sourcelist = filetree.get_sources()
@@ -364,14 +254,14 @@ def initvars1():
 		create_config(s, d, Config.TYPE_SRC)
 
 		#add this source to the global source file list
-		variables["filelist"].addassignment(
-			conf.VarAssignment(
-				valtree = Literal(conf_project, s),
-				condtree = conf.CondTreeNode_True(),
-				mode = conf.VarAssignment.MODE_APPEND,
+		variables["filelist"].assign(
+			conf=conf_project,
+			assignment = assignment.Assignment(
+				expressionlist = expr.Literal(conf_project, s),
+				condition = boolexpr.CondTreeNode_True(),
+				mode = assignment.MODE_APPEND,
 				src = "scanned sources"
-			),
-			conf=conf_project
+			)
 		)
 
 
@@ -385,11 +275,12 @@ def initvars1():
 		# move the file 'usedby' target definitions
 		# into the target, so it 'uses' the source
 		for target in usedbytargets:
-			variables["usedby"].addassignment(
-				conf.VarAssignment(
-					valtree = Literal(conf_project, target),
-					condtree = conf.CondTreeNode_True(),
-					mode = conf.VarAssignment.MODE_APPEND,
+			variables["usedby"].assign(
+				conf = "asdf TODO",
+				assignment = assignment.Assignment(
+					valtree = expr.Literal(conf_project, target),
+					condtree = boolexpr.CondTreeNode_True(),
+					mode = assignment.MODE_APPEND,
 					src = "usedby definitons"
 				)
 			)

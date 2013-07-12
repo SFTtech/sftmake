@@ -257,7 +257,7 @@ class assignmentsmfile(smfile):
 
 class targetsmfile(assignmentsmfile):
 	def __init__(self, path, filename):
-		assignmentsmfile.__init__(self, path, filename)
+		super().__init__(path, filename)
 
 		matchingtarget = re.search(smtree.targetsm_names, self.fullname)
 		if matchingtarget:
