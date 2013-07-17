@@ -1,4 +1,4 @@
-from util.datatypes import EnumVal
+from util.datatypes import EnumVal, OrderedSet
 
 from conf import configs
 
