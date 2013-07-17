@@ -92,7 +92,6 @@ class Var:
 
 		if self.assignmentscope == ASSIGNMENTSCOPE_INHERITED:
 			#the confs of all parents are relevant (order from parent to child)
-			debug(str(type(conf)) + " ==== " + str(conf))
 			relevantconfs = conf.parenthyperres()
 		elif self.assignmentscope == ASSIGNMENTSCOPE_LOCAL:
 			#only this conf is relevant
@@ -111,22 +110,22 @@ class Var:
 
 				#apply vallist to result, in the way specified by a.mode
 				if a.mode == assignment.MODE_APPEND:
-					for v in vals:
-						result.append(s)
+					for v in vallist:
+						result.append(v)
 				elif a.mode == assignment.MODE_SET:
 					result.clear()
-					for v in vals:
-						result.append(s)
+					for v in vallist:
+						result.append(v)
 				elif a.mode == assignment.MODE_REMOVE:
-					for v in vals:
-						result.remove(s)
+					for v in vallist:
+						result.remove(v)
 
 		if self.valcount == VALCOUNT_SINGLE:
 			try:
 				return result.newest()
 			except:
 				raise Exception("Single-quantified variable has no value")
-		elif self.varquant == VALCOUNT_MULTI:
+		elif self.valcount == VALCOUNT_LIST:
 			return result
 
 	def __repr__(self):
@@ -140,4 +139,3 @@ class Var:
 			for ass in self.assignments[conf]:
 				result += "\t" + self.name + repr(ass) + "\n"
 		return result[:-1]
-
