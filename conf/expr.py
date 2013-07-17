@@ -1,6 +1,5 @@
 import conf.variable as variable
-import conf.functions as functions
-import conf.variables as variables
+import conf.function as function
 import itertools
 
 class Expression:
