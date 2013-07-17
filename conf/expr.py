@@ -121,7 +121,7 @@ class Concatenation(Expression):
 
 	the first member is evaluated with the normal valtype, all others as STRING.
 	"""
-	def __init__(self, conf, expressions)
+	def __init__(self, conf, expressions):
 		"""
 		expressions:
 			list(Expression)
