@@ -42,4 +42,9 @@ class Assignment:
 		return None
 
 	def __repr__(self):
-		return '[' + repr(self.condition) + ']' + self.op() + " ".join(self.expressionlist) + " #" + self.src
+		out = '[' + repr(self.condition) + ']'
+		out += self.op()
+		out += " ".join(self.expressionlist)
+		out += " #"
+		out += self.src
+		return out
