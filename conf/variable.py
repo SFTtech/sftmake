@@ -107,7 +107,7 @@ class Var:
 				if not a.condition.eval(conf, depends):
 					continue
 
-				vallist = [ exp.eval(conf, depends, self.valtype) for exp in a.expressionlist ]
+				vallist = a.expressionlist.eval(conf, depends, self.valtype)
 
 				#apply vallist to result, in the way specified by a.mode
 				if a.mode == assignment.MODE_APPEND:
