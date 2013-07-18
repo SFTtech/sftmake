@@ -107,10 +107,11 @@ class Var:
 		result = OrderedSet()
 		for assignmentconf in relevantconfs:
 			for a in self.assignments[assignmentconf]:
+
 				if not a.condition.eval(conf, depends):
 					continue
 
-				vallist = a.expressionlist.eval(conf, depends, self.valtype)
+				vallist = [ exp.eval(conf, depends, self.valtype) for exp in a.expressionlist ]
 
 				#apply vallist to result, in the way specified by a.mode
 				if a.mode == assignment.MODE_APPEND:
@@ -123,6 +124,8 @@ class Var:
 				elif a.mode == assignment.MODE_REMOVE:
 					for v in vallist:
 						result.remove(v)
+				else:
+					raise Exception("unknown assignment mode!")
 
 		if self.valcount == VALCOUNT_SINGLE:
 			try:
