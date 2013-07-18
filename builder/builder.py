@@ -23,7 +23,7 @@ import time
 
 from builder.elements import *
 
-from logger import *
+from logger.levels import *
 
 
 import util
