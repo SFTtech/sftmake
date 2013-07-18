@@ -21,7 +21,7 @@ class Expression:
 			#make sure the path is one of:
 			# an absolute POSIX path
 			# a smpath
-			return [smpathifrel(v, self.conf.directory) for v in vals]
+			return [ smpathifrel(v, self.conf.directory) for v in vals ]
 
 		elif valtype == variable.VALTYPE_INT:
 			for v in vals:
