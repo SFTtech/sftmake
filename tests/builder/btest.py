@@ -224,34 +224,57 @@ def initvars1():
 
 
 	variables["filelist"] = variable.Var(name='filelist', assignmentscope=variable.ASSIGNMENTSCOPE_GLOBAL)
+	variables["srcsuffix"] = variable.Var(name='srcsuffix')
+
+	#only allow source files ending with .c
+	variables["srcsuffix"].assign(
+		conf = conf.configs['project'],
+		assignment = assignment.Assignment(
+			expressionlist = expr.Literal(conf.configs['project'], r"\.c$"),
+			condition = boolexpr.CondTreeNode_True(),
+			mode = assignment.MODE_APPEND,
+			src = "hardcoded in btest"
+		)
+	)
 
 	#get list of all sourcefiles from scanned filetree
 	sourcelist = filetree.get_sources()
 
-	debug("sourcelist:\n" + str(list(sourcelist)))
+	debug("---- creating list of sources")
+	debug("FILELIST:\n" + str(list(sourcelist)))
 
 	#iterate over all source files and create configs for them
 	#create "target uses" entries for usedby declarations
 	#and ignore files not being used or having no configuration (e.g. srcsmfile or inline)
-	#TODO ^ the above things
-
-	#TODO: non-c-regex by project config smfile
 
 	for source in sourcelist:
 		d = source.get_dir_smname()
 		s = source.get_smname() #TODO: this can reference the dirscaner.simple_file
-		#TODO ^^^^
-		#patternlist = variables["srcsuffix"].eval(s)
-		#srcfileregex = "("
-		#for p in patternlist:
-		#	regex += p |
-		#srcfileregex += ")"
-		#if not re.match(r"\.(c|cpp)$", s):
-		#	continue
+
+		#get the list of all suffixes currently enabled
+		patternlist = variables["srcsuffix"].eval(conf.configs[d])
+
+		srcfileregex = r".*("
+		start = True
+		for p in patternlist:
+			srcfileregex += p + (r"|" if not start else "")
+			start = False
+		srcfileregex += r")"
+
+		debug("REGEX for " + s + " ==> " + srcfileregex)
+
+		if not re.match(srcfileregex, s):
+			debug("skipped -> " + s)
+			continue
+
+		else:
+			debug("using source -> " + s)
 
 		debug("** creating configurations for source " + s)
 
 		create_config(s, d, Config.TYPE_SRC)
+
+		print("lol")
 
 		#add this source to the global source file list
 		variables["filelist"].assign(
@@ -278,8 +301,8 @@ def initvars1():
 			variables["usedby"].assign(
 				conf = "asdf TODO",
 				assignment = assignment.Assignment(
-					valtree = expr.Literal(conf_project, target),
-					condtree = boolexpr.CondTreeNode_True(),
+					expressionlist = expr.Literal(conf_project, target),
+					conditione = boolexpr.CondTreeNode_True(),
 					mode = assignment.MODE_APPEND,
 					src = "usedby definitons"
 				)
