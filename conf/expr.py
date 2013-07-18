@@ -29,13 +29,18 @@ class Expression:
 					int(v)
 				except:
 					raise Exception("Value must be an integer, but is " + v)
+			return vals
 
 		elif type(valtype) == list:
 			for v in vals:
+				#the allowed values are stored in the valtype list
 				if v not in valtype:
 					raise Exception("Value must be one of " + str(valtype)
 						+ ", but is " + v)
 			return vals
+
+		else:
+			raise Exception("unknown type conversion type: " + valtype)
 
 	def eval(self, conf, depends, valtype):
 		raise NotImplementedError("Abstract base type 'Expression' does not implement 'eval'")
@@ -111,6 +116,8 @@ class ExpressionList(Expression):
 		result = []
 		for expr in self.expressions:
 			result += expr.eval(conf, depends, valtype)
+
+		return self.typeconf(result, valtype)
 
 class Concatenation(Expression):
 	"""
