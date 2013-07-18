@@ -75,7 +75,7 @@ def create_config(name, directory, ctype):
 			elif i < 1:
 				#the config at beginning does not have a predecessor in the list
 				# so we need to calculate the parent folder
-				parent = util.parent_folder(c)
+				parent = util.path.parent_folder(c)
 			else:
 				#if existing, the parent of the current is stored in the list
 				# before the current directory
