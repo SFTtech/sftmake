@@ -63,6 +63,10 @@ class Var:
 		note that even for variables with ASSIGNMENTSCOPE_GLOBAL,
 		conf has a relevancebecause it determines the order of the assignments
 		"""
+
+		if not type(assignment.expressionlist) == list:
+			raise Exception("pass a the expression(s) as a list!")
+
 		self.assignments[conf].append(assignment)
 
 	def eval(self, conf, depends = None):
