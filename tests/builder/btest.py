@@ -226,6 +226,7 @@ def initvars1():
 
 
 	variables["filelist"] = variable.Var(name='filelist', assignmentscope=variable.ASSIGNMENTSCOPE_GLOBAL)
+
 	variables["srcsuffix"] = variable.Var(name='srcsuffix')
 
 	#only allow source files ending with .c
@@ -238,6 +239,60 @@ def initvars1():
 			src = "hardcoded in btest"
 		)
 	)
+
+
+	variables["cflags"] = variable.Var(name='cflags')
+
+	variables["cflags"].assign(
+		conf = conf.configs['project'],
+		assignment = assignment.Assignment(
+			expressionlist = expr.Literal(conf.configs['project'], "-pedantic"),
+			condition = boolexpr.CondTreeNode_True(),
+			mode = assignment.MODE_APPEND,
+			src = "hardcoded in btest"
+		)
+	)
+
+
+	variables["ldflags"] = variable.Var(name='ldflags')
+
+	variables["ldflags"].assign(
+		conf = conf.configs['project'],
+		assignment = assignment.Assignment(
+			expressionlist = expr.Literal(conf.configs['project'], "-llol"),
+			condition = boolexpr.CondTreeNode_True(),
+			mode = assignment.MODE_APPEND,
+			src = "hardcoded in btest"
+		)
+	)
+
+
+	variables["prebuild"] = variable.Var(name='prebuild')
+
+	variables["prebuild"].assign(
+		conf = conf.configs['project'],
+		assignment = assignment.Assignment(
+			expressionlist = expr.Literal(conf.configs['project'], "echo rein"),
+			condition = boolexpr.CondTreeNode_True(),
+			mode = assignment.MODE_APPEND,
+			src = "hardcoded in btest"
+		)
+	)
+
+
+	variables["postbuild"] = variable.Var(name='postbuild')
+
+	variables["postbuild"].assign(
+		conf = conf.configs['project'],
+		assignment = assignment.Assignment(
+			expressionlist = expr.Literal(conf.configs['project'], "echo raus"),
+			condition = boolexpr.CondTreeNode_True(),
+			mode = assignment.MODE_APPEND,
+			src = "hardcoded in btest"
+		)
+	)
+
+
 
 	#get list of all sourcefiles from scanned filetree
 	sourcelist = filetree.get_sources()

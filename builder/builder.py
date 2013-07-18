@@ -31,6 +31,7 @@ import util.misc
 from util.path import abspath,smpath,relpath
 from util.path import generate_oname
 import conf
+import conf.config
 
 
 
@@ -403,7 +404,12 @@ class BuildOrder:
 			for source in variables["use"].eval(conf.configs[target]):
 				targetconf = conf.configs[target]
 				sourceconf = conf.configs[source]
-				newconf = conf.Config(name="TODO", parents=[targetconf,sourceconf], directory=sourceconf.directory, conftype=conf.Config.TYPE_SRCFORTARGET)
+				newconf = conf.config.Config(
+					name=targetconf.name + "-" + sourceconf.name,
+					parents=[targetconf,sourceconf],
+					directory=sourceconf.directory,
+					conftype=conf.config.Config.TYPE_SRCFORTARGET
+				)
 
 		#---------------------
 		#1. step: iterate through all dependencies and fill them
@@ -412,19 +418,25 @@ class BuildOrder:
 
 		for target in targetlist:
 			order_target = BuildTarget(target)
+			targetc = conf.configs[target]
 
-			for element in variables["use"].get(target):
+			for element in variables["use"].eval(conf.configs[target]):
 
+				#target-source name, for later lookups
 				st = target + "-" + element
+
+				#target-source configuration
+				stc = conf.configs[st]
 
 				#this object will now be filled with information
 				order_file = SourceFile(element)
 
+				#preparation of compiler invokation
 				crun = variables["c"].get(st)		#compiler
-				crun += " " + variables["cflags"].get(st)	#compiler flags
+				crun += " " + variables["cflags"].eval(stc)	#compiler flags
 
 				# encode the compiler flags etc
-				objdir = relpath(variables["objdir"].get(st))
+				objdir = relpath(variables["objdir"].eval(stc))
 
 				#the encoded name: #TODO: maybe also encode the '/' in rsource
 				encname = order_file.inname + "-" + generate_oname(crun)
@@ -438,13 +450,13 @@ class BuildOrder:
 				crun += " -o " + oname
 
 				# add wanted (by config) dependency files
-				file_depends = variables["depends"].get(st)
+				file_depends = variables["depends"].eval(stc)
 				for d in file_depends:
 					d_obj = WantedDependency(d)
 					order_file.depends_wanted.add(d_obj)
 
 				#add sourcefile path itself to depends
-				ad = variables["autodepends"].get(st)
+				ad = variables["autodepends"].eval(stc)
 
 				if md_enabled(ad): # if gcc MD enabled
 					mdfile = encpathname + ".d"
@@ -474,17 +486,17 @@ class BuildOrder:
 					crun += " -MD"  # (re)generate c headers dependency file
 
 
-				order_file.loglevel = variables["loglevel"].get(st)
+				order_file.loglevel = variables["loglevel"].eval(stc)
 				order_file.crun = crun
 				order_file.encname = encname
 				order_file.outname = oname
 				order_file.objdir = objdir
 
-				s_prb = variables["prebuild"].get(st)
+				s_prb = variables["prebuild"].eval(stc)
 				if len(s_prb) > 0:
 					order_file.prebuild = s_prb
 
-				s_pob = variables["postbuild"].get(st)
+				s_pob = variables["postbuild"].eval(stc)
 				if len(s_pob) > 0:
 					order_file.postbuild = s_pob
 
@@ -492,22 +504,33 @@ class BuildOrder:
 				self.filedict_append(order_file)
 
 			# <- for each target loop
-			order_target.loglevel = variables["loglevel"].get(target)
-			ctrun = variables["c"].get(target)		#compiler for TARGET
-			ctrun += " " + variables["cflags"].get(target)	#compiler flags
-			ctrun += " " + variables["ldflags"].get(target)	#link flags
-			ctrun += " -o " + relpath(target)		#target output name
+			order_target.loglevel = 8 #variables["loglevel"].eval(conf.configs[target])
 
-			t_prb = variables["prebuild"].get(target)
-			if len(s_prb) > 0:
+			#compiler for TARGET
+			ctrun = " ".join(variables["c"].eval(targetc).tolist())
+
+			#compiler flags
+			cflaglist = variables["cflags"].eval(targetc).tolist()
+
+			for flag in cflaglist:
+				ctrun += " " + flag
+
+			#linker flags
+			ctrun += " ".join(variables["ldflags"].eval(targetc).tolist())
+
+			#target output name
+			ctrun += " -o " + relpath(target)
+
+			t_prb = " ".join(variables["prebuild"].eval(targetc).tolist())
+			if len(t_prb) > 0:
 				order_target.prebuild = t_prb
 
-			t_pob = variables["postbuild"].get(target)
+			t_pob = " ".join(variables["postbuild"].eval(targetc).tolist())
 			if len(t_pob) > 0:
 				order_target.postbuild = t_pob
 
 			#create wanted dependencies (by config) for this target.
-			target_depends = variables["depends"].get(target)
+			target_depends = variables["depends"].eval(targetc).tolist()
 
 
 			#pprint.pprint(target_depends)
