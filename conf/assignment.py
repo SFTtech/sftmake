@@ -1,4 +1,6 @@
 from util.datatypes import EnumVal
+from logger.levels import *
+
 
 """ The values from the assignment are appended to the result list of the variable """
 MODE_APPEND = EnumVal("Assignment mode: Append")
