@@ -14,7 +14,8 @@ class Expression:
 		converts a list of values to the requested type
 		"""
 		if valtype == variable.VALTYPE_STRING:
-			return "".join(vals)
+			#everything is allowed, nothing needs to be modified
+			return vals
 
 		elif valtype == variable.VALTYPE_PATH:
 			#make sure the path is one of:
