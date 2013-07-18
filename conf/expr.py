@@ -59,6 +59,9 @@ class Literal(Expression):
 	def eval(self, conf, depends, valtype):
 		return self.typeconv([self.value], valtype)
 
+	def __repr__(self):
+		return str(self.value)
+
 class FuncCall(Expression):
 	"""
 	a call to a config function
