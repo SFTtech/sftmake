@@ -46,7 +46,7 @@ class Assignment:
 	def __repr__(self):
 		out = '[' + repr(self.condition) + ']'
 		out += self.op()
-		out += " ".join(self.expressionlist)
+		out += repr(self.expressionlist)
 		out += " #"
 		out += self.src
 		return out
