@@ -209,7 +209,9 @@ def initvars1():
 
 				#create entries for all to-be-used sources by this target
 				for usesrc in sh.data.data['use']:
-					usesrc = util.path.smpath(usesrc, relto=target.get_dir_smname())
+					#TODO: create used src path relative to target directory
+					#usesrc = util.path.smpath(usesrc, relto=target.get_dir_smname())
+					usesrc = util.path.smpath(usesrc)
 
 					variables["use"].assign(
 						conf = conf.configs[t],
@@ -302,7 +304,7 @@ def initvars1():
 				conf = "asdf TODO",
 				assignment = assignment.Assignment(
 					expressionlist = expr.Literal(conf_project, target),
-					conditione = boolexpr.CondTreeNode_True(),
+					condition = boolexpr.CondTreeNode_True(),
 					mode = assignment.MODE_APPEND,
 					src = "usedby definitons"
 				)
@@ -318,7 +320,7 @@ def initvars1():
 		debug("-- end of variable ids")
 
 		debug("===== variables:")
-		debug(str(variables))
+		debug(pprint.pformat(variables))
 		debug("===== end of variables")
 
 		debug("===== configs:")
