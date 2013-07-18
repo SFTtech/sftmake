@@ -42,7 +42,7 @@ class OrderedSet:
 	#append an element
 	#returns true if the element was new
 	def append(self, x):
-		if(x in self.storage):
+		if x in self.storage:
 			self.storage.pop(x)
 			self.storage[x] = None
 			return False
@@ -61,7 +61,8 @@ class OrderedSet:
 	#update the ordered set with an other ordered set
 	def update(self, x):
 		for v in x:
-			self.storage.pop(v)
+			if v in self.storage:
+				self.storage.pop(v)
 		self.storage.update(x.storage)
 
 	def tolist(self):
