@@ -132,13 +132,13 @@ class Var:
 			return result
 
 	def __repr__(self):
-		result = "Name: " + self.name + "\n"
-		result += str(self.assignmentscope) + "\n"
-		result += str(self.valtype) + "\n"
-		result += str(self.valcount) + "\n"
+		result = "Variable { name: " + self.name + "\n\t"
+		result += str(self.assignmentscope) + "\n\t"
+		result += str(self.valtype) + "\n\t"
+		result += str(self.valcount) + "\n\t"
 		result += "Assignments:" + "\n"
 		for conf in self.assignments:
-			result += repr(conf) + ":\n"
+			result += "\t\tFor " + repr(conf) + ":\n"
 			for ass in self.assignments[conf]:
-				result += "\t" + self.name + repr(ass) + "\n"
-		return result[:-1]
+				result += "\t\t\t" + self.name + repr(ass) + "\n"
+		return result + "}\n"
