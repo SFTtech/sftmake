@@ -34,6 +34,8 @@ import conf
 import conf.config
 
 
+from builder.mdutil import *
+
 
 """
 'default' is the absolute root configuration, and consists of the internal defaults
@@ -72,7 +74,7 @@ class BuildWorker:
 		self.job = None   #The BuildElement currently being processed by this worker
 
 	def run(self):
-		print("" + repr(self) + ": started")
+		debug("" + repr(self) + ": started")
 		while True:
 			self.job = self.manager.get_next(self)
 			if self.job == None:
@@ -102,7 +104,7 @@ class BuildWorker:
 		self.thread.join()
 
 	def wprint(self, msg):
-		print(repr(self) + ": " + msg)
+		debug(repr(self) + ": " + msg)
 
 	def __repr__(self):
 		return "[worker [" + str(self.num) + "]]"
@@ -124,7 +126,7 @@ class JobManager:
 		self.error = 0
 
 		self.job_lock = threading.Condition()
-		#self.filesys_lock = threading.Condition()
+		self.filesys_lock = threading.Condition()
 
 	def queue_order(self, order):
 		if not isinstance(order, BuildOrder):
@@ -263,45 +265,50 @@ class JobManager:
 		"""wait here for all jobs to finish and generate a work summary"""
 		for worker in self.workers:
 			worker.join()
-			print(repr(worker) + ": joined")
+			debug(repr(worker) + ": joined")
 
 		self.dump_jobtable()
 
 	def dump_jobtable(self):
 		if len(self.failed_jobs) > 0:
-			print("==========\nFAILED jobs:")
+			debug("==========\nFAILED jobs:")
 			for job in self.failed_jobs:
-				print(repr(job))
+				debug(repr(job))
 
 		if len(self.running_jobs) > 0:
-			print("++++++++++\njobs currently running:")
+			debug("++++++++++\njobs currently running:")
 			for job in self.running_jobs:
-				print(repr(job))
+				debug(repr(job))
 
 		if len(self.ready_jobs) > 0:
-			print("++++++++++\njobs currently ready to build:")
+			debug("++++++++++\njobs currently ready to build:")
 			for job in self.ready_jobs:
-				print(repr(job))
+				debug(repr(job))
 
 		if len(self.pending_jobs) > 0:
 			#not all jobs have been built
-			print("++++++++++\njobs blocked by dependencies:")
+			debug("++++++++++\njobs blocked by dependencies:")
 			for job in self.pending_jobs:
-				print(repr(job))
+				debug(repr(job))
 
 		if len(self.finished_jobs) > 0:
-			print("==========\njobs that have been built successfully:")
+			debug("==========\njobs that have been built successfully:")
 			for job in self.finished_jobs:
-				print(repr(job))
+				debug(repr(job))
 		else:
-			print("=========\n NO JOBS have been run successfully\n==========")
+			debug("=========\n NO JOBS have been run successfully\n==========")
 
 	def get_error(self):
 		return self.error
 
 
 class BuildOrder:
-	'''A build order contains all targets that must be built'''
+	'''
+	A build order contains all targets that must be built
+
+	The order will then be submitted to the JobManager, which
+	processes (compiles) all the stuff stored in this order.
+	'''
 
 	def __init__(self):
 		self.targets = set()
@@ -313,28 +320,35 @@ class BuildOrder:
 
 	def find_reuse_element(self, element):
 		'''
-		search for element duplicates
-		return the duplicate, if found
-		return the the original parameter element, if not found
+		search for element's duplicates
+		return the duplicate, if found (avoids redundancy compilation)
+		return the the element, if no duplicate is found
 		'''
 		#strategy: find a key and get it's candidates,
 		#then check whether one of these candidates .equals()
 		#if matches: return the reused and True.
 
-		print("finding reusage for " + repr(element) + " (" + str(type(element))+ ")")
+		debug("--> finding candidates for element " + repr(element) + ":")
 
 		#key to determine candidates, set it in filedict_append!!
 		key = element.outname
 		if key in self.filedict:
 			for candidate in self.filedict[key]:
-				print("for " + repr(element) + " try candidate " + repr(candidate))
 
-				#this order is important, element may have a custom .equals implementation
+				candidate_info = repr(candidate) + " (" + str(id(candidate))+ ") for " + repr(element) + " (" + str(id(element)) + ")"
+
+				#this order is important, element may have a custom
+				# .equals() implementation (NOT candidate.equals(element) !!)
 				if element.equals(candidate):
-					print("reusing " + repr(candidate) + " (" + str(type(candidate))+ ") for " + repr(element) )
+					debug("\tusing " + candidate_info )
+
+					#return the candidate, and True for a successful reusage
 					return (candidate, True)
+				else:
+					debug("\tNOT using " + candidate_info)
+
 		else:
-			print("no reusage candidate found for outname [" + key + "] in filedict")
+			debug("no reusage candidate found for outname [" + key + "] in filedict")
 
 		if type(element) == WantedDependency:
 			raise Exception("wanted dependency of (TODO) not found: " + repr(element))
@@ -342,6 +356,8 @@ class BuildOrder:
 		#a new candidate is only stored, if it wasn't reused
 		#so the equal element (which was reused) is dropped
 		self.filedict_append(element)
+
+		#return the original element, and false, as a reusage war impossible
 		return (element, False)
 
 	def find_merge_element(self, element):
@@ -411,6 +427,11 @@ class BuildOrder:
 					conftype=conf.config.Config.TYPE_SRCFORTARGET
 				)
 
+		debug("===== src-for-target configs:")
+		debug(pprint.pformat(conf.configs))
+		debug("===== end of configs")
+
+
 		#---------------------
 		#1. step: iterate through all dependencies and fill them
 		#create BuildElements and fill them with information
@@ -432,8 +453,10 @@ class BuildOrder:
 				order_file = SourceFile(element)
 
 				#preparation of compiler invokation
-				crun = variables["c"].get(st)		#compiler
-				crun += " " + variables["cflags"].eval(stc)	#compiler flags
+				#compiler:
+				crun = variables["c"].eval(stc) + " "
+				#compiler flags:
+				crun += " ".join(variables["cflags"].eval(stc))
 
 				# encode the compiler flags etc
 				objdir = relpath(variables["objdir"].eval(stc))
@@ -446,9 +469,6 @@ class BuildOrder:
 				encpathname += encname
 				oname = encpathname + ".o"
 
-				crun += " -c " + order_file.inname
-				crun += " -o " + oname
-
 				# add wanted (by config) dependency files
 				file_depends = variables["depends"].eval(stc)
 				for d in file_depends:
@@ -458,7 +478,7 @@ class BuildOrder:
 				#add sourcefile path itself to depends
 				ad = variables["autodepends"].eval(stc)
 
-				if md_enabled(ad): # if gcc MD enabled
+				if md_enabled(ad): # if gcc MD enabled for this file
 					mdfile = encpathname + ".d"
 
 					order_file.mdfile = mdfile
@@ -480,11 +500,13 @@ class BuildOrder:
 						#if MD is enabled but not yet present:
 						# we NEED to rebuild this source
 						order_file.needs_build = True
-						print(mdfile + " will be generated")
+						debug(mdfile + " will be generated")
 
 						#see man 1 gcc (search for -MD)
 					crun += " -MD"  # (re)generate c headers dependency file
 
+				crun += " -o " + oname
+				crun += " -c " + order_file.inname
 
 				order_file.loglevel = variables["loglevel"].eval(stc)
 				order_file.crun = crun
@@ -492,14 +514,17 @@ class BuildOrder:
 				order_file.outname = oname
 				order_file.objdir = objdir
 
-				s_prb = variables["prebuild"].eval(stc)
+				#prebuild command string
+				s_prb = " ".join(variables["prebuild"].eval(stc).tolist())
 				if len(s_prb) > 0:
 					order_file.prebuild = s_prb
 
-				s_pob = variables["postbuild"].eval(stc)
+				#postbuild command string
+				s_pob = " ".join(variables["postbuild"].eval(stc).tolist())
 				if len(s_pob) > 0:
 					order_file.postbuild = s_pob
 
+				#add the newly created file as a dependency of the target
 				order_target.depends_wanted.add(order_file)
 				self.filedict_append(order_file)
 
@@ -507,13 +532,10 @@ class BuildOrder:
 			order_target.loglevel = 8 #variables["loglevel"].eval(conf.configs[target])
 
 			#compiler for TARGET
-			ctrun = " ".join(variables["c"].eval(targetc).tolist())
+			ctrun = variables["c"].eval(targetc) + " "
 
 			#compiler flags
-			cflaglist = variables["cflags"].eval(targetc).tolist()
-
-			for flag in cflaglist:
-				ctrun += " " + flag
+			ctrun += " ".join(variables["cflags"].eval(targetc).tolist())
 
 			#linker flags
 			ctrun += " ".join(variables["ldflags"].eval(targetc).tolist())
@@ -552,7 +574,7 @@ class BuildOrder:
 
 			order_target.crun = ctrun
 
-			#if another target depends on this one, we need that:
+			#if another target depends on this one, we need the dict entry:
 			self.filedict_append(order_target)
 
 			#include current target to the build order:
@@ -562,15 +584,14 @@ class BuildOrder:
 		# 2. step: reuse wanted dependencies to add buildelements
 		# to the correct hierarchy etc
 
-		print("\ncurrent filedict:")
-		pprint.pprint(self.filedict)
+		debug("current filedict:\n" + pprint.pformat(self.filedict))
 
-		print("\ninserting and reusing dependencies:")
+		debug("inserting and reusing dependencies:")
 		for target in self.targets:
 			for wanted_dependency in target.depends_wanted:
-				print("-" + repr(wanted_dependency) + " " + str(type(wanted_dependency)) + " wanted for " + repr(target))
+				debug("-> " + repr(wanted_dependency) + " " + str(type(wanted_dependency)) + " wanted for " + repr(target))
 				final_dep = self.find_merge_element(wanted_dependency)
-				print("-using " + str(id(final_dep)) + "(" + str(type(final_dep))  + ")")
+				debug("-> using " + str(id(final_dep)) + "(" + str(type(final_dep))  + ")")
 				target.add_dependency(final_dep)
 
 		#<- direct function level here
@@ -822,17 +843,17 @@ class BuildOrder:
 
 		for f in del_filenames:
 			if os.path.isfile(f):
-				print("cleanup: deleting file " + f)
+				debug("cleanup: deleting file " + f)
 				os.remove(f)
 			else:
-				print("cleanup: file not existing, skipping: " + f)
+				debug("cleanup: file not existing, skipping: " + f)
 
 		for d in del_directories:
 			if os.path.isdir(d):
-				print("cleanup: deleting directory " + d)
+				debug("cleanup: deleting directory " + d)
 				os.rmdir(d)
 			else:
-				print("cleanup: directory not existing, skipping: " + d)
+				debug("cleanup: directory not existing, skipping: " + d)
 
 	def __repr__(self):
 		ret = "BuildOrder: [ "
