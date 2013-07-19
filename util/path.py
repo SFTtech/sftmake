@@ -1,6 +1,8 @@
 import os
 import re
 
+from logger.levels import *
+
 #must be set externally, by calling util.set_smroot(path)
 smroot = None
 
@@ -20,18 +22,27 @@ def abspath(path, relto = '^'):
 
 	#if the path starts with '/', it's already absolute
 	if path[0] == '/':
+		#debug("already abspath")
 		result = path
 
 	#if the path starts with '^', we need to replace that with smroot
 	elif path[0] == '^':
+		#debug("replacing ^ with real smroot")
 		result = smroot + '/' + path[1:]
 
 	#else, the path is relative... to relto
 	else:
+		#debug("making path absolute to relto")
+		#debug("- path: " + path)
+		#debug("- relto: " + relto)
 		if relto[0] != '^':
 			raise Exception('relto must start with ^')
-		result = abspath(relto) + '/' + path
 
+		abs_relto = abspath(relto)
+		#debug("=> making " + relto + " absolute = " + abs_relto)
+		result = abs_relto + "/" + os.path.relpath(path, abs_relto)
+
+	#debug("- result: " + result)
 	return os.path.normpath(result)
 
 def relpath(path, relto = '^'):
@@ -76,17 +87,9 @@ def smpath(path, relto = '^'):
 	if path[0] == '^':
 		path = smroot + '/' + path[1:]
 
-	#TODO: reenable the abspath generation, but beware:
-	#smroot = ./lol
-	#exspected:
-	#smpath(./lol/rofl) == ^/rofl
-	#
-	#but, when enabling this (NOT exspected):
-	#smpath(./lol/rofl) == ^/lol/lol/rofl
-
 	#else, get relative path
-	#if not path[0] == '/':
-	#	path = abspath(path, relto)
+	if not path[0] == '/':
+		path = abspath(path, relto)
 
 	#generate path relative to smroot (to just add ^ then)
 	path = os.path.relpath(path, smroot)
@@ -112,6 +115,7 @@ def smpathifrel(path, relto = '^'):
 
 	else:
 		return smpath(path, relto)
+
 
 #TODO Decide on an encoding. It can be made arbitrarily complicated.
 def generate_oname(obj_desc):
