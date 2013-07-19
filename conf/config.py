@@ -59,7 +59,7 @@ class Config:
 	TYPE_DIR = EnumVal("Directory config")
 	TYPE_TARGET = EnumVal("Target config")
 	TYPE_SRC = EnumVal("Sourcefile config")
-	TYPE_SRCFORTARGET = EnumVal("Source- for- target config")
+	TYPE_SRCFORTARGET = EnumVal("Source-for-target config")
 
 	def __init__(self, name, conftype, parents, directory):
 		self.name = name
