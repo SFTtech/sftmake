@@ -116,7 +116,7 @@ def initvars1():
 #	conf_bin = conf.Config('^/lolbinary', conf.Config.TYPE_TARGET, [conf_root], '^')
 
 
-	cconf = Var(name='c', valtype=variable.VALTYPE_STRING, valcount = variable.VALCOUNT_LIST)
+	cconf = Var(name='c', valtype=variable.VALTYPE_STRING, valcount = variable.VALCOUNT_SINGLE)
 
 	a0 = Assignment(
 		expressionlist = expr.Literal(conf_project, "gcc"),
@@ -233,7 +233,7 @@ def initvars1():
 	variables["srcsuffix"].assign(
 		conf = conf.configs['project'],
 		assignment = assignment.Assignment(
-			expressionlist = expr.Literal(conf.configs['project'], r"\.c$"),
+			expressionlist = expr.Literal(conf.configs['project'], r"\.c"),
 			condition = boolexpr.CondTreeNode_True(),
 			mode = assignment.MODE_APPEND,
 			src = "hardcoded in btest"
@@ -293,6 +293,46 @@ def initvars1():
 	)
 
 
+	variables["autodepends"] = variable.Var(name='autodepends', valcount = variable.VALCOUNT_SINGLE)
+
+	variables["autodepends"].assign(
+		conf = conf.configs['project'],
+		assignment = assignment.Assignment(
+			expressionlist = expr.Literal(conf.configs['project'], "MD"),
+			condition = boolexpr.CondTreeNode_True(),
+			mode = assignment.MODE_APPEND,
+			src = "hardcoded in btest"
+		)
+	)
+
+	variables["loglevel"] = variable.Var(name='loglevel', valcount = variable.VALCOUNT_SINGLE)
+
+	variables["loglevel"].assign(
+		conf = conf.configs['project'],
+		assignment = assignment.Assignment(
+			expressionlist = expr.Literal(conf.configs['project'], "8"),
+			condition = boolexpr.CondTreeNode_True(),
+			mode = assignment.MODE_APPEND,
+			src = "hardcoded in btest"
+		)
+	)
+
+
+	variables["objdir"] = variable.Var(name='objdir', valtype=variable.VALTYPE_STRING, valcount = variable.VALCOUNT_SINGLE)
+
+	variables["objdir"].assign(
+		conf = conf.configs['project'],
+		assignment = Assignment(
+			expressionlist = expr.Literal(conf_project, "^/.objs"),
+			condition = boolexpr.CondTreeNode_True(),
+			mode = assignment.MODE_APPEND,
+			src = "default configuration"
+		)
+	)
+
+
+
+	variables["depends"] = variable.Var(name='depends')
 
 	#get list of all sourcefiles from scanned filetree
 	sourcelist = filetree.get_sources()
@@ -316,16 +356,14 @@ def initvars1():
 		for p in patternlist:
 			srcfileregex += p + (r"|" if not start else "")
 			start = False
-		srcfileregex += r")"
-
-		debug("REGEX for " + s + " ==> " + srcfileregex)
+		srcfileregex += r")$"
 
 		if not re.match(srcfileregex, s):
-			debug("skipped -> " + s)
+			debug("skipped -> " + s + ", not matching " + srcfileregex)
 			continue
 
 		else:
-			debug("using source -> " + s)
+			debug("using source -> " + s + ", matching " + srcfileregex)
 
 		debug("** creating configurations for source " + s)
 
@@ -397,12 +435,10 @@ def main():
 
 	variables, confinfo = initvars1()
 	order.fill(confinfo, variables)
-	print("\n")
-	pprint.pprint(order.filedict)
-	print("\n")
+	debug(pprint.pformat(order.filedict))
 
 	#use 4 threads
-	m = builder.JobManager(4)
+	m = builder.builder.JobManager(4)
 	m.queue_order(order)
 
 	dotfile = open("/tmp/sftmake.dot", "w")
@@ -421,6 +457,6 @@ def main():
 
 	#after all targets:
 	if m.get_error() == 0:
-		print("sftmake builder shutting down regularly")
+		important("sftmake builder shutting down regularly")
 	else:
 		raise Exception("sftmake builder exiting due to error")
