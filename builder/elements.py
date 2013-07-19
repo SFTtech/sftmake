@@ -11,14 +11,15 @@
 import os.path
 import os
 import re
-from logger import *
+from logger.levels import *
 
 
 import util
 from util.path import abspath,smpath,relpath
 from util.path import generate_oname
 import conf
-
+import subprocess
+import shlex
 
 
 
@@ -54,12 +55,12 @@ class BuildElement:
 	def _run(self, elem_type):
 		'''generic run method for sourcefiles and targets'''
 
-		ret = 0		#return value storage
+		ret = 0  #return value storage
 
 		if elem_type == 0: #target
-			action = "linking"
+			action = "when linking"
 		elif elem_type == 1: #sourcefile
-			action = "compiling"
+			action = "when compiling"
 			with self.worker.manager.filesys_lock:
 				dirname = os.path.dirname(self.outname)
 				if not os.path.exists(dirname):
@@ -108,7 +109,7 @@ class BuildElement:
 			return True
 
 		if not type(other) == type(self):
-			print("type check failed")
+			debug("type check failed")
 			return False
 
 		if not self.outname == other.outname:
@@ -175,7 +176,7 @@ class BuildElement:
 
 	def add_single_dependency(self, newone):
 		'''this element will be dependent on this new dependeny'''
-		print(repr(self) + " -> adding dependency " + repr(newone))
+		debug(repr(self) + " -> adding dependency " + repr(newone))
 		newone.blocks.add(self)
 		self.depends.add(newone)
 
@@ -360,7 +361,7 @@ class WantedDependency(BuildElement):
 	def equals(self, other):
 		'''used to check if "other" is the wanted dependency'''
 
-		print(repr(self) + " testing with " + repr(other))
+		debug(repr(self) + " testing with " + repr(other))
 
 		#we only know the output name
 		if not self.outname == other.outname:
