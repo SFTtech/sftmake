@@ -23,15 +23,19 @@ def testcase(inp, ssmroot, expected, function):
 
 	if ne == nr:
 		important("--> WIN!")
+		return True
 	else:
 		important("--> FAIL.")
+		return False
 
 
 def run():
-	testcase("./subdir/myfile.lol", "./subdir", "./subdir/myfile.lol", util.path.abspath)
+	ok = True
+	ok = ok and testcase("./subdir/myfile.lol", "./subdir", "./subdir/myfile.lol", util.path.abspath)
 
-	testcase("./subdir/myfile.lol", "./subdir", "^/myfile.lol", util.path.smpath)
+	ok = ok and testcase("./subdir/myfile.lol", "./subdir", "^/myfile.lol", util.path.smpath)
 
-	testcase("./myfile.lol", ".", "./myfile.lol", util.path.abspath)
+	ok = ok and testcase("./myfile.lol", ".", "./myfile.lol", util.path.abspath)
 
-	testcase("./myfile.lol", ".", "^/myfile.lol", util.path.smpath)
+	ok = ok and testcase("./myfile.lol", ".", "^/myfile.lol", util.path.smpath)
+	return ok

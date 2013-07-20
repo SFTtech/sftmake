@@ -17,10 +17,20 @@ class test:
 			debug("function = " + str(func))
 			handle_exceptions(func, self.name)
 
+	def __repr__(self):
+		return "test {" + self.name + "}"
+
 
 def run(which=None):
 
+	if which != None:
+		message("TESTING IS THE FUTURE")
+		message("AND THE FUTURE STARTS WITH YOU!")
+		message("enabled tests:\n" + str(which))
+
 	tests = []
+	success = []
+	fail = []
 
 	tests.append(test(
 		n="util.path",
@@ -41,4 +51,16 @@ def run(which=None):
 
 	for t in tests:
 		if which != None and t.name in which:
-			t.run()
+			if t.run():
+				success.append(t)
+
+			else:
+				fail.append(t)
+
+	message("finished all tests")
+
+	for t in success:
+		important("SUCCESS:" + repr(t))
+
+	for t in fail:
+		important("FAIL:" + repr(t))

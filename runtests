@@ -1,16 +1,21 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
+import sys
 from logger import logger, LogWriter
 from logger.exceptions import handle_exceptions
+from logger.levels import *
 
 logger.addsink(LogWriter())
 import tests
 
 
 def run_tests():
-	#the list of enabled tests
-	testlist = ["util.path", "tests.builder.run"]
+
+	if len(sys.argv) > 1:
+		testlist = sys.argv[1:]
+	else:
+		#the list of default tests
+		testlist = ["util.path", "tests.builder.run"]
 
 	tests.run(testlist)
-
 
 handle_exceptions(run_tests)
