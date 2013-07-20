@@ -98,6 +98,17 @@ def smpath(path, relto = '^'):
 		return '^/' + path
 
 
+def rppath(path):
+	"""
+	append the smroot to the given path
+	"""
+
+	if path[0] == '^':
+		raise Exception("fak u, you already got a smpath as prefix...")
+
+	return os.path.normpath(get_smroot() + "/" + path)
+
+
 def smpathifrel(path, relto = '^'):
 	"""
 	if path is absolute, don't change it
