@@ -9,6 +9,8 @@
 #
 #
 
+import re
+
 
 def parse_dfile(filename):
 	'''parse a gcc -MD .d file and return a list of dependency header filenames'''

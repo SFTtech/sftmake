@@ -28,7 +28,7 @@ from logger.levels import *
 
 import util
 import util.misc
-from util.path import abspath,smpath,relpath
+from util.path import abspath,smpath,relpath,rppath
 from util.path import generate_oname
 import conf
 import conf.config
@@ -459,14 +459,14 @@ class BuildOrder:
 				crun += " ".join(variables["cflags"].eval(stc))
 
 				# encode the compiler flags etc
-				objdir = relpath(variables["objdir"].eval(stc))
+				objdir = abspath(variables["objdir"].eval(stc))
 
 				#the encoded name: #TODO: maybe also encode the '/' in rsource
+				#debug("inname = " + relpath(order_file.inname))
 				encname = order_file.inname + "-" + generate_oname(crun)
 
 				#assemble compiler output file without extension
-				encpathname = objdir + "/"
-				encpathname += encname
+				encpathname = objdir + "/" + encname
 				oname = encpathname + ".o"
 
 				# add wanted (by config) dependency files
@@ -506,7 +506,7 @@ class BuildOrder:
 					crun += " -MD"  # (re)generate c headers dependency file
 
 				crun += " -o " + oname
-				crun += " -c " + order_file.inname
+				crun += " -c " + rppath(order_file.inname)
 
 				order_file.loglevel = variables["loglevel"].eval(stc)
 				order_file.crun = crun
@@ -529,19 +529,19 @@ class BuildOrder:
 				self.filedict_append(order_file)
 
 			# <- for each target loop
-			order_target.loglevel = 8 #variables["loglevel"].eval(conf.configs[target])
+			order_target.loglevel = variables["loglevel"].eval(conf.configs[target])
 
 			#compiler for TARGET
 			ctrun = variables["c"].eval(targetc) + " "
 
 			#compiler flags
-			ctrun += " ".join(variables["cflags"].eval(targetc).tolist())
+			ctrun += " ".join(variables["cflags"].eval(targetc).tolist()) + " "
 
 			#linker flags
 			ctrun += " ".join(variables["ldflags"].eval(targetc).tolist())
 
 			#target output name
-			ctrun += " -o " + relpath(target)
+			ctrun += " -o " + abspath(target)
 
 			t_prb = " ".join(variables["prebuild"].eval(targetc).tolist())
 			if len(t_prb) > 0:
@@ -554,9 +554,7 @@ class BuildOrder:
 			#create wanted dependencies (by config) for this target.
 			target_depends = variables["depends"].eval(targetc).tolist()
 
-
-			#pprint.pprint(target_depends)
-
+			#debug(t + "depends on: " + pprint.pformat(target_depends))
 
 			for d in target_depends:
 				d_obj = WantedDependency(d)
@@ -568,7 +566,7 @@ class BuildOrder:
 				#add all outnames of all dependency sourcefiles
 				#to the compiler cmd line
 				if type(ofile) == SourceFile:
-					ctrun += " " + relpath(ofile.outname)
+					ctrun += " " + abspath(ofile.outname)
 				else:
 					continue
 

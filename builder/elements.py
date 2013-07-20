@@ -58,9 +58,9 @@ class BuildElement:
 		ret = 0  #return value storage
 
 		if elem_type == 0: #target
-			action = "when linking"
+			action = "linking"
 		elif elem_type == 1: #sourcefile
-			action = "when compiling"
+			action = "compiling"
 			with self.worker.manager.filesys_lock:
 				dirname = os.path.dirname(self.outname)
 				if not os.path.exists(dirname):
@@ -96,7 +96,7 @@ class BuildElement:
 				ret = subprocess.call(self.postbuild, shell=True)
 
 		if ret > 0:
-			self.worker.wprint(repr(self) + " Error " + str(ret) + " " + failat  + " ===============")
+			self.worker.wprint(repr(self) + " Error " + str(ret) + " when " + failat  + " ===============")
 			self.exitstate = ret
 		else:
 			self.exitstate = 0
@@ -389,12 +389,12 @@ class HeaderFile(BuildElement):
 	def __init__(self, hname):
 		super().__init__(hname)
 
-		if util.in_smdir(self.inname):
+		if util.path.in_smdir(self.inname):
 			self.headertype = HeaderFile.projectheader
 			self.outname = self.inname
 		else:
 			self.headertype = HeaderFile.externalheader
-			self.outname = abspath(self.inname)
+			self.outname = relpath(self.inname)
 
 	def check_needs_build(self):
 		self.needs_build = False
