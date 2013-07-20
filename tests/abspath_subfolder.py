@@ -32,11 +32,12 @@ def testcase(inp, ssmroot, expected, function):
 def run():
 	ok = True
 	ok = ok and testcase("./subdir/myfile.lol", "./subdir", "./subdir/myfile.lol", util.path.abspath)
-
 	ok = ok and testcase("./subdir/myfile.lol", "./subdir", "^/myfile.lol", util.path.smpath)
-
 	ok = ok and testcase("./myfile.lol", ".", "./myfile.lol", util.path.abspath)
-
 	ok = ok and testcase("./myfile.lol", ".", "^/myfile.lol", util.path.smpath)
+	ok = ok and testcase("./f/ie", "./f", "./ie", util.path.relpath)
+	ok = ok and testcase("^/ie", "./f", "./f/ie", util.path.abspath)
+	ok = ok and testcase("^/ie", "./f", "ie", util.path.relpath)
+
 	message("path tests were " + str(ok))
 	return ok
