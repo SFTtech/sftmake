@@ -164,7 +164,7 @@ def set_smroot(newroot):
 
 	smroot = newroot
 
-def in_smdir(path, relto = "^"):
+def in_smdir(path):
 	'''
 	return true, if the path lies within the smroot dir or a subfolder
 	return false, if the path is e.g. a system path in /usr/lib
@@ -172,10 +172,8 @@ def in_smdir(path, relto = "^"):
 	use this function to test if e.g. a header is a system header
 	or belongs to the project itself.
 	'''
-	global smroot
 
-	if smroot == None:
-		smroot = get_smroot()
+	smroot = os.path.normpath(get_smroot())
 
 	filepath = abspath(path)
 
