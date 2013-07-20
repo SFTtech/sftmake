@@ -15,7 +15,7 @@ class test:
 			debug("call will be " + self.call)
 			func = eval(self.call)
 			debug("function = " + str(func))
-			handle_exceptions(func, self.name)
+			return func()
 
 	def __repr__(self):
 		return "test {" + self.name + "}"
@@ -39,19 +39,21 @@ def run(which=None):
 	))
 
 	tests.append(test(
-		n="tests.builder.run",
+		n="builder.run",
 		modname="tests.builder",
 	))
 
 	tests.append(test(
-		n="tests.parser.run",
+		n="parser.run",
 		modname="tests.parser",
 		funcname="tests.parser.run"
 	))
 
 	for t in tests:
 		if which != None and t.name in which:
-			if t.run():
+			ok = t.run()
+			debug("test " + repr(t) + " was " + str(ok))
+			if ok:
 				success.append(t)
 
 			else:

@@ -38,4 +38,5 @@ def run():
 	ok = ok and testcase("./myfile.lol", ".", "./myfile.lol", util.path.abspath)
 
 	ok = ok and testcase("./myfile.lol", ".", "^/myfile.lol", util.path.smpath)
+	message("path tests were " + str(ok))
 	return ok
