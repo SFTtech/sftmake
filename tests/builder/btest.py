@@ -437,6 +437,8 @@ def main():
 	order.fill(confinfo, variables)
 	debug("order filedict =\n" + pprint.pformat(order.filedict))
 
+	debug(order.text())
+
 	#use 4 threads
 	m = builder.builder.JobManager(4)
 	m.queue_order(order)
