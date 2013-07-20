@@ -1,6 +1,8 @@
 from logger.levels import *
 from logger.exceptions import handle_exceptions
 
+from tests.testing import coltext
+
 class test:
 
 	def __init__(self, n, modname, funcname=None):
@@ -24,8 +26,8 @@ class test:
 def run(which=None):
 
 	if which != None:
-		message("TESTING IS THE FUTURE")
-		message("AND THE FUTURE STARTS WITH YOU!")
+		message(coltext("TESTING IS THE FUTURE", 32))
+		message(coltext("AND THE FUTURE STARTS WITH YOU!", 32))
 		message("enabled tests:\n" + str(which))
 
 	tests = []
@@ -63,7 +65,7 @@ def run(which=None):
 	message("finished all tests")
 
 	for t in success:
-		important("SUCCESS:" + repr(t))
+		important(coltext("SUCCESS:\t", 32) + repr(t))
 
 	for t in fail:
-		important("FAIL:" + repr(t))
+		error(coltext("FAIL:\t", "1;31") + repr(t))

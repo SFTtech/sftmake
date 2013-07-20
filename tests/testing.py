@@ -4,8 +4,11 @@
 def colcode(col=""):
 	return "\x1b[" + str(col) + "m"
 
+def coltext(text, col):
+	return colcode(col) + text + colcode()
+
 def colprint(text, col):
-	print(colcode(col) + text + colcode())
+	print(coltext(text, col))
 
 def redprint(text):
 	colprint(text, "1;31")
