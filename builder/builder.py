@@ -506,7 +506,7 @@ class BuildOrder:
 					crun += " -MD"  # (re)generate c headers dependency file
 
 				crun += " -o " + oname
-				crun += " -c " + rppath(order_file.inname)
+				crun += " -c " + order_file.inname
 
 				order_file.loglevel = variables["loglevel"].eval(stc)
 				order_file.crun = crun
