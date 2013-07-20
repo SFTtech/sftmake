@@ -395,10 +395,10 @@ class HeaderFile(BuildElement):
 
 		if util.path.in_smdir(self.inname):
 			self.headertype = HeaderFile.projectheader
-			self.outname = abspath(self.inname)
+			self.outname = relpath(self.inname)
 		else:
 			self.headertype = HeaderFile.externalheader
-			self.outname = relpath(self.inname)
+			self.outname = self.inname
 
 	def check_needs_build(self):
 		self.needs_build = False
@@ -418,13 +418,18 @@ class HeaderFile(BuildElement):
 
 	def text(self, depth=0):
 		space = ''.join(['\t' for i in range(depth)])
-		return space + self.outname + "\n"
+		return space + repr(self) + "\n"
 
 	def run(self):
 		return Exception("HeaderFiles should never be run. skip them.")
 
 	def __repr__(self):
-		return self.outname
+		if self.headertype == HeaderFile.externalheader:
+			isexternal = "{ext}"
+		else:
+			isexternal = "{project}"
+
+		return isexternal + " " + self.outname
 
 
 class SourceFile(BuildElement):
