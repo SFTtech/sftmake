@@ -52,23 +52,21 @@ def relpath(path, relto = '^'):
 	if path is rel, don't change it
 	"""
 
-	global smroot
-
 	if not path: #fak u
 		raise Exception("Path must not be empty")
 
-	elif path[0] == '/':
-		return os.path.relpath(path, abspath(relto))
+	if path[0] == '/':
+		result = os.path.relpath(path, abspath(relto))
 
-	if smroot == None:
+	elif path[0] == '^':
 		smroot = get_smroot()
+		result = os.path.relpath(smroot + '/' + path[1:], abspath(relto))
 
-	if path[0] == '^':
-		return os.path.relpath(smroot + '/' + path[1:], abspath(relto))
-
-	#else, path is already relative to relto
 	else:
-		return os.path.normpath(path)
+		smroot = get_smroot()
+		result = os.path.relpath(path, abspath(relto))
+
+	return result
 
 def smpath(path, relto = '^'):
 	"""
