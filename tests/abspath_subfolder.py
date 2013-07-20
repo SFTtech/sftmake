@@ -27,10 +27,11 @@ def testcase(inp, ssmroot, expected, function):
 		important("--> FAIL.")
 
 
-testcase("./subdir/myfile.lol", "./subdir", "./subdir/myfile.lol", util.path.abspath)
+def run():
+	testcase("./subdir/myfile.lol", "./subdir", "./subdir/myfile.lol", util.path.abspath)
 
-testcase("./subdir/myfile.lol", "./subdir", "^/myfile.lol", util.path.smpath)
+	testcase("./subdir/myfile.lol", "./subdir", "^/myfile.lol", util.path.smpath)
 
-testcase("./myfile.lol", ".", "./myfile.lol", util.path.abspath)
+	testcase("./myfile.lol", ".", "./myfile.lol", util.path.abspath)
 
-testcase("./myfile.lol", ".", "^/myfile.lol", util.path.smpath)
+	testcase("./myfile.lol", ".", "^/myfile.lol", util.path.smpath)

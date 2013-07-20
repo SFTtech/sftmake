@@ -5,4 +5,12 @@ from logger.exceptions import handle_exceptions
 logger.addsink(LogWriter())
 import tests
 
-handle_exceptions(tests.run)
+
+def run_tests():
+	#the list of enabled tests
+	testlist = ["util.path", "tests.builder.run"]
+
+	tests.run(testlist)
+
+
+handle_exceptions(run_tests)
