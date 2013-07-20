@@ -52,6 +52,9 @@ def run(which=None):
 		funcname="tests.parser.run"
 	))
 
+	availtestmsg = "[" + ", ".join(t.name for t in tests) + "]"
+	message("available tests:\n" + availtestmsg)
+
 	for t in tests:
 		if which != None and t.name in which:
 			ok = t.run()
