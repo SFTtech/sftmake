@@ -54,10 +54,3 @@ def run():
 
 	message("path tests were " + str(ok))
 	return ok
-
-
-
-
-
-
-

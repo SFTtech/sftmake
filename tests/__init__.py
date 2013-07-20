@@ -36,8 +36,8 @@ def run(which=None):
 
 	tests.append(test(
 		n="util.path",
-		modname="tests.abspath_subfolder",
-		funcname="tests.abspath_subfolder.run"
+		modname="tests.util_path",
+		funcname="tests.util_path.run"
 	))
 
 	tests.append(test(
