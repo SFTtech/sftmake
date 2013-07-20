@@ -6,7 +6,7 @@ import os.path
 from logger.levels import *
 
 
-def testcase(inp, ssmroot, expected, function):
+def testcase(inp, ssmroot, expected, function, norm=True):
 
 	util.path.set_smroot(ssmroot)
 
@@ -15,11 +15,16 @@ def testcase(inp, ssmroot, expected, function):
 
 	result = function(inp)
 
-	message("expected = " + expected)
-	message("result   = " + result)
+	message("expected = " + str(expected))
+	message("result   = " + str(result))
 
-	ne = os.path.normpath(expected)
-	nr = os.path.normpath(result)
+	if norm:
+		ne = os.path.normpath(expected)
+		nr = os.path.normpath(result)
+
+	else:
+		ne = expected
+		nr = result
 
 	if ne == nr:
 		important("--> WIN!")
@@ -39,5 +44,20 @@ def run():
 	ok = ok and testcase("^/ie", "./f", "./f/ie", util.path.abspath)
 	ok = ok and testcase("^/ie", "./f", "ie", util.path.relpath)
 
+	ok = ok and testcase("./f/ie", "./f", True, util.path.in_smdir, norm=False)
+	ok = ok and testcase("^/ie", "./f", True, util.path.in_smdir, norm=False)
+	ok = ok and testcase("^/f/ie", "./f", True, util.path.in_smdir, norm=False)
+
+	ok = ok and testcase("/i/e", "./f", False, util.path.in_smdir, norm=False)
+	ok = ok and testcase("^/../e", "./f", False, util.path.in_smdir, norm=False)
+	ok = ok and testcase("../f", "./f", False, util.path.in_smdir, norm=False)
+
 	message("path tests were " + str(ok))
 	return ok
+
+
+
+
+
+
+
