@@ -463,7 +463,7 @@ class BuildOrder:
 
 				#the encoded name: #TODO: maybe also encode the '/' in rsource
 				#debug("inname = " + relpath(order_file.inname))
-				encname = order_file.inname + "-" + generate_oname(crun)
+				encname = relpath(order_file.inname) + "-" + generate_oname(crun)
 
 				#assemble compiler output file without extension
 				encpathname = objdir + "/" + encname

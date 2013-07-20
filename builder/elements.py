@@ -30,7 +30,7 @@ class BuildElement:
 		self.depends_wanted = set()
 		self.depends_finished = set()
 		self.name = smpath(name)
-		self.inname = relpath(name)
+		self.inname = abspath(name)
 		self.outname = ""
 		self.encname = ""
 		self.crun = ""
@@ -227,7 +227,11 @@ class BuildElement:
 
 	def check_needs_build(self):
 		'''
-		set self.needs_build to the correct value
+		checks if this build element needs a compile
+
+		look at the mtimes n stuff for that.
+
+		then, set self.needs_build to the correct value
 		should be overridden if appropriate (e.g. header file)
 		'''
 
@@ -244,7 +248,7 @@ class BuildElement:
 
 				else:
 					#inname does not exist
-					raise Exception("requested " + repr(self) + ".inname does not exist")
+					raise Exception("requested " + repr(self) + ".inname (" + self.inname + ") does not exist")
 
 		else: # outname does not exist
 			self.needs_build = True
@@ -391,7 +395,7 @@ class HeaderFile(BuildElement):
 
 		if util.path.in_smdir(self.inname):
 			self.headertype = HeaderFile.projectheader
-			self.outname = self.inname
+			self.outname = abspath(self.inname)
 		else:
 			self.headertype = HeaderFile.externalheader
 			self.outname = relpath(self.inname)
@@ -430,6 +434,7 @@ class SourceFile(BuildElement):
 		super().__init__(filename)
 		self.objdir = ""
 		self.mdfile = ""
+		#self.outname will be set by the order filling
 
 
 	def run(self):
