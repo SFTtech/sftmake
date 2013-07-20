@@ -209,10 +209,10 @@ def initvars1():
 
 				#create entries for all to-be-used sources by this target
 				for usesrc in sh.data.data['use']:
-					#TODO: create used src path relative to target directory
-					#usesrc = util.path.smpath(usesrc, relto=target.get_dir_smname())
-					usesrc = util.path.smpath(usesrc)
+					#create used src path relative to target directory
+					usesrc = util.path.smpath(usesrc, relto=target.get_dir_smname())
 
+					debug("usesrc for " + t + " -> " + usesrc)
 					variables["use"].assign(
 						conf = conf.configs[t],
 						assignment = assignment.Assignment(
@@ -435,7 +435,7 @@ def main():
 
 	variables, confinfo = initvars1()
 	order.fill(confinfo, variables)
-	debug(pprint.pformat(order.filedict))
+	debug("order filedict =\n" + pprint.pformat(order.filedict))
 
 	#use 4 threads
 	m = builder.builder.JobManager(4)
