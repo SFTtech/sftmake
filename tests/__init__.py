@@ -11,7 +11,7 @@ class test:
 		self.call = funcname
 
 	def run(self):
-		important("TESTING: " + self.name)
+		important(coltext("TESTING: ", "1;32") + self.name)
 		exec("import " + self.module_name)
 		if self.call != None:
 			debug("call will be " + self.call)
