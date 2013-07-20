@@ -41,6 +41,7 @@ def run(which=None):
 	tests.append(test(
 		n="builder.run",
 		modname="tests.builder",
+		funcname="tests.builder.run"
 	))
 
 	tests.append(test(

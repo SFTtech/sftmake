@@ -14,7 +14,7 @@ def run_tests():
 		testlist = sys.argv[1:]
 	else:
 		#the list of default tests
-		testlist = ["util.path", "tests.builder.run"]
+		testlist = ["util.path", "builder.run"]
 
 	tests.run(testlist)
 

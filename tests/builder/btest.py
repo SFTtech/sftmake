@@ -458,5 +458,7 @@ def main():
 	#after all targets:
 	if m.get_error() == 0:
 		important("sftmake builder shutting down regularly")
+		return True
 	else:
-		raise Exception("sftmake builder exiting due to error")
+		error("sftmake builder exiting due to error")
+		return False
