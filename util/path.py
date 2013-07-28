@@ -188,4 +188,8 @@ def in_smdir(path):
 	pass
 
 def parent_folder(path):
-	return os.path.dirname(path)
+	if path == "^":
+		res = "project"
+	else:
+		res = os.path.dirname(path)
+	return res
