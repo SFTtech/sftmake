@@ -24,15 +24,16 @@ class smconfig:
 		print("smconfig call test successful")
 
 	def set(self, key, val):
+
+		#always store the value as a list. because fuck you.
+		if type(val) != list:
+			val = [val]
+
 		self.data[key] = val
 
 	def add(self, key, val):
 		if key in self.data:
-			if type(self.data[key]) == list:
-				self.data[key].append(val)
-			else:
-				raise Exception("can't append value '" + val + "' to key [" + str(key) + "] as it is not a list.")
-
+			self.data[key].append(val)
 		else:
 			self.data[key] = [val]
 
