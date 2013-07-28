@@ -66,11 +66,14 @@ class Config:
 		self.conftype = conftype
 		self.parents = parents
 		self.directory = directory
+		self.childs = []
+		for parent in parents:
+			parent.childs.append(self)
 		configs[name] = self
 
 	def __repr__(self):
-		result = repr(self.conftype) + ": " + self.name + " (dir: " + self.directory
-		result += "; parents: " + repr([paren.name for paren in self.parents]) + ")"
+		result = repr(self.conftype) + ": " + self.name + " (dir: " + self.directory + ")"
+		#result += "; parents: " + repr([paren.name for paren in self.parents]) + ")"
 		return result
 
 	def parenthyperres(self):
@@ -83,3 +86,12 @@ class Config:
 			result.update(parent.parenthyperres())
 		result.append(self)
 		return result
+
+	def treeview(self, indent=0):
+		#TODO: maybe pretty printing with ascii arts
+		res = " "*indent  + repr(self) + "\n"
+
+		for child in self.childs:
+			res += child.treeview(indent + 4)
+
+		return res
