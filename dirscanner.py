@@ -13,7 +13,8 @@
 import os
 import re
 
-from util.path import smpath
+from util.path import smpath, parent_folder
+from util.datatypes import EnumVal
 from logger.levels import *
 
 """
@@ -29,6 +30,8 @@ per source:     ^/foo/srcfile.cpp.smfile       /srcfile.cpp.src.sm   /srcfile.cp
 class smtree:
 
 	#regexes to ignore files/folders
+	#TODO: make this user configurable
+	#ignore pycache, makefiles, .git and hidden files.
 	ignorenames = re.compile(r"(__pycache__$|#.*|(M|m)akefile)|^.git|^\.[^/]")
 
 	#define regexes for the smfile types
@@ -40,26 +43,51 @@ class smtree:
 	def __init__(self, rootpath):
 		self.smroot = rootpath  #path to project dir
 
-		self.root_smfile = None  #the project root smfile
-		self.smfiles = []
-		self.regular_files = []
+		self.root_smfile = []  #the project root smfile
+		self.srcsmfiles = []
+		self.targetsmfiles = []
+		self.dirsmfiles = []
+		self.inlinesmfiles = []
 
+		self.regular_files = []
+		self.smfile_handlers = dict()
+
+		#TODO: really search for files in constructor?
 		self.find_files()
+
+	def execute_smfiles(self):
+		for f in self.get_smfiles():
+			fsmname = f.get_smname() #maybe this should be changed to get_associated_smname?
+			debug("-> new smfile: " + fsmname)
+
+			new_handler = f.create_handler()
+			new_handler.run()
+
+			self.smfile_handlers[fsmname] = new_handler
+
+			debug("smfile handler created: \n" + str(new_handler))
+
 
 	def get_root_smfile(self):
 		"""
 		returns the project root smfile as object of rootsmfile class
 		"""
 
-		if self.root_smfile == None:
-			raise Exception("no root smfile found for this smtree")
-		return self.root_smfile
+		return self.root_smfile[0]
 
 	def get_target_smfiles(self):
-		return [smfile for smfile in self.smfiles if isinstance(smfile, targetsmfile)]
+		return self.targetsmfiles
 
 	def get_source_smfiles(self):
-		return [smfile for smfile in self.smfiles if isinstance(smfile, srcsmfile)]
+		return self.srcsmfiles
+
+	def get_smfiles(self):
+		"""
+		return the list of all found smfile
+		in correct order of priority:
+		"""
+
+		return self.root_smfile + self.dirsmfiles + self.targetsmfiles + self.srcsmfiles + self.inlinesmfiles
 
 	def get_targets(self):
 		raise NotImplementedError()
@@ -74,21 +102,21 @@ class smtree:
 		"""
 
 		debug("scanning " + self.smroot + " for files")
-		for (path, dirs, files) in os.walk(self.smroot):
+		for (dirpath, dirs, files) in os.walk(self.smroot):
 
-			debug("looking in path " + path + " for contents")
+			debug("looking in path " + dirpath + " for contents")
 
-			#check whether we should look into the current folder (path)
+			#check whether we should look into the current folder (dirpath)
 			ignorepath = False
-			if self.ignorenames.match(path):
+			if self.ignorenames.match(dirpath):
 				ignorepath = True
 
 			#the current path will be ignored
 			if ignorepath:
-				debug("ignoring current path: " + path)
+				debug("ignoring current path: " + dirpath)
 				continue
 
-			#all folders in the current folder (path)
+			#all folders in the current folder (dirpath)
 			for d in dirs:
 				ignoredir = False
 				if self.ignorenames.match(d):
@@ -99,7 +127,7 @@ class smtree:
 				if ignoredir:
 					continue
 
-			#all files in the current folder (path)
+			#all files in the current folder (dirpath)
 			for f in files:
 				ignorefile = False
 				if self.ignorenames.match(f):
@@ -108,46 +136,42 @@ class smtree:
 				if ignorefile:
 					continue
 
-				fullpath = path + "/" + f
+				fullpath = dirpath + "/" + f
 
 				#determine smfile type (root, directory, target, source, inline)
 				#is this a root smfile?
 				if self.rootsmfile_names.match(f):
-					if self.root_smfile != None:
-						raise Exception("Another root smfile candidate found: " + path + "/" + f + "\n conflicting with " + repr(self.root_smfile))
+					if len(self.root_smfile) != 0:
+						raise Exception("Another root smfile candidate found: " + dirpath + "/" + f + "\n conflicting with " + repr(self.root_smfile[0]))
 					else:
 						# we found the root smfile
-						self.root_smfile = rootsmfile(path, f)
-						self.smfiles.append(self.root_smfile)
+						self.root_smfile = [ rootsmfile(dirpath, f) ]
 						debug("root-smfile -> " + fullpath)
-						continue
 
 				#is this a directory smfile?
-				if self.directorysm_names.match(f):
+				elif self.directorysm_names.match(f):
 					# a directory-smfile was found
-					self.smfiles.append(dirsmfile(path, f))
+					self.dirsmfiles.append(dirsmfile(dirpath, f))
 					debug("directory-smfile -> " + fullpath)
-					continue
 
 				#is this a target smfile?
-				if self.targetsm_names.match(f):
+				elif self.targetsm_names.match(f):
 					# a target-smfile was found
-					self.smfiles.append(targetsmfile(path, f))
+					self.targetsmfiles.append(targetsmfile(dirpath, f))
 					debug("target-smfile -> " + fullpath)
-					continue
 
 				#is this a source smfile?
-				if self.sourcesm_names.match(f):
+				elif self.sourcesm_names.match(f):
 					# a source-smfile was found
-					self.smfiles.append(srcsmfile(path, f))
+					self.srcsmfiles.append(srcsmfile(dirpath, f))
 					debug("source-smfile -> " + fullpath)
-					continue
 
-				#if we reach this point, the file is no smfile.
-				debug("regular file => " + fullpath)
+				else:
+					#if we reach this point, the file is no smfile.
+					debug("regular file => " + fullpath)
 
-				rfile = simple_file(path, f)
-				self.regular_files.append(rfile)
+					rfile = simple_file(dirpath, f)
+					self.regular_files.append(rfile)
 
 	def __repr__(self):
 		return "smfile-tree: " + str(len(self.smfiles)) + " smfiles found"
@@ -166,13 +190,12 @@ class smtree:
 		return txt
 
 
-
 class simple_file:
 	"""
 	any ordinary file...
 	"""
-	def __init__(self, path, filename):
-		self.directory = path
+	def __init__(self, basename, filename):
+		self.directory = basename
 		self.filename = filename
 		self.fullname = self.directory + "/" + self.filename
 		self._smname = None
@@ -212,7 +235,7 @@ class smfile(simple_file):
 		self.smhandler = None
 
 	def __repr__(self):
-		return "smfile " + str(type(self)) + " -> " + self.fullname
+		return get_filetype_str(self) + " -> " + self.fullname
 
 	def smcontent(self):
 		"""
@@ -233,14 +256,17 @@ class smfile(simple_file):
 		return self.smhandler
 
 	def get_associated_smname(self):
-		raise NotImplementedError("This has to be implemented for the specific smfile types, you are calling the method of the base class.")
+		raise NotImplementedError("This has to be implemented for the specific smfile types, you are calling the method of the base class. type(self)=" + str(type(self)))
 
 
 class rootsmfile(smfile):
 	def __init__(self, path, filename):
 		super().__init__(path, filename)
 
-class dirsmfiles(smfile):
+	def get_associated_smname(self):
+		return "project"
+
+class dirsmfile(smfile):
 	def __init__(self, path, filename):
 		super().__init__(path, filename)
 
@@ -308,3 +334,40 @@ class inlinesmfile(smfile):
 
 	def get_associated_smname(self):
 		return self.get_smname()
+
+
+FILE_SMFILE = EnumVal("abstract smfile")
+FILE_SRCSMFILE = EnumVal("source-smfile")
+FILE_TARGETSMFILE = EnumVal("target-smfile")
+FILE_DIRSMFILE = EnumVal("directory-smfile")
+FILE_INLINESMFILE = EnumVal("inline-smfile")
+FILE_ROOTSMFILE = EnumVal("root-smfile")
+FILE_FILE = EnumVal("regular file")
+
+def get_filetype(sf):
+	if isinstance(sf, srcsmfile):
+		return FILE_SRCSMFILE
+
+	elif isinstance(sf, targetsmfile):
+		return FILE_TARGETSMFILE
+
+	elif isinstance(sf, dirsmfile):
+		return FILE_DIRSMFILE
+
+	elif isinstance(sf, inlinesmfile):
+		return FILE_INLINESMFILE
+
+	elif isinstance(sf, rootsmfile):
+		return FILE_ROOTSMFILE
+
+	elif isinstance(sf, smfile):
+		return FILE_SMFILE
+
+	elif isinstance(sf, simple_file):
+		return FILE_FILE
+
+	else:
+		raise Exception("unknown smfile type, fak u.")
+
+def get_filetype_str(sf):
+	return str(get_filetype(sf))
