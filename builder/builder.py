@@ -28,7 +28,7 @@ from logger.levels import *
 
 import util
 import util.misc
-from util.path import abspath,smpath,relpath,rppath
+from util.path import abspath,smpath,relpath
 from util.path import generate_oname
 import conf
 import conf.config
