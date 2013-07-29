@@ -282,12 +282,9 @@ def initvars(projectpath):
 				#create the variable if it is not yet existing
 				if not setting in variables:
 					debug("creating variable '" + setting + "'")
-					variables[setting] = variable.Var(name=setting)
 
-				#development support: disable all unknown variables
-				if setting not in ['use', 'c', 'ldflags', 'cflags', 'depends']:
-					message("ignoring your setting for '" + str(setting) + "' in " + repr(smfile) + " for now.")
-					continue
+					#TODO: set other var properties!
+					variables[setting] = variable.Var(name=setting)
 
 				#the value which the user has set in the smfile
 				userval = smhandler.data.data[setting]
@@ -315,6 +312,7 @@ def initvars(projectpath):
 
 					elif expectedtype == variable.VALTYPE_PATH:
 						#make path relative to the folder where the smfile was found
+						#TODO: this should be done by the Literal itself
 						val = util.path.smpath(assign_val, relto=dn)
 
 					elif expectedtype == variable.VALTYPE_STRING:
