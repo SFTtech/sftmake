@@ -7,106 +7,30 @@ from logger.levels import *
 smroot = None
 
 
-def abspath(path, relto = '^'):
-	"""
-	if path is absolute, don't change it
-	if path is smpath, convert it to absolute
-	if path is rel, convert it to absolute
-	"""
-
-	#if the path is empty, fak u
-	if not path:
-		raise Exception('Path must not be empty')
-
-	smroot = get_smroot()
-
-	#if the path starts with '/', it's already absolute
-	if path[0] == '/':
-		#debug("already abspath")
-		result = path
-
-	#if the path starts with '^', we need to replace that with smroot
-	elif path[0] == '^':
-		#debug("replacing ^ with real smroot")
-		result = smroot + '/' + path[1:]
-
-	#else, the path is relative... to relto
-	else:
-		#debug("making path absolute to relto")
-		#debug("- path: " + path)
-		#debug("- relto: " + relto)
-		if relto[0] != '^':
-			raise Exception('relto must start with ^')
-
-		abs_relto = abspath(relto)
-		#debug("=> making " + relto + " absolute = " + abs_relto)
-		result = abs_relto + "/" + os.path.relpath(path, abs_relto)
-
-	#debug("- result: " + result)
-	return os.path.normpath(result)
-
-def relpath(path, relto = '^'):
-	"""
-	if path is absolute, convert it to rel
-	if path is smpath, convert it to rel
-	if path is rel, don't change it
-	"""
-
-	if not path: #fak u
-		raise Exception("Path must not be empty")
-
-	if path[0] == '/':
-		result = os.path.relpath(path, abspath(relto))
-
-	elif path[0] == '^':
-		smroot = get_smroot()
-		result = os.path.relpath(smroot + '/' + path[1:], abspath(relto))
-
-	else:
-		smroot = get_smroot()
-		result = os.path.relpath(path, abspath(relto))
-
-	return result
-
-def smpath(path, relto = '^'):
-	"""
-	if path is absolute, convert it to smpath
-	if path is smpath, don't change it
-	if path is rel, convert it to smpath
-	"""
-
-	#if the path is empty, fak u
-	if not path:
-		raise Exception("Path must not be empty")
-
-	smroot = get_smroot()
-
-	#if the path starts with '^', it's an sftmake path that may need a relative conversion
-	if path[0] == '^':
-		path = smroot + '/' + path[1:]
-
-	#else, get relative path
-	if not path[0] == '/':
-		path = abspath(path, relto)
-
-	#generate path relative to smroot (to just add ^ then)
-	path = os.path.relpath(path, smroot)
-
-	if(path == '.'):
-		return '^'
-	else:
-		return '^/' + path
+def relpath(path, relto = "^"):
+	#debug("making relpath of '" + path + "' relative to '" + relto + "'")
+	if relto[0] == '^':
+		relto = get_smroot() + relto[1:]
+	if path[0] != '^':
+		return path
+	res = os.path.relpath(path[2:],relto)
+	#debug("result = " + res)
+	return res
 
 
-def rppath(path):
-	"""
-	append the smroot to the given path
-	"""
+def smpath(path, relto = "^"):
+	#debug("making smpath of '" + path + "' relative to '" + relto + "'")
+	if path[0] in '^': #TODO: maybe '^/'
+		return path
+	if relto[0] == '^':
+		relto = get_smroot() + relto[1:]
 
-	if path[0] == '^':
-		raise Exception("fak u, you already got a smpath as prefix...")
+	res = '^/' + os.path.relpath(path, relto)
+	#debug("result = " + res)
+	return res
 
-	return os.path.normpath(get_smroot() + "/" + path)
+def abspath(path, relto = "^"):
+	return relpath(path, relto)
 
 
 def smpathifrel(path, relto = '^'):
