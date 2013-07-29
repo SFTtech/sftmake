@@ -126,8 +126,8 @@ def initvars(projectpath):
 	conf_project = Config(name="project", conftype=Config.TYPE_BASE, parents = [], directory='^')
 
 	variables["c"] = Var(name='c', valtype=variable.VALTYPE_STRING, valcount = variable.VALCOUNT_SINGLE)
-	variables["build"] = variable.Var(name='build', assignmentscope=variable.ASSIGNMENTSCOPE_GLOBAL)
-	variables["use"] = variable.Var(name='use')
+	variables["build"] = variable.Var(name='build', assignmentscope=variable.ASSIGNMENTSCOPE_GLOBAL, valtype=variable.VALTYPE_PATH)
+	variables["use"] = variable.Var(name='use', valtype=variable.VALTYPE_PATH)
 	variables["srcsuffix"] = variable.Var(name='srcsuffix')
 	variables["cflags"] = variable.Var(name='cflags')
 	variables["ldflags"] = variable.Var(name='ldflags')
