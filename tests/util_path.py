@@ -1,19 +1,26 @@
 #!/usr/bin/env python
 
-import util.path
+from util.path import set_smroot, smpath, relpath, abspath, in_smdir
 import os.path
 
 from logger.levels import *
 
+def testcase(function, inp, ssmroot, expected, rel="^", norm=True):
 
-def testcase(inp, ssmroot, expected, function, norm=True):
+	set_smroot(ssmroot)
 
-	util.path.set_smroot(ssmroot)
+	if rel == "^":
+		reltxt = ""
+	else:
+		reltxt = ", relative base = " + rel
 
-	message("testing " + str(function) + ", smroot = " + ssmroot)
+	message("testing " + str(function) + ", smroot = " + ssmroot + reltxt)
 	message("input = " + inp)
 
-	result = function(inp)
+	if rel == "^":
+		result = function(inp)
+	else:
+		result = function(inp, relto=rel)
 
 	message("expected = " + str(expected))
 	message("result   = " + str(result))
@@ -36,21 +43,17 @@ def testcase(inp, ssmroot, expected, function, norm=True):
 
 def run():
 	ok = True
-	ok = ok and testcase("./subdir/myfile.lol", "./subdir", "./subdir/myfile.lol", util.path.abspath)
-	ok = ok and testcase("./subdir/myfile.lol", "./subdir", "^/myfile.lol", util.path.smpath)
-	ok = ok and testcase("./myfile.lol", ".", "./myfile.lol", util.path.abspath)
-	ok = ok and testcase("./myfile.lol", ".", "^/myfile.lol", util.path.smpath)
-	ok = ok and testcase("./f/ie", "./f", "./ie", util.path.relpath)
-	ok = ok and testcase("^/ie", "./f", "./f/ie", util.path.abspath)
-	ok = ok and testcase("^/ie", "./f", "ie", util.path.relpath)
+	ok = ok and testcase(smpath, "^/myfile.lol", ".", "^/myfile.lol")
+	ok = ok and testcase(smpath, "myfile.lol", ".", "^/myfile.lol")
+	ok = ok and testcase(abspath, "^/myfile.lol", ".", "myfile.lol")
+	ok = ok and testcase(abspath, "myfile.lol", ".", "myfile.lol")
 
-	ok = ok and testcase("./f/ie", "./f", True, util.path.in_smdir, norm=False)
-	ok = ok and testcase("^/ie", "./f", True, util.path.in_smdir, norm=False)
-	ok = ok and testcase("^/f/ie", "./f", True, util.path.in_smdir, norm=False)
-
-	ok = ok and testcase("/i/e", "./f", False, util.path.in_smdir, norm=False)
-	ok = ok and testcase("^/../e", "./f", False, util.path.in_smdir, norm=False)
-	ok = ok and testcase("../f", "./f", False, util.path.in_smdir, norm=False)
+	ok = ok and testcase(in_smdir, "./f/ie", "./f", True, norm=False)
+	ok = ok and testcase(in_smdir, "^/ie", "./f", True, norm=False)
+	ok = ok and testcase(in_smdir, "^/f/ie", "./f", True, norm=False)
+	ok = ok and testcase(in_smdir, "/i/e", "./f", False, norm=False)
+	ok = ok and testcase(in_smdir, "^/../e", "./f", False, norm=False)
+	ok = ok and testcase(in_smdir, "../f", "./f", False, norm=False)
 
 	message("path tests were " + str(ok))
 	return ok
