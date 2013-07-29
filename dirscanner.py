@@ -13,7 +13,7 @@
 import os
 import re
 
-from util.path import smpath, parent_folder
+from util.path import smpath
 from util.datatypes import EnumVal
 from logger.levels import *
 
@@ -40,8 +40,12 @@ class smtree:
 	targetsm_names    = re.compile(r"^(.+)\.(target\.(sm|smfile)|smtarget)(\.py)?$")
 	sourcesm_names    = re.compile(r"^(.+)\.((src|source)\.(sm|smfile)|smsrc)(\.py)?$")
 
-	def __init__(self, rootpath):
-		self.smroot = rootpath  #path to project dir
+	def __init__(self, rootpath="."):
+		#path to project dir
+		self.smroot = self.find_smroot(rootpath)
+
+		#change working dir to root:
+		os.chdir(self.smroot)
 
 		self.root_smfile = []  #the project root smfile
 		self.srcsmfiles = []
@@ -54,6 +58,42 @@ class smtree:
 
 		#TODO: really search for files in constructor?
 		self.find_files()
+
+	def find_smroot(self, basepath):
+		"""
+		find the smroot starting at basepath
+		by looking for a root smfile
+		"""
+
+		final_root = None
+
+		root_candidate = os.path.abspath(basepath)
+
+		debug("Trying to find the project root directory")
+
+		#continue until we reach /
+		while True:
+			debug("trying " + root_candidate)
+
+			for f in os.listdir(root_candidate):
+				if self.rootsmfile_names.match(f):
+					if final_root != None:
+						raise Exception("Another root smfile candidate found: " + root_candidate + "/" + f + "\n conflicting with " + final_root)
+					else:
+						# we found a root smfile
+						final_root = root_candidate
+						debug("root found -> " + final_root)
+
+			#TODO: maybe be intelligent as git and detect filesystem bounds
+			if final_root != None or root_candidate == "/":
+				#if final root was found (TODO: really?)
+				#or we reached /, stop searching.
+				break
+			else:
+				# go up ../
+				root_candidate = os.path.dirname(root_candidate)
+
+		return final_root
 
 	def execute_smfiles(self):
 		for f in self.get_smfiles():
