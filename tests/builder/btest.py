@@ -174,28 +174,6 @@ def initvars(projectpath):
 	)
 
 
-	variables["prebuild"].assign(
-		conf = conf_project,
-		assignment = assignment.Assignment(
-			expressionlist = expr.Literal(conf.configs['project'], "echo rein"),
-			condition = boolexpr.CondTreeNode_True(),
-			mode = assignment.MODE_APPEND,
-			src = "hardcoded in btest"
-		)
-	)
-
-
-	variables["postbuild"].assign(
-		conf = conf_project,
-		assignment = assignment.Assignment(
-			expressionlist = expr.Literal(conf.configs['project'], "echo raus"),
-			condition = boolexpr.CondTreeNode_True(),
-			mode = assignment.MODE_APPEND,
-			src = "hardcoded in btest"
-		)
-	)
-
-
 	variables["autodepends"].assign(
 		conf = conf_project,
 		assignment = assignment.Assignment(
