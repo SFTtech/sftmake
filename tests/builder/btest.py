@@ -103,11 +103,7 @@ def create_config(name, parent, ctype):
 		debug("creating dir parent config for " + str(name) + ": " + str(c))
 		Config(c, Config.TYPE_DIR, iparentconf, iparent)
 
-	if len(config_stack) > 0:
-		#now we fetch the real newly created parent config of 'name'
-		parentconf = [config_stack.pop()]
-	else:
-		parentconf = [conf.configs[parent]]
+	parentconf = [conf.configs[parent]]
 
 	debug("creating requested config '" + name + "' (" + str(ctype) + ") now.")
 	#create the desired configuration nodes

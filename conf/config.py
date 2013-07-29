@@ -1,6 +1,7 @@
 from util.datatypes import EnumVal, OrderedSet
 
 from conf import configs
+from logger.levels import *
 
 class Config:
 	"""
@@ -67,6 +68,7 @@ class Config:
 		self.parents = parents
 		self.directory = directory
 		self.childs = []
+
 		for parent in parents:
 			parent.childs.append(self)
 		configs[name] = self
