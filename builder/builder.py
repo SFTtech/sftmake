@@ -428,7 +428,7 @@ class BuildOrder:
 				)
 
 		debug("===== src-for-target configs:")
-		debug(pprint.pformat(conf.configs))
+		debug(conf.configs["project"].treeview())
 		debug("===== end of configs")
 
 

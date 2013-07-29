@@ -173,17 +173,6 @@ def initvars1():
 	)
 
 
-	variables["ldflags"].assign(
-		conf = conf_project,
-		assignment = assignment.Assignment(
-			expressionlist = expr.Literal(conf.configs['project'], "-L ./sftmake-testproject/ -l lol"),
-			condition = boolexpr.CondTreeNode_True(),
-			mode = assignment.MODE_APPEND,
-			src = "hardcoded in btest"
-		)
-	)
-
-
 	variables["prebuild"].assign(
 		conf = conf_project,
 		assignment = assignment.Assignment(
@@ -209,7 +198,7 @@ def initvars1():
 	variables["autodepends"].assign(
 		conf = conf_project,
 		assignment = assignment.Assignment(
-			expressionlist = expr.Literal(conf.configs['project'], "MD"),
+			expressionlist = expr.Literal(conf.configs['project'], "no"), #"MD"),
 			condition = boolexpr.CondTreeNode_True(),
 			mode = assignment.MODE_APPEND,
 			src = "hardcoded in btest"
@@ -322,7 +311,7 @@ def initvars1():
 					variables[setting] = variable.Var(name=setting)
 
 				#development support: disable all unknown variables
-				if setting not in ['use', 'c']:
+				if setting not in ['use', 'c', 'ldflags', 'cflags', 'depends']:
 					message("ignoring your setting for '" + str(setting) + "' in " + repr(smfile) + " for now.")
 					continue
 
@@ -455,7 +444,7 @@ def initvars1():
 		#debug("===== end of variables")
 
 		debug("===== configs:")
-		debug(pprint.pformat(conf.configs))
+		debug(conf.configs["project"].treeview())
 		debug("===== end of configs")
 
 

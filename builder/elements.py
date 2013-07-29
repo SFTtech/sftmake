@@ -63,10 +63,8 @@ class BuildElement:
 			action = "compiling"
 			with self.worker.manager.filesys_lock:
 				dirname = os.path.dirname(self.outname)
-				if not os.path.exists(dirname):
-					self.worker.wprint("creating output directory '" + dirname + "'")
-					os.mkdir(dirname)
-			#TODO: check if dir is writable
+				os.makedirs(dirname, exist_ok=True)
+				#TODO: check if dir is writable
 
 		if self.prebuild:
 			failat = "prebuilding"
