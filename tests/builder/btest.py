@@ -230,13 +230,11 @@ def initvars(projectpath):
 
 	#scan the project root with the dirscanner.py:
 	filetree = smtree(rootpath=projectpath)
-	project_smfile = filetree.get_root_smfile()
 
-	new_root = filetree.get_root_smfile().directory
-	message("===>  new smroot path: " + new_root)
+	new_root = filetree.smroot
+	important("===> smroot path: " + new_root)
 
 	util.path.set_smroot(new_root)
-
 
 	debug("--- executing smfiles")
 
