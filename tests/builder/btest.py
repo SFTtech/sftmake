@@ -111,7 +111,7 @@ def create_config(name, parent, ctype):
 
 
 
-def initvars1():
+def initvars(projectpath):
 	'''
 	approach of creating the config via python by using conf infrastructure
 	'''
@@ -226,9 +226,6 @@ def initvars1():
 			src = "default configuration"
 		)
 	)
-
-
-	projectpath = "./sftmake-testproject"
 
 	#scan the project root with the dirscanner.py:
 	filetree = smtree(rootpath=projectpath)
@@ -452,7 +449,7 @@ def initvars1():
 
 
 
-def main():
+def main(projectroot):
 	#import sys
 	#dirty redirection of python error messages to logger
 	#sys.stderr.write = lambda message: error(message)
@@ -460,7 +457,7 @@ def main():
 	important("fak u dolan")
 	order = builder.builder.BuildOrder()
 
-	variables, confinfo = initvars1()
+	variables, confinfo = initvars(projectroot)
 	order.fill(confinfo, variables)
 	debug("order filedict =\n" + pprint.pformat(order.filedict))
 

@@ -32,7 +32,7 @@ class smtree:
 	#regexes to ignore files/folders
 	#TODO: make this user configurable
 	#ignore pycache, makefiles, .git and hidden files.
-	ignorenames = re.compile(r"(__pycache__$|#.*|(M|m)akefile)|^.git|^\.[^/]")
+	ignorenames = re.compile(r"(sftmake|__pycache__$|#.*|(M|m)akefile)|^.git|^\.[^/]")
 
 	#define regexes for the smfile types
 	rootsmfile_names  = re.compile(r"^(smfile|root\.smfile)(\.py)?$")
@@ -73,7 +73,10 @@ class smtree:
 		returns the project root smfile as object of rootsmfile class
 		"""
 
-		return self.root_smfile[0]
+		if len(self.root_smfile) > 0:
+			return self.root_smfile[0]
+		else:
+			raise Exception("No root smfile found!  searched for " + str(self.rootsmfile_names.pattern))
 
 	def get_target_smfiles(self):
 		return self.targetsmfiles
