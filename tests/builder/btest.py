@@ -55,12 +55,13 @@ def create_config(name, parent, ctype):
 
 	#fill the to-be-created config stack with missing configs
 	#create a list of parent config names first
-	while not parent in conf.configs:
-		config_stack.append(parent)
-		parent = util.path.parent_folder(parent)
+	cparent = parent
+	while not cparent in conf.configs:
+		config_stack.append(cparent)
+		cparent = util.path.parent_folder(cparent)
 
 		#this happens if the parent of ^ is searched
-		if parent == 'project':
+		if cparent == 'project':
 			break
 
 	#after the loop above,
@@ -105,7 +106,7 @@ def create_config(name, parent, ctype):
 
 	parentconf = [conf.configs[parent]]
 
-	debug("creating requested config '" + name + "' (" + str(ctype) + ") now.")
+	debug("creating requested config '" + name + "' (" + str(ctype) + ") with parent " + str(parentconf) + " now.")
 	#create the desired configuration nodes
 	return Config(name, ctype, parentconf, parent)
 
