@@ -39,6 +39,7 @@ from dirscanner import *
 
 
 
+#TODO: make this recursive (create config called again for parents etc)
 def create_config(name, parent, ctype):
 	#create config for target, will be in conf.configs[t]
 
@@ -74,7 +75,7 @@ def create_config(name, parent, ctype):
 
 	confnumber = len(config_stack)
 
-	debug("creating " + str(confnumber) + " parent configurations for '" + str(name) + "':")
+	debug("creating " + str(confnumber) + " parent configuration(s) for '" + str(name) + "':")
 	debug("parents: " + str(config_stack))
 
 	#iterate over the config stack, we need the index
@@ -261,7 +262,7 @@ def initvars1():
 	debug("--- done executing smfiles")
 
 
-	#get all defined smfiles found by the dirscanner
+	#get all defined smfiles/inlineconfs found by the dirscanner
 	smfilelist = filetree.get_smfiles()
 
 	debug("Processing these smfiles: \n" + str("".join( ( str(sf) for sf in smfilelist ) )))
@@ -296,7 +297,6 @@ def initvars1():
 					src = "scanned targets"
 				)
 			)
-
 
 		elif get_filetype(smfile) == FILE_DIRSMFILE:
 			debug("** creating configurations for directory " + an)
@@ -389,56 +389,60 @@ def initvars1():
 
 	debug("======== iterating over all source files")
 
-	sourcelist = filetree.get_sources() #replace by scanned/use list
-	for source in sourcelist:
+	#calculate the list of all needed sources, by examining all "use" settings of targets
+	targetlist = variables["build"].eval(conf_project)
+	debug("list of all targets: " + str(targetlist.tolist()))
+
+	needed_sources_smnames = set()
+	for t in targetlist:
+		needed_sources_smnames = needed_sources_smnames | set(variables["use"].eval(conf.configs[t]).tolist())
+
+	all_sources = filetree.get_sources()
+	debug("dirscanner found these sources:\n" + str(all_sources))
+
+	#we now overlay the key names (needed_sources) with the keys of all_sources
+	#to only keep the needed elements of all_sources
+	#TODO: this surely can be boosted somehow...
+	needed_sources = set()
+	for source in all_sources:
+		if source.get_smname() in needed_sources_smnames:
+			needed_sources.add(source)
+
+	#this calculated a set of sources which will be built sometime.
+	debug("found needed sources: " + str(needed_sources))
+
+	for source in needed_sources:
 		#iterate over all source files and create configs for them
 		#create "target uses" entries for usedby declarations
 		#and ignore files not being used or having no configuration (e.g. srcsmfile or inline)
 
-		dn = source.get_dir_smname()
 		sn = source.get_smname()
+		dn = source.get_dir_smname()
 
-		#get the list of all suffixes currently enabled
-		patternlist = variables["srcsuffix"].eval(conf.configs[dn])
+		#only create the source config if it has no config yet
+		if sn not in conf.configs:
+			debug("** creating configurations for source " + sn)
+			create_config(sn, dn, Config.TYPE_SRC)
 
-		srcfileregex = r".*("
-		start = True
-		for p in patternlist:
-			srcfileregex += p + (r"|" if not start else "")
-			start = False
-			srcfileregex += r")$"
+		#a file may have specifications in which targets it is used
+		# -> usedby = [targets] in which source is used
 
-		if not re.match(srcfileregex, sn):
-			debug("skipped -> " + sn + ", not matching " + srcfileregex)
-			continue
+		#TODO: get usedby assignments for this sourcefile!
+		usedbytargets = []
 
-		else:
-			debug("using source -> " + sn + ", matching " + srcfileregex)
-
-			if an not in conf.configs:
-				#only create the source config if it has no config yet
-				debug("** creating configurations for source " + sn)
-				create_config(an, dn, Config.TYPE_SRC)
-
-			#a file may have specifications in which targets it is used
-			# -> usedby = [targets] in which source is used
-
-			#TODO: get usedby assignments for this sourcefile!
-			usedbytargets = []
-
-			#TODO!!
-			# move the file 'usedby' target definitions
-			# into the target, so it 'uses' the source
-			for target in usedbytargets:
-				variables["usedby"].assign(
-					conf = "asdf TODO",
-					assignment = assignment.Assignment(
-						expressionlist = expr.Literal(cfg, target), #TODO: this must be the project configuration
-						condition = boolexpr.CondTreeNode_True(),
-						mode = assignment.MODE_APPEND,
-						src = "usedby definitons"
-					)
+		#TODO!!
+		# move the file 'usedby' target definitions
+		# into the target, so it 'uses' the source
+		for target in usedbytargets:
+			variables["usedby"].assign(
+				conf = "asdf TODO",
+				assignment = assignment.Assignment(
+					expressionlist = expr.Literal(cfg, target), #TODO: this must be the project configuration
+					condition = boolexpr.CondTreeNode_True(),
+					mode = assignment.MODE_APPEND,
+					src = "usedby definitons"
 				)
+			)
 
 
 	debug("----------------------- conv/var generation complete")
