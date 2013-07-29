@@ -2,6 +2,8 @@ import conf.variable as variable
 import conf.function as function
 import itertools
 
+from util.path import smpathifrel
+
 class Expression:
 	def __init__(self, conf):
 		"""
