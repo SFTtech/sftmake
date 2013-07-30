@@ -179,6 +179,8 @@ class smtree:
 				if ignorefile:
 					continue
 
+				#convert current directory relative to smroot
+				dirpath = os.path.relpath(dirpath, self.smroot)
 				fullpath = dirpath + "/" + f
 
 				#determine smfile type (root, directory, target, source, inline)
