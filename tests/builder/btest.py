@@ -348,6 +348,8 @@ def initvars(projectpath):
 	for t in targetlist:
 		needed_sources_smnames = needed_sources_smnames | set(variables["use"].eval(conf.configs[t]).tolist())
 
+	debug("found needed source smnames: " + str(needed_sources_smnames))
+
 	all_sources = filetree.get_sources()
 	debug("dirscanner found these sources:\n" + str(all_sources))
 
@@ -356,8 +358,16 @@ def initvars(projectpath):
 	#TODO: this surely can be boosted somehow...
 	needed_sources = set()
 	for source in all_sources:
-		if source.get_smname() in needed_sources_smnames:
+		ssmname = source.get_smname()
+		#debug("smname of " + repr(source) + " = " + ssmname )
+		if ssmname in needed_sources_smnames:
 			needed_sources.add(source)
+			needed_sources_smnames.remove(ssmname)
+
+	if len(needed_sources_smnames) > 0:
+		#TODO: show the location where the missing source
+		# was wanted! (to which target it belongs)
+		raise Exception("not all sources were found! missing:\n" + "\n".join(needed_sources_smnames))
 
 	#this calculated a set of sources which will be built sometime.
 	debug("found needed sources: " + str(needed_sources))
