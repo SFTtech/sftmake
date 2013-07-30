@@ -25,11 +25,14 @@ def smpath(path, relto = "^"):
 	if relto[0] == '^':
 		relto = get_smroot() + relto[1:]
 
-	res = '^/' + os.path.relpath(path, relto)
+	#debug("relto = " + relto)
+
+	res = '^/' + os.path.relpath(relto + '/' + path, get_smroot())
 	#debug("result = " + res)
 	return res
 
 def abspath(path, relto = "^"):
+	#TODO: implement real abspath functionality again...
 	return relpath(path, relto)
 
 
