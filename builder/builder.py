@@ -416,8 +416,10 @@ class BuildOrder:
 			message(t)
 		message("================================== end of target list")
 
+		debug("creating source-for-target configurations...")
 		for target in targetlist:
 			for source in variables["use"].eval(conf.configs[target]):
+				debug(repr(target) + " uses " + repr(source))
 				targetconf = conf.configs[target]
 				sourceconf = conf.configs[source]
 				newconf = conf.config.Config(
