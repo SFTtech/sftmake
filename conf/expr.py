@@ -3,6 +3,7 @@ import conf.function as function
 import itertools
 
 from util.path import smpathifrel
+from logger.levels import *
 
 class Expression:
 	def __init__(self, conf):
