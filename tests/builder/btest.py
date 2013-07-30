@@ -289,31 +289,24 @@ def initvars(projectpath):
 				#the value which the user has set in the smfile
 				userval = smhandler.data.data[setting]
 
-				#the type of the current variable, which the user has set in the smfile
-				vtype = type(userval)
-
-
-				if type(userval) != list:
-					userval = [userval]
-
-
-				#switch by type of this var (predefined mandatory ones) (dir, int, string)
-				#and by valcount (single, list)
-				#create used src path relative to target directory (if type dir)
-				#(create var for v if not yet existing (for user created vars))
-
+				#the type of values the variable expects
 				expectedtype = variables[setting].valtype
 
 				#iterate over all assignments the user made for this smfile
 				for assign_val in userval:
 
+					#TODO: this whole type conversion block is already
+					# done by conf.expr.Expression!
 					if expectedtype == variable.VALTYPE_INT:
 						val = int(assign_val)
 
 					elif expectedtype == variable.VALTYPE_PATH:
 						#make path relative to the folder where the smfile was found
 						#TODO: this should be done by the Literal itself
-						val = util.path.smpath(assign_val, relto=dn)
+						#debug("==>"+assign_val + " converting relative to " + dn)
+						#val = util.path.smpath(assign_val, relto=dn)
+						#debug("==>" + val)
+						val = assign_val
 
 					elif expectedtype == variable.VALTYPE_STRING:
 						#add a string value, simple and easy...
@@ -347,6 +340,7 @@ def initvars(projectpath):
 	debug("======== iterating over all source files")
 
 	#calculate the list of all needed sources, by examining all "use" settings of targets
+	debug("calculating target list...")
 	targetlist = variables["build"].eval(conf_project)
 	debug("list of all targets: " + str(targetlist.tolist()))
 
